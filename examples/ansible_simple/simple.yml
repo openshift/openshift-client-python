@@ -1,0 +1,46 @@
+---
+- hosts: localhost
+  gather_facts: False
+  roles:
+    - openshift
+  tasks:
+
+    - name: Set var
+      set_fact:
+        user_name: "Justin Pierce"
+
+    - name: Set var
+      set_fact:
+        x: 5
+
+    - name: Set var
+      set_fact:
+        y: "{{x}}"
+
+
+    - name: Run helloworld
+      openshift:
+        script: |
+
+          jupierce = oc.create_if_absent({
+              "apiVersion": "v1",
+              "kind": "User",
+              "fullName": "{{user_name}}",
+              "groups": null,
+              "identities": [
+                "github:19783215"
+              ],
+              "metadata": {
+                "name": "jupierce"
+              }
+            }
+          )
+
+          jupierce.label({ "hello" : "goodbye2" })
+          new_facts.pods = oc.selector("pods").names()
+
+      register: result
+
+    - name: Show result
+      debug:
+        msg: "{{result}}"
