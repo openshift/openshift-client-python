@@ -85,7 +85,12 @@ class ListModel(list):
 
     def __getitem__(self, index):
         if super(self.__class__, self).__len__() > index:
-            return to_model_or_val(super(self.__class__, self).__getitem__(index))
+            v = super(self.__class__, self).__getitem__(index)
+            if isinstance(v, Model):
+                return v
+            v = to_model_or_val(v)
+            self.__setitem__(index, v)
+            return v
 
         # Otherwise, trigger out of bounds exception
         return super(self.__class__, self).__getitem__(index)
@@ -156,7 +161,12 @@ class Model(dict):
 
     def __getattr__(self, attr):
         if super(Model, self).__contains__(attr):
-            return to_model_or_val(super(self.__class__, self).get(attr))
+            v = super(self.__class__, self).get(attr)
+            if isinstance(v, Model):
+                return v
+            v = to_model_or_val(v)
+            self.__setattr__(attr, v)
+            return v
         else:
             return Missing
 
