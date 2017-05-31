@@ -33,6 +33,9 @@ class Action(Model):
 def oc_action(context, verb, *args, **kwargs):
     cmds = ["oc", verb]
 
+    if context.get_config() is not None:
+        cmds.append("--config=%s" % context.get_config())
+
     if context.get_cluster() is not None:
         cmds.append("--server=%s" % context.get_cluster())
 

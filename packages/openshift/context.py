@@ -18,6 +18,7 @@ import yaml
 context = local()
 
 context.stack = []
+context.default_config = None
 context.default_cluster = None
 context.default_project = None
 context.default_token = None
@@ -32,6 +33,7 @@ class Context(object):
 
     def __init__(self):
         self.parent = None
+        self.config = None
         self.cluster_name = None
         self.project_name = None
         self.token = None
@@ -55,6 +57,13 @@ class Context(object):
         if self.parent is not None:
             return self.parent.get_cluster()
         return context.default_cluster
+
+    def get_config(self):
+        if self.config is not None:
+            return self.config
+        if self.parent is not None:
+            return self.parent.get_config()
+        return context.default_config
 
     def get_project(self):
         if self.project_name is not None:
@@ -161,6 +170,11 @@ def cluster(name):
     c.cluster_name = name
     return c
 
+
+def config(path):
+    c = Context()
+    c.config = path
+    return c
 
 def timeout(seconds):
     c = Context()
