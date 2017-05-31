@@ -60,10 +60,12 @@ def oc_action(context, verb, *args, **kwargs):
         # Be aware of Python2/3 differences in modifying while iterating
         # a list before trying to optimize here.
         reference = dict(kwargs["reference"])
-        for k, v in kwargs["reference"].items():
-            content = str(v).lower()
-            if "secret" in content or "password" in content:
-                reference[k] = "redacted due potentially private data"
+
+        if context.get_redact_references():
+            for k, v in kwargs["reference"].items():
+                content = str(v).lower()
+                if "secret" in content or "password" in content:
+                    reference[k] = "redacted due potentially private data"
 
     # Arguments which are lists are flattened into the command list
     for a in args:
@@ -74,9 +76,10 @@ def oc_action(context, verb, *args, **kwargs):
 
     redacted_cmds = list(cmds)
 
-    for i, s in enumerate(redacted_cmds):
-        if s.startswith("--token"):
-            redacted_cmds[i] = "--token=XXXXXXXXXXX"
+    if context.get_redact_tokens():
+        for i, s in enumerate(redacted_cmds):
+            if s.startswith("--token"):
+                redacted_cmds[i] = "--token=XXXXXXXXXXX"
 
     period = 0.01
 

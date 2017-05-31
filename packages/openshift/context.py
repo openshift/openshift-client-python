@@ -23,6 +23,8 @@ context.default_cluster = None
 context.default_project = None
 context.default_token = None
 context.default_loglevel = None
+context.default_redact_references = True
+context.default_redact_tokens = True
 
 
 def cur_context():
@@ -41,6 +43,8 @@ class Context(object):
         self.change_tracker = None
         self.context_result = None
         self.timeout_datetime = None
+        self.redact_references = None
+        self.redact_tokens = None
 
     def __enter__(self):
         if len(context.stack) > 0:
@@ -87,6 +91,20 @@ class Context(object):
         if self.parent is not None:
             return self.parent.get_loglevel()
         return context.default_loglevel
+
+    def get_redact_references(self):
+        if self.redact_references is not None:
+            return self.redact_references
+        if self.parent is not None:
+            return self.parent.get_redact_references()
+        return context.default_redact_references
+
+    def get_redact_tokens(self):
+        if self.redact_tokens is not None:
+            return self.redact_tokens
+        if self.parent is not None:
+            return self.parent.get_redact_tokens()
+        return context.default_redact_tokens
 
     # Returns true if any surrounding timeout context is
     # expired.
@@ -176,6 +194,7 @@ def config(path):
     c.config = path
     return c
 
+
 def timeout(seconds):
     c = Context()
     if seconds is not None:
@@ -190,6 +209,22 @@ def loglevel(v):
     c.loglevel_value = v
     return c
 
+
+def mode(redact=None, redact_references=None, redact_tokens=None):
+    c = Context()
+
+    # Shorthand for turning off all redaction
+    if redact is not None:
+        c.redact_tokens = redact
+        c.redact_references = redact
+
+    if redact_references is not None:
+        c.redact_references = redact_references
+
+    if redact_tokens is not None:
+        c.redact_tokens = redact_tokens
+
+    return c
 
 # Boilerplate for a verb which creates one or more objects.
 def __new_objects_action(verb, *args):
