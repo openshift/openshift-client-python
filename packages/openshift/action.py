@@ -37,7 +37,14 @@ def oc_action(context, verb, *args, **kwargs):
         cmds.append("--config=%s" % context.get_config())
 
     if context.get_cluster() is not None:
-        cmds.append("--server=%s" % context.get_cluster())
+        url = context.get_cluster()
+
+        # If insecure:// is specified, skip TLS verification
+        if url.startswith("insecure://"):
+            url = "https://" + url[len("insecure://"):]
+            cmds.append("--insecure-skip-tls-verify")
+
+        cmds.append("--server=%s" % url)
 
     if context.get_project() is not None and not kwargs.get("no_namespace", False):
         cmds.append("--namespace=%s" % context.get_project())
