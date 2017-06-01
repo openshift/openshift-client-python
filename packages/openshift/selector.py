@@ -105,9 +105,10 @@ class Selector(Result):
     def __iter__(self):
         return self.objects().__iter__()
 
-    def selection_args(self):
+    def selection_args(self, needs_all=False):
         args = []
 
+        # If this is a static selector, just return our list of names.
         if self.object_list is not None:
             return self.object_list
 
@@ -116,6 +117,9 @@ class Selector(Result):
         if self.labels is not None:
             for k, v in self.labels.items():
                 args.append("-l %s=%s" % (k, v))
+        elif needs_all:
+            # e.g. "oc delete pods" will fail unless --all is specified
+            args.append("--all")
 
         return args
 
@@ -321,7 +325,7 @@ class Selector(Result):
         args.append("-o=name")
 
         with ChangeTrackingFor(self.context, *names):
-            r.add_action(oc_action(self.context, "delete", self.selection_args(), *args))
+            r.add_action(oc_action(self.context, "delete", self.selection_args(needs_all=True), *args))
 
         r.fail_if("Error deleting objects")
         r.object_list = split_names(r.out())
