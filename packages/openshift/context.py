@@ -18,7 +18,7 @@ import yaml
 context = local()
 
 context.stack = []
-context.default_config = None
+context.default_kubeconfig_path = None
 context.default_cluster = None
 context.default_project = None
 context.default_token = None
@@ -35,8 +35,8 @@ class Context(object):
 
     def __init__(self):
         self.parent = None
-        self.config = None
-        self.cluster_name = None
+        self.kubeconfig_path = None
+        self.api_url = None
         self.project_name = None
         self.token = None
         self.loglevel_value = None
@@ -55,26 +55,26 @@ class Context(object):
     def __exit__(self, type, value, traceback):
         context.stack.pop()
 
-    def get_cluster(self):
-        if self.cluster_name is not None:
-            return self.cluster_name
+    def get_api_url(self):
+        if self.api_url is not None:
+            return self.api_url
         if self.parent is not None:
-            return self.parent.get_cluster()
+            return self.parent.get_api_url()
         return context.default_cluster
 
-    def get_config(self):
-        if self.config is not None:
-            return self.config
+    def get_kubeconfig_path(self):
+        if self.kubeconfig_path is not None:
+            return self.kubeconfig_path
         if self.parent is not None:
-            return self.parent.get_config()
-        return context.default_config
+            return self.parent.get_kubeconfig_path()
+        return context.default_kubeconfig_path
 
     def get_project(self):
         if self.project_name is not None:
             return self.project_name
         # if cluster is changing, don't check parent for project
         # with project must always be inside with cluster.
-        if self.cluster_name is None and self.parent is not None:
+        if self.api_url is None and self.parent is not None:
             return self.parent.get_project()
         return context.default_project
 
@@ -148,8 +148,12 @@ class Context(object):
             c = c.parent
 
 
-def set_default_cluster(name):
-    context.default_cluster = name
+def set_default_kubeconfig_path(path):
+    context.default_kubeconfig_path = path
+
+
+def set_default_api_url(url):
+    context.default_api_url = url
 
 
 def set_default_project(name):
@@ -164,13 +168,45 @@ def set_default_loglevel(v):
     context.default_loglevel = v
 
 
+def cluster(api_url=None, kubeconfig_path=None):
+    """
+    Establishes a context in which inner oc interactions
+    will target the specified OpenShift cluster. cluster contexts
+    can be nested. The most immediate ancestor cluster context
+    will define the cluster targeted by an action.
+    :param name: The name of the project.
+    :return: The context object. Can be safely ignored.
+    """
+
+    c = Context()
+    c.kubeconfig_path = kubeconfig_path
+    c.api_url = api_url
+    return c
+
+
 def project(name):
+    """
+    Establishes a context in which inner oc interactions
+    will impact the named OpenShift project. project contexts
+    can be nested. The most immediate ancestor project context
+    will define the project used by an action.
+    :param name: The name of the project.
+    :return: The context object. Can be safely ignored.
+    """
     c = Context()
     c.project_name = name
     return c
 
 
 def tracker():
+    """
+    Establishes a context in which all inner actions will
+    be tracked. Trackers can be nested -- all actions
+    performed within a tracker's context will be tracked.
+    :return: The tracker context. If the returned object
+        ever has a non-zero length for its change_tracker
+        attribute, changes have been made on the server.
+    """
     c = Context()
     c.change_tracker = []
     c.context_result = Result("tracker")
@@ -178,39 +214,68 @@ def tracker():
 
 
 def token(v):
+    """
+    Establishes a context in which inner oc interactions
+    will use the specified authentication token. token contexts
+    can be nested. The most immediate ancestor token context
+    will define the credentials used by an action.
+    :param v: The token value.
+    :return: The context object. Can be safely ignored.
+    """
     c = Context()
     c.token = v
-    return c
-
-
-def cluster(name):
-    c = Context()
-    c.cluster_name = name
-    return c
-
-
-def config(path):
-    c = Context()
-    c.config = path
-    return c
-
-
-def timeout(seconds):
-    c = Context()
-    if seconds is not None:
-        c.timeout_datetime = datetime.utcnow() + timedelta(seconds=seconds)
     return c
 
 
 # Example: with loglevel(x):
 # Creates a new context with the specified log level.
 def loglevel(v):
+    """
+    Establishes a context in which inner oc interactions
+    will execute with the specified loglevel. loglevel contexts
+    can be nested. The most immediate ancestor loglevel context
+    will define the loglevel used by an action.
+    :param v: The loglevel to use (0-9).
+    :return: The context object. Can be safely ignored.
+    """
     c = Context()
     c.loglevel_value = v
     return c
 
 
+def timeout(seconds):
+    """
+    Establishes a context in which inner oc interactions
+    must terminate within a specified period. timeout contexts
+    can be nested and each nested layer will be enforced.
+    If actions run longer than the specified timeout, an exception
+    will be thrown.
+    :param seconds: The number of seconds before actions should time out.
+    :return: The context object. Can be safely ignored.
+    """
+    c = Context()
+    if seconds is not None:
+        c.timeout_datetime = datetime.utcnow() + timedelta(seconds=seconds)
+    return c
+
+
 def mode(redact=None, redact_references=None, redact_tokens=None):
+    """
+    Establishes a context in which inner oc interactions
+    can be runtime configured. mode contexts
+    can be nested. Immediate ancestor mode contexts are given
+    precedence if they define a particular configuration. If a mode does
+    not define a preference, additional ancestors are interrogated.
+    :param redact: Whether file content reference and tokens should be redacted.
+                    This is shorthand for enabling/disabling all redaction.
+    :param redact_references: Specifically enables (True) or disables redaction of
+                    reference file content if it appears to contain secret data.
+                    This option is on by default.
+    :param redact_tokens: Specifically enables (True) or disables redaction of
+                    token data from the command line action record.
+                    This option is on by default.
+    :return: The context object. Can be safely ignored.
+    """
     c = Context()
 
     # Shorthand for turning off all redaction
@@ -225,6 +290,7 @@ def mode(redact=None, redact_references=None, redact_tokens=None):
         c.redact_tokens = redact_tokens
 
     return c
+
 
 # Boilerplate for a verb which creates one or more objects.
 def __new_objects_action(verb, *args):

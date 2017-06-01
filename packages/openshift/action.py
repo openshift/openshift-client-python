@@ -33,11 +33,11 @@ class Action(Model):
 def oc_action(context, verb, *args, **kwargs):
     cmds = ["oc", verb]
 
-    if context.get_config() is not None:
-        cmds.append("--config=%s" % context.get_config())
+    if context.get_kubeconfig_path() is not None:
+        cmds.append("--config=%s" % context.get_kubeconfig_path())
 
-    if context.get_cluster() is not None:
-        url = context.get_cluster()
+    if context.get_api_url() is not None:
+        url = context.get_api_url()
 
         # If insecure:// is specified, skip TLS verification
         if url.startswith("insecure://"):
