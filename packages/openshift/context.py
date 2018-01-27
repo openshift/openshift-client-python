@@ -190,11 +190,17 @@ def project(name):
     will impact the named OpenShift project. project contexts
     can be nested. The most immediate ancestor project context
     will define the project used by an action.
-    :param name: The name of the project.
+    :param name: The name of the project or a selector which selects it (and only it)
     :return: The context object. Can be safely ignored.
     """
     c = Context()
-    c.project_name = name
+
+    # If a selector was passed in, extract the name it selects
+    if type(name) is Selector:
+        name = name.name()
+
+    # split is to strip qualifier off if specified ('project/test' -> 'test')
+    c.project_name = name.split("/")[-1]
     return c
 
 
