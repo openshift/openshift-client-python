@@ -158,11 +158,16 @@ class Context(object):
     def get_changes(self):
         return self.change_tracker
 
-    # Adds one or more change strings to any tracker
-    # contexts enclosing the current context.
     def register_changes(self, *args):
+        """
+        Registers an object change in this context and
+        any enclosing context.
+        :param args: A list of qualified names
+        """
+
         if len(args) == 0:
             return
+
         c = self
         while c is not None:
             if c.change_tracker is not None:

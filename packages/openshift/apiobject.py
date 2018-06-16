@@ -115,7 +115,7 @@ class APIObject:
         :return: The kind or if_missing.
         """
         return _access_field(self._model.kind,
-                             "Object model does not contain .kind", if_missing=if_missing, lowercase=False)
+                             "Object model does not contain .kind", if_missing=if_missing, lowercase=True)
 
     def name(self, if_missing=_DEFAULT):
         """
@@ -179,7 +179,7 @@ class APIObject:
         :param on_absent_func: The function to execute if the object does not exist
         :return: Boolean indicated whether the object exists, followed by return value of function, if present
         """
-        does_exist = selector(self.kind(), self.name()).exists()
+        does_exist = selector('{}/{}'.format(self.kind(), self.name())).count_existing() == 1
 
         ret = None
         if does_exist:
@@ -242,7 +242,7 @@ class APIObject:
         :return: Returns a python list of APIObjects. If receiver is an OpenShift 'List', each element will be
         added to the returned list. If the receiver is not of kind List, the [self] will be returned.
         """
-        if self.kind() != "List":
+        if self.kind() != "list":
             return [self]
 
         l = []

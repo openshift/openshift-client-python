@@ -42,22 +42,22 @@ class Result(object):
                 s += "\n"
         return s
 
-    def as_dict(self, truncate_stdout=50, redact_tokens=True, redact_references=True, redact_output=True):
+    def as_dict(self, truncate_stdout=50, redact_tokens=True, redact_references=True, redact_streams=True):
 
         m = {
             "operation": self.high_level_operation,
             "status": self.status(),
             "actions": [action.as_dict(truncate_stdout=truncate_stdout, redact_tokens=redact_tokens,
                                        redact_references=redact_references,
-                                       redact_output=redact_output) for action in self.__actions]
+                                       redact_streams=redact_streams) for action in self.__actions]
         }
 
         return m
 
-    def as_json(self, indent=4, truncate_stdout=50, redact_tokens=True, redact_references=True, redact_output=True):
+    def as_json(self, indent=4, truncate_stdout=50, redact_tokens=True, redact_references=True, redact_streams=True):
         return json.dumps(
             self.as_dict(truncate_stdout=truncate_stdout, redact_tokens=redact_tokens,
-                         redact_references=redact_references, redact_output=redact_output),
+                         redact_references=redact_references, redact_streams=redact_streams),
             indent=indent)
 
     def add_action(self, action):

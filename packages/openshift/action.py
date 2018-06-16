@@ -19,12 +19,13 @@ def _redact_content(content):
 
 
 class Action(object):
-    def __init__(self, verb, cmd_list, out, err, references, status, timeout=False, internal=False):
+    def __init__(self, verb, cmd_list, out, err, references, status, stdin=None, timeout=False, internal=False):
         self.status = status
         self.verb = verb
         self.cmd = cmd_list
         self.out = out
         self.err = err
+        self.stdin = stdin
         self.references = references
         self.timeout = timeout
         self.internal = internal
@@ -32,7 +33,7 @@ class Action(object):
         if not self.references:
             self.references = {}
 
-    def as_dict(self, truncate_stdout=50, redact_tokens=True, redact_references=True, redact_output=True):
+    def as_dict(self, truncate_stdout=50, redact_tokens=True, redact_references=True, redact_streams=True):
 
         d = {
             'status': self.status,
@@ -40,6 +41,7 @@ class Action(object):
             'cmd': self.cmd,
             'out': self.out,
             'err': self.err,
+            'stdin': self.stdin,
             'references': self.references,
             'timeout': self.timeout,
             'internal': self.internal,
@@ -51,8 +53,10 @@ class Action(object):
         if redact_references:
             d['references'] = {key: _redact_content(value) for (key, value) in self.references}
 
-        if redact_output:
+        if redact_streams:
             d['out'] = _redact_content(self.out)
+            if self.stdin:
+                d['stdin'] = _redact_content(self.stdin)
 
         if truncate_stdout and truncate_stdout > -1:
             content = d['out']
@@ -60,10 +64,10 @@ class Action(object):
 
         return d
 
-    def as_json(self, indent=4, redact_tokens=True, redact_references=True, redact_output=True):
+    def as_json(self, indent=4, redact_tokens=True, redact_references=True, redact_streams=True):
         return json.dumps(
-            self.as_dict(redact_tokens=redact_tokens, redact_references=redact_references, redact_output=redact_output),
-            indent=indent)
+            self.as_dict(redact_tokens=redact_tokens, redact_references=redact_references,
+                         redact_streams=redact_streams), indent=indent)
 
 
 def escape_arg(arg):
@@ -71,13 +75,15 @@ def escape_arg(arg):
     return "'%s'" % (arg.replace(r"'", r"'\''"),)
 
 
-def oc_action(context, verb, cmd_args=[], no_namespace=False, references=None, stdin=None, **kwargs):
+def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=False, references=None, stdin=None,
+              **kwargs):
     """
     Executes oc client verb with arguments. Returns an Action with result information.
     :param context: context information for the execution
     :param verb: The name of the verb to execute
     :param cmd_args: A list of strings|array<string> which will be flattened into oc arguments
-    :param no_namespace: If true, --namespace will not be included in the invocation
+    :param all_namespaces: If true, --all-namespaces will be included in the invocation
+    :param no_namespace: If true, namespace will not be included in invocation
     :param references: A dict of values to include in the tracking information for this action
     :param stdin: A string to supply to stdin for the oc invocation
     :param args: Argument strings to add to the invocation (e.g. '--output=name'). Each argument can also be a list
@@ -101,7 +107,9 @@ def oc_action(context, verb, cmd_args=[], no_namespace=False, references=None, s
 
         cmds.append("--server=%s" % url)
 
-    if context.get_project() is not None and not no_namespace:
+    if all_namespaces:
+        cmds.append("--all-namespaces")
+    elif context.get_project() is not None and not no_namespace:
         cmds.append("--namespace=%s" % context.get_project())
 
     if context.get_token() is not None:
@@ -176,6 +184,6 @@ def oc_action(context, verb, cmd_args=[], no_namespace=False, references=None, s
             returncode = -1
 
     internal = kwargs.get("internal", False)
-    a = Action(verb, cmds, stdout, stderr, references, returncode, timeout=timeout, internal=internal)
+    a = Action(verb, cmds, stdout, stderr, references, returncode, stdin=stdin, timeout=timeout, internal=internal)
     context.register_action(a)
     return a

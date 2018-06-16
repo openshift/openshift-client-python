@@ -53,16 +53,18 @@ def get_resource_versions(context, *names):
 
 class Selector(Result):
 
-    def __init__(self, high_level_operation, kind_or_qname_or_qnames=None, labels=None, object_list=None, **kwargs):
+    def __init__(self, high_level_operation, kind_or_qname_or_qnames=None, labels=None, object_list=None,
+                 all_namespaces=False, **kwargs):
 
         super(self.__class__, self).__init__(high_level_operation)
 
         self.object_list = object_list
         self.labels = labels
+        self.all_namespaces = all_namespaces
 
-        if kind_or_qname_or_qnames is None and object_list is None:
-            # Completely empty selector? Ok, but not sure why.
-            self.object_list = []
+        if self.object_list is not None:
+            if labels or kind_or_qname_or_qnames:
+                raise ValueError("Kind/labels can be specified in conjunction with object_list")
             return
 
         if self.labels is not None:
@@ -115,8 +117,12 @@ class Selector(Result):
         args.append(self.kind)
 
         if self.labels is not None:
-            for k, v in self.labels.items():
-                args.append("-l %s=%s" % (k, v))
+            sel = "--selector="
+            pairs = []
+            for k, v in self.labels.iteritems():
+                pairs.append('{}={}'.format(k, v))
+            sel += ','.join(pairs)
+            args.append(sel)
         elif needs_all:
             # e.g. "oc delete pods" will fail unless --all is specified
             args.append("--all")
@@ -151,7 +157,7 @@ class Selector(Result):
         return qnames[0]
 
     def raw_action(self, verb, *args, **kwargs):
-        return oc_action(self.context, verb, cmd_args=[self._selection_args(), args], **kwargs)
+        return oc_action(self.context, verb, all_namespaces=self.all_namespaces, cmd_args=[self._selection_args(), args], **kwargs)
 
     def _query_names(self):
 
@@ -161,7 +167,7 @@ class Selector(Result):
         """
 
         result = Result("query_names")
-        result.add_action(oc_action(self.context, 'get', cmd_args=['-o=name', self._selection_args()]))
+        result.add_action(oc_action(self.context, 'get', all_namespaces=self.all_namespaces, cmd_args=['-o=name', self._selection_args()]))
 
         # TODO: This check is necessary until --ignore-not-found is implemented and prevalent
         if result.status() != 0 and "(NotFound)" in result.err():
@@ -199,6 +205,14 @@ class Selector(Result):
         s = Selector(self.context, "narrow", object_list=ns)
         return s
 
+    def freeze(self):
+        """
+        :return: Returns a new static Selector with the set of objects currently selected by this receiver.
+        This is useful if business logic needs the underlying objects being selected to not change between
+        queries (i.e. qnames() will always return the same thing even if objects are deleted from the server).
+        """
+        return Selector("freeze", object_list=self.qnames())
+
     def related(self, to_kind=None):
         """
         Returns a dynamic selector which selects objects related to an object
@@ -227,7 +241,9 @@ class Selector(Result):
                     if qname is None:
                         qname = qn
                     else:
-                        raise OpenShiftException("Unable to find related objects - kind ({}) is ambigous in selected objects: {}".format(to_kind, qnames))
+                        raise OpenShiftException(
+                            "Unable to find related objects - kind ({}) is ambigous in selected objects: {}".format(
+                                to_kind, qnames))
 
             name = qname.split("/")[1]
 
@@ -246,26 +262,12 @@ class Selector(Result):
 
         return Selector("related", labels=labels)
 
-    def count(self):
+    def count_existing(self):
         """
         :return: Returns the number of objects this receiver selects that actually exist on the
             server.
         """
         return len(self._query_names())
-
-    def exists(self, min=1):
-        """
-        In the case of a static selector, returns whether all named resources exist on the
-        server (and exceed the minimum count).
-        In the case of a dynamic selector, returns whether the receiver selects a minimum
-        number of existing objects on the server.
-        :param min: The minimum number of objects which must exist.
-        :return: Returns True or False depending on the existence condition described above.
-        """
-
-        if self.object_list is not None:
-            return min <= len(self.object_list) == self.count()
-        return self.count(self) >= min
 
     def as_json(self, exportable=False):
         """
@@ -286,7 +288,7 @@ class Selector(Result):
 
         verb = "export" if exportable else "get"
         r = Result(verb)
-        r.add_action(oc_action(self.context, verb, cmd_args=["-o=json", self._selection_args()]))
+        r.add_action(oc_action(self.context, verb, all_namespaces=self.all_namespaces, cmd_args=["-o=json", self._selection_args()]))
         r.fail_if("Unable to read object")
 
         return r.out()
@@ -337,7 +339,7 @@ class Selector(Result):
 
     def describe(self, send_to_stdout=True, *args):
         r = Result("describe")
-        r.add_action(oc_action(self.context, "describe", cmd_args=[self._selection_args(), args]))
+        r.add_action(oc_action(self.context, "describe", all_namespaces=self.all_namespaces, cmd_args=[self._selection_args(), args]))
         r.fail_if("Error describing objects")
         if send_to_stdout:
             print r.out()
@@ -356,7 +358,7 @@ class Selector(Result):
         args.append("-o=name")
 
         with ChangeTrackingFor(self.context, *names):
-            r.add_action(oc_action(self.context, "delete", cmd_args=[self._selection_args(needs_all=True), args]))
+            r.add_action(oc_action(self.context, "delete", all_namespaces=self.all_namespaces, cmd_args=[self._selection_args(needs_all=True), args]))
 
         r.fail_if("Error deleting objects")
         r.object_list = split_names(r.out())
@@ -380,7 +382,7 @@ class Selector(Result):
 
         with ChangeTrackingFor(self.context, *names):
             for name in names:
-                r.add_action(oc_action(self.context, "label", cmd_args=[name, args]))
+                r.add_action(oc_action(self.context, "label", all_namespaces=self.all_namespaces, cmd_args=[name, args]))
 
         r.fail_if("Error running label on at least one item: " + str(self.qnames()))
         return self
@@ -399,7 +401,7 @@ class Selector(Result):
 
         with ChangeTrackingFor(cur_context(), *names):
             args.append("--patch=" + patch_def)
-            r.add_action(oc_action(self.context, "patch", cmd_args=["-f", "-", args], stdin=resource_info))
+            r.add_action(oc_action(self.context, "patch", all_namespaces=self.all_namespaces, cmd_args=["-f", "-", args], stdin=resource_info))
 
         r.fail_if("Error running patch on objects")
         return r
@@ -484,7 +486,7 @@ class Selector(Result):
             poll_period = min(poll_period + 1, 15)
 
 
-def selector(kind_or_qname_or_qnames=None, labels=None, *args, **kwargs):
+def selector(kind_or_qname_or_qnames=None, labels=None, all_namespaces=False, *args, **kwargs):
     """
     selector( "kind" )
     selector( "kind", labels=[ 'k': 'v' ] )
@@ -494,7 +496,8 @@ def selector(kind_or_qname_or_qnames=None, labels=None, *args, **kwargs):
     :return: A Selector object
     :rtype: Selector
     """
-    return Selector("selector", kind_or_qname_or_qnames, labels=labels, *args, **kwargs)
+    return Selector("selector", kind_or_qname_or_qnames, labels=labels, all_namespaces=all_namespaces, *args, **kwargs)
+
 
 from .action import oc_action
 from .apiobject import APIObject
