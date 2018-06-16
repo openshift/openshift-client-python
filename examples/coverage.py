@@ -7,7 +7,7 @@ try:
     print "Projects created by users:", \
         oc.selector("projects").narrow(
             lambda project: project.metadata.annotations["openshift.io/requester"] is not Missing
-        ).names()
+        ).qnames()
 
     oc.selector("projects").narrow(
         # Eliminate any projects created by the system
@@ -15,13 +15,13 @@ try:
     ).narrow(
         # Select from user projects any which violate privileged naming convention
         lambda project:
-        project.metadata.name == "openshift" or
-        project.metadata.name.startswith("openshift-") or
-        project.metadata.name == "kubernetes" or
-        project.metadata.name.startswith("kube-") or
-        project.metadata.name.startswith("kubernetes-")
+        project.metadata.qname == "openshift" or
+        project.metadata.qname.startswith("openshift-") or
+        project.metadata.qname == "kubernetes" or
+        project.metadata.qname.startswith("kube-") or
+        project.metadata.qname.startswith("kubernetes-")
     ).for_each(
-        lambda project: error("Invalid project: %s" % project.metadata.name)
+        lambda project: error("Invalid project: %s" % project.metadata.qname)
     )
 
     with timeout(5):
@@ -71,7 +71,7 @@ try:
 
 
         pods = oc.selector("pod")
-        print "Pods: " + str(pods.names())
+        print "Pods: " + str(pods.qnames())
 
         users = oc.selector("user/john", "user/jane")
 
@@ -86,13 +86,13 @@ try:
 
         label_selector = oc.selector("users", labels={"mylabel": "myvalue"})
 
-        print "users with label step 1: " + str(label_selector.names())
+        print "users with label step 1: " + str(label_selector.qnames())
 
         john.label({"mylabel": "myvalue"})  # add the label back
 
-        print "users with label step 2: " + str(label_selector.names())
+        print "users with label step 2: " + str(label_selector.qnames())
 
-        assert(label_selector.names()[0] == u'users/john')
+        assert(label_selector.qnames()[0] == u'users/john')
 
         users.label({"another_label": "another_value"})
 
@@ -153,7 +153,7 @@ try:
         except OpenShiftException as create_err:
             print "What went wrong?: " + str(create_err)
 
-        bark_bite_sel.until_any(lambda obj: obj.metadata.name == "bite")
+        bark_bite_sel.until_any(lambda obj: obj.metadata.qname == "bite")
 
 
 

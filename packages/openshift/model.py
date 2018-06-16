@@ -1,4 +1,5 @@
 
+
 class OpenShiftException(StandardError):
 
     def __init__(self, msg, result=None, **kwargs):
@@ -23,6 +24,14 @@ class OpenShiftException(StandardError):
         return "[" + self.msg + "]\n" + repr(self.result)
 
 
+class ModelError(StandardError):
+
+    def __init__(self, msg, **kwargs):
+        super(self.__class__, self).__init__(msg)
+        self.msg = msg
+        self.kwargs = kwargs
+
+
 class MissingModel(dict):
 
     def __init__(self):
@@ -33,19 +42,19 @@ class MissingModel(dict):
         return self
 
     def __setattr__(self, key, value):
-        raise OpenShiftException("Invalid attempt to set key(%s) in missing branch of model" % key)
+        raise ModelError("Invalid attempt to set key(%s) in missing branch of model" % key)
 
     def __delattr__(self, key):
-        raise OpenShiftException("Invalid attempt to delete key(%s) in missing branch of model" % key)
+        raise ModelError("Invalid attempt to delete key(%s) in missing branch of model" % key)
 
     def __getitem__(self, attr):
         return self
 
     def __setitem__(self, key, value):
-        raise OpenShiftException("Invalid attempt to set key(%s) in missing branch of model" % key)
+        raise ModelError("Invalid attempt to set key(%s) in missing branch of model" % key)
 
     def __delitem__(self, key):
-        raise OpenShiftException("Invalid attempt to delete key(%s) in missing branch of model" % key)
+        raise ModelError("Invalid attempt to delete key(%s) in missing branch of model" % key)
 
     def __str__(self):
         return "(MissingModelBranch)"
@@ -95,6 +104,20 @@ class ListModel(list):
         # Otherwise, trigger out of bounds exception
         return super(self.__class__, self).__getitem__(index)
 
+    def __iter__(self):
+        for i in range(0, super(self.__class__, self).__len__()):
+            yield self[i]
+
+    def _primitive(self):
+        """
+        :return: Returns the ListModel as a python list
+        :rtype: list
+        """
+        l = []
+        for e in self:
+            l.append(e)
+        return l
+
     def _element_can_match(self, master, test):
         if master is Missing:
             return False
@@ -124,7 +147,7 @@ class ListModel(list):
             else:
                 return False
 
-        raise ValueError("Don't know how to compare %s and %s" % (str(type(master)), str(type(test))))
+        raise ModelError("Don't know how to compare %s and %s" % (str(type(master)), str(type(test))))
 
     def _element_in_list(self, master, e):
         for m in master:
@@ -182,3 +205,14 @@ class Model(dict):
     def __delitem__(self, key):
         super(Model, self).__delitem__(key)
 
+    def _primitive(self):
+        """
+        :return: Returns the Model as a python dict
+        :rtype: dict
+        """
+        d = {}
+        for k, v in self.iteritems():
+            if isinstance(v, Model) or isinstance(v, ListModel):
+                v = v._primitive()
+            d[k] = v
+        return d
