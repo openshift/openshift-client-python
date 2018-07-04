@@ -53,8 +53,12 @@ def get_resource_versions(context, *names):
 
 class Selector(Result):
 
-    def __init__(self, high_level_operation, kind_or_qname_or_qnames=None, labels=None, object_list=None,
-                 all_namespaces=False, **kwargs):
+    def __init__(self, high_level_operation,
+                 kind_or_qname_or_qnames=None, labels=None,
+                 object_list=None,
+                 object_action=None,
+                 all_namespaces=False,
+                 **kwargs):
 
         super(self.__class__, self).__init__(high_level_operation)
 
@@ -62,9 +66,14 @@ class Selector(Result):
         self.labels = labels
         self.all_namespaces = all_namespaces
 
+        if object_action:
+            self.add_action(object_action)
+            action_output = object_action.out
+            self.object_list = action_output.strip().split()
+
         if self.object_list is not None:
             if labels or kind_or_qname_or_qnames:
-                raise ValueError("Kind/labels can be specified in conjunction with object_list")
+                raise ValueError("Kind/labels cannot be specified in conjunction with object_list")
             return
 
         if self.labels is not None:
@@ -269,7 +278,7 @@ class Selector(Result):
         """
         return len(self._query_names())
 
-    def as_json(self, exportable=False):
+    def object_json(self, exportable=False):
         """
         Returns all objects selected by the receiver as a JSON string. If multiple objects are
         selected, an OpenShift List kind will be returned.
@@ -320,7 +329,7 @@ class Selector(Result):
         :return: A list of Model objects representing the receiver's selected resources.
         """
 
-        obj = json.loads(self.as_json(exportable))
+        obj = json.loads(self.object_json(exportable))
         return APIObject(obj).elements()
 
     def start_build(self, *args):
@@ -397,7 +406,7 @@ class Selector(Result):
 
         # Get the current list of objects since the patch verb needs a file input
         # to identify which server resources to act upon.
-        resource_info = self.as_json()
+        resource_info = self.object_json()
 
         with ChangeTrackingFor(cur_context(), *names):
             args.append("--patch=" + patch_def)

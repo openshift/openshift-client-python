@@ -61,6 +61,10 @@ class Context(object):
             self.ssh_client.connect(hostname=self.ssh_hostname, port=self.ssh_port, username=self.ssh_username,
                                 password=self.ssh_password, timeout=self.ssh_timeout)
 
+            # Enable agent fowarding
+            transport = self.ssh_client.get_transport()
+            paramiko.agent.AgentRequestHandler(transport.open_session())
+
         return self
 
     def __exit__(self, type, value, traceback):
@@ -93,6 +97,27 @@ class Context(object):
             return self.ssh_client
         if self.parent is not None:
             return self.parent.get_ssh_client()
+        return None
+
+    def get_ssh_username(self):
+        if self.ssh_username is not None:
+            return self.ssh_username
+        if self.parent is not None:
+            return self.parent.get_ssh_username()
+        return None
+
+    def get_ssh_password(self):
+        if self.ssh_password is not None:
+            return self.ssh_password
+        if self.parent is not None:
+            return self.parent.get_ssh_password()
+        return None
+
+    def get_ssh_hostname(self):
+        if self.ssh_hostname is not None:
+            return self.ssh_hostname
+        if self.parent is not None:
+            return self.parent.get_ssh_hostname()
         return None
 
     def get_project(self):

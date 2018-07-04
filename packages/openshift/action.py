@@ -19,6 +19,7 @@ def _redact_content(content):
 
 
 class Action(object):
+
     def __init__(self, verb, cmd_list, out, err, references, status, stdin=None, timeout=False, internal=False):
         self.status = status
         self.verb = verb
@@ -51,7 +52,7 @@ class Action(object):
             d['cmd'] = [_redact_token_arg(arg) for arg in self.cmd]
 
         if redact_references:
-            d['references'] = {key: _redact_content(value) for (key, value) in self.references}
+            d['references'] = {key: _redact_content(value) for (key, value) in self.references.iteritems()}
 
         if redact_streams:
             d['out'] = _redact_content(self.out)
@@ -73,6 +74,17 @@ class Action(object):
 def escape_arg(arg):
     # https://stackoverflow.com/questions/3163236/escape-arguments-for-paramiko-sshclient-exec-command
     return "'%s'" % (arg.replace(r"'", r"'\''"),)
+
+
+def _flatten_list(l):
+    agg = []
+    if isinstance(l, list) or isinstance(l, tuple):
+        for e in l:
+            agg.extend(_flatten_list(e))
+    else:
+        agg.append(l)
+
+    return agg
 
 
 def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=False, references=None, stdin=None,
@@ -118,17 +130,8 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
     if context.get_loglevel() is not None:
         cmds.append("--loglevel=%s" % context.get_loglevel())
 
-    if stdin:
-        if not references:
-            references = {}
-        references["stdin"] = stdin
-
     # Arguments which are lists are flattened into the command list
-    for a in cmd_args:
-        if isinstance(a, list):
-            cmds.extend(a)
-        else:
-            cmds.append(a)
+    cmds.extend(_flatten_list(cmd_args))
 
     period = 0.01
 
@@ -140,8 +143,10 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
         # If paramiko fails to timeout, consider using polling: https://stackoverflow.com/a/45844203
 
         for i, c in enumerate(cmds):
+            # index zero is 'oc' -- no need to escape
             if i > 0:
                 c = " {}".format(escape_arg(c))
+
             command_string += c
 
         try:
@@ -153,10 +158,12 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
         if stdin:
             ssh_stdin.write(stdin)
             ssh_stdin.flush()
+            ssh_stdin.channel.shutdown_write()
 
         stdout = ssh_stdout.read()
         stderr = ssh_stderr.read()
         returncode = ssh_stdout.channel.recv_exit_status()
+
     else:
 
         with TempFile(content=stdin) as stdin_file:

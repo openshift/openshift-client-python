@@ -3,6 +3,7 @@ from model import OpenShiftException
 
 
 class Result(object):
+
     def __init__(self, high_level_operation):
         self.high_level_operation = high_level_operation
         self.__actions = []
@@ -37,7 +38,7 @@ class Result(object):
     def err(self):
         s = ""
         for action in self.__actions:
-            s += action.out
+            s += action.err
             if not s.endswith("\n"):
                 s += "\n"
         return s

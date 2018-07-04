@@ -105,7 +105,7 @@ class APIObject:
         :return: Returns a reference to the underlying Model object. Changes to the Model will persist in memory
          but not be reflected in the API server unless applied.
         """
-        return dict(self._dict)
+        return self._model
 
     def kind(self, if_missing=_DEFAULT):
         """
