@@ -11,22 +11,30 @@ def _redact_token_arg(arg):
     return arg
 
 
-def _redact_content(content):
-    content = content.lower()
-    if "secret" in content or "password" in content or "token" in content:
-        return "**REDACTED**"
-    return content
+def _is_sensitive(content_str):
+    content_str = content_str.lower()
+    return "secret" in content_str or "password" in content_str or "token" in content_str
+
+
+def _redaction_string():
+    return "**REDACTED**"
+
+
+def _redact_content(content_str):
+    if _is_sensitive(content_str):
+        return _redaction_string()
+    return content_str
 
 
 class Action(object):
 
-    def __init__(self, verb, cmd_list, out, err, references, status, stdin=None, timeout=False, internal=False):
+    def __init__(self, verb, cmd_list, out, err, references, status, stdin_obj=None, timeout=False, internal=False):
         self.status = status
         self.verb = verb
         self.cmd = cmd_list
         self.out = out
         self.err = err
-        self.stdin = stdin
+        self.stdin_obj = stdin_obj
         self.references = references
         self.timeout = timeout
         self.internal = internal
@@ -42,7 +50,7 @@ class Action(object):
             'cmd': self.cmd,
             'out': self.out,
             'err': self.err,
-            'stdin': self.stdin,
+            'stdin_obj': self.stdin_obj,
             'references': self.references,
             'timeout': self.timeout,
             'internal': self.internal,
@@ -56,8 +64,8 @@ class Action(object):
 
         if redact_streams:
             d['out'] = _redact_content(self.out)
-            if self.stdin:
-                d['stdin'] = _redact_content(self.stdin)
+            if self.stdin_obj and _is_sensitive(json.dumps(self.stdin_obj, indent=None)):
+                d['stdin_obj'] = _redaction_string()
 
         if truncate_stdout and truncate_stdout > -1:
             content = d['out']
@@ -87,7 +95,7 @@ def _flatten_list(l):
     return agg
 
 
-def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=False, references=None, stdin=None,
+def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=False, references=None, stdin_obj=None,
               **kwargs):
     """
     Executes oc client verb with arguments. Returns an Action with result information.
@@ -97,7 +105,7 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
     :param all_namespaces: If true, --all-namespaces will be included in the invocation
     :param no_namespace: If true, namespace will not be included in invocation
     :param references: A dict of values to include in the tracking information for this action
-    :param stdin: A string to supply to stdin for the oc invocation
+    :param stdin_obj: A json serializable object to supply to stdin for the oc invocation
     :param args: Argument strings to add to the invocation (e.g. '--output=name'). Each argument can also be a list
         of strings which will be flattened (e.g. ['--output=name', '--ignore_not_found'])
     :param kwargs:
@@ -137,6 +145,11 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
 
     timeout = False
 
+    stdin_str = None
+
+    if stdin_obj:
+        stdin_str = json.dumps(stdin_obj, indent=None)
+
     if context.get_ssh_client() is not None:
         command_string = ""
 
@@ -155,8 +168,8 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
         except socket.timeout as error:
             timeout = True
 
-        if stdin:
-            ssh_stdin.write(stdin)
+        if stdin_str:
+            ssh_stdin.write(stdin_str)
             ssh_stdin.flush()
             ssh_stdin.channel.shutdown_write()
 
@@ -166,7 +179,7 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
 
     else:
 
-        with TempFile(content=stdin) as stdin_file:
+        with TempFile(content=stdin_str) as stdin_file:
             with TempFile() as out:
                 with TempFile() as err:
                     # When only python3 is supported, change to using standard timeout
@@ -191,6 +204,6 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
             returncode = -1
 
     internal = kwargs.get("internal", False)
-    a = Action(verb, cmds, stdout, stderr, references, returncode, stdin=stdin, timeout=timeout, internal=internal)
+    a = Action(verb, cmds, stdout, stderr, references, returncode, stdin_obj=stdin_obj, timeout=timeout, internal=internal)
     context.register_action(a)
     return a

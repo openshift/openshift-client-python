@@ -48,7 +48,6 @@ with openshift.tracker() as t:
             #       lines = stdout.read()
             #       print("Hostname ({}): {}".format(rc, lines.strip()))
 
-    print "The following objects have been changed: {}".format(t.get_changes())
-    #print("Result:\n{}".format(t.get_result()))
+    print("Result:\n{}".format(t.get_result()))
 
 

@@ -33,7 +33,6 @@ class Context(object):
         self.project_name = None
         self.token = None
         self.loglevel_value = None
-        self.change_tracker = None
         self.context_result = None
         self.timeout_datetime = None
 
@@ -178,30 +177,6 @@ class Context(object):
 
         return min_secs
 
-    def get_changes(self):
-        """
-        :return: Returns a list of changes registered with this context.
-        If no changes were registered, an empty list is returned. List entries
-        are strings of the form '[ns:]kind/name'
-        """
-        return self.change_tracker
-
-    def register_changes(self, *qnames):
-        """
-        Registers an object change in this context and
-        any enclosing context.
-        :param qnames: A list of qualified names
-        """
-
-        if not qnames:
-            return
-
-        c = self
-        while c is not None:
-            if c.change_tracker is not None:
-                c.change_tracker.extend(qnames)
-            c = c.parent
-
     # Returns a master "Result" of all actions registered with this context.
     # If no actions were performed, an empty list is returned.
     def get_result(self):
@@ -296,12 +271,10 @@ def tracker():
     Establishes a context in which all inner actions will
     be tracked. Trackers can be nested -- all actions
     performed within a tracker's context will be tracked.
-    :return: The tracker context. If the returned object
-        ever has a non-zero length for its change_tracker
-        attribute, changes have been made on the server.
+    :return: The tracker context. Call get_result to see
+    all tracked actions.
     """
     c = Context()
-    c.change_tracker = []
     c.context_result = Result("tracker")
     return c
 

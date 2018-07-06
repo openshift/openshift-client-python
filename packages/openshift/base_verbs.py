@@ -8,20 +8,19 @@ import paramiko
 import json
 
 
-def __new_objects_action_selector(verb, cmd_args=[], stdin=None):
+def __new_objects_action_selector(verb, cmd_args=[], stdin_obj=None):
 
     """
     Performs and oc action and records objects output from the verb
     as changed in the content.
     :param verb: The verb to execute
     :param cmd_args: A list of str|list<str> which will be flattened into command line arguments
-    :param stdin: The standard input to feed to the invocation.
+    :param stdin_obj: The standard input to feed to the invocation.
     :return: A selector for the newly created objects
     """
 
-    sel = Selector(verb, object_action=oc_action(cur_context(), verb, cmd_args=['-o=name', cmd_args], stdin=stdin))
+    sel = Selector(verb, object_action=oc_action(cur_context(), verb, cmd_args=['-o=name', cmd_args], stdin_obj=stdin_obj))
     sel.fail_if('{} returned an error: {}'.format(verb, sel.err().strip()))
-    cur_context().register_changes(sel.qnames())
     return sel
 
 
@@ -59,7 +58,6 @@ def new_project(name, *args):
     r = Result("new-project")
     r.add_action(oc_action(cur_context(), "new-project", cmd_args=[name, args]))
     r.fail_if("Unable to create new project: {}".format(name))
-    cur_context().register_changes('project/{}'.format(name))
     return project(name)
 
 
@@ -69,7 +67,6 @@ def delete_project(name, ignore_not_found=False, *args):
         args.append("--ignore-not-found")
     r.add_action(oc_action(cur_context(), "delete", cmd_args=["project", name, args]))
     r.fail_if("Unable to create delete project: {}".format(name))
-    cur_context().register_changes('project/{}'.format(name))
 
 
 def _to_dict_list(dict_or_model_or_apiobject_or_list_thereof):
@@ -103,9 +100,7 @@ def create(dict_or_model_or_apiobject_or_list_thereof, *args):
         'items': _to_dict_list(dict_or_model_or_apiobject_or_list_thereof)
     }
 
-    markup = json.dumps(m, indent=4)
-
-    return __new_objects_action_selector("create", cmd_args=["-f", "-", args], stdin=markup)
+    return __new_objects_action_selector("create", cmd_args=["-f", "-", args], stdin_obj=m)
 
 
 def node_ssh_client(apiobj_node_name_or_qname,

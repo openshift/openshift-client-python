@@ -16,55 +16,6 @@ def _normalize_object_list(ol):
     return new_ol
 
 
-class ChangeTrackingFor(object):
-    def __init__(self, context, *names):
-        self.context = context
-        self.names = names
-
-    def __enter__(self, ):
-        self.pre_versions = get_resource_versions(self.context, *self.names)
-
-    def __exit__(self, type, value, traceback):
-        post_versions = get_resource_versions(self.context, *self.names)
-
-        # TODO: pre/post versions contain namespace; that namespace needs to be included in registred changes
-
-        # If change check failed then assume changes were made. Otherwise, compare pre and post changes.
-        if post_versions is None or post_versions != self.pre_versions:
-            self.context.register_changes(*self.names)
-
-
-def get_resource_versions(context, *names):
-    """
-    :param context: The context for the changes
-    :param names: List of fully qualified names
-    :return: Returns a dict of resource-name->resource-version. In case of error None is returned.
-    """
-    sel = Selector("get_resource_versions", object_list=names, context=context)
-    action = sel.raw_action("get", "-o=custom-columns=NS:.metadata.namespace,NAME:.metadata.name,RV:.metadata.resourceVersion",
-                            "--no-headers",
-                            internal=True)
-    if action.status != 0:
-        return None
-
-    lines = action.out.strip().split("\n")
-    map = {}
-    for line in lines:  # Each line looks like "[namespace] jupierce   56314"
-        elements = line.strip().split()
-        if len(elements) == 2:
-            # Element has no namespace
-            name = elements[0]
-        elif len(elements) == 3:
-            # Element has namespace; name name into ns:kind/name
-            name = '{}:{}'.format(elements[0], elements[1])
-        else:
-            raise IOError("Unexpected output from custom-columns: " + line + "\nFull output:\n" + lines)
-
-        # Map name to the resource version
-        print map
-    return map
-
-
 class Selector(Result):
 
     def __init__(self, high_level_operation,
@@ -320,8 +271,6 @@ class Selector(Result):
 
         return r.out()
 
-    # Returns a single Model object that represents the selected resource. The Selector
-    # must select exact one object or an exception will be thrown.
     def object(self, exportable=False):
         """
         Returns a single APIObject that represents the selected resource. If multiple
@@ -338,7 +287,6 @@ class Selector(Result):
 
         return objs[0]
 
-    # Returns a pylist of Model objects that represent the selected resources.
     def objects(self, exportable=False):
         """
         Returns a python list of APIObject objects that represent the selected resources. An
@@ -361,7 +309,6 @@ class Selector(Result):
 
         r.fail_if("Error running start-build on at least one item: " + str(self.qnames()))
         r.object_list = split_names(r.out())
-        self.context.register_changes(r.qnames())
         return r
 
     def describe(self, send_to_stdout=True, *args):
@@ -384,8 +331,7 @@ class Selector(Result):
             args.append("--ignore-not-found")
         args.append("-o=name")
 
-        with ChangeTrackingFor(self.context, *names):
-            r.add_action(oc_action(self.context, "delete", all_namespaces=self.all_namespaces, cmd_args=[self._selection_args(needs_all=True), args]))
+        r.add_action(oc_action(self.context, "delete", all_namespaces=self.all_namespaces, cmd_args=[self._selection_args(needs_all=True), args]))
 
         r.fail_if("Error deleting objects")
         r.object_list = split_names(r.out())
@@ -407,15 +353,13 @@ class Selector(Result):
             else:
                 args.append(l + "=" + v)
 
-        with ChangeTrackingFor(self.context, *names):
-            for name in names:
-                r.add_action(oc_action(self.context, "label", all_namespaces=self.all_namespaces, cmd_args=[name, args]))
+        for name in names:
+            r.add_action(oc_action(self.context, "label", all_namespaces=self.all_namespaces, cmd_args=[name, args]))
 
         r.fail_if("Error running label on at least one item: " + str(self.qnames()))
         return self
 
     def patch(self, patch_def, strategy="strategic", *args):
-        names = self.qnames()
 
         r = Result("patch")
         args = list(args)
@@ -424,11 +368,10 @@ class Selector(Result):
 
         # Get the current list of objects since the patch verb needs a file input
         # to identify which server resources to act upon.
-        resource_info = self.object_json()
+        resource_info = json.loads(self.object_json())
 
-        with ChangeTrackingFor(self.context, *names):
-            args.append("--patch=" + patch_def)
-            r.add_action(oc_action(self.context, "patch", all_namespaces=self.all_namespaces, cmd_args=["-f", "-", args], stdin=resource_info))
+        args.append("--patch=" + patch_def)
+        r.add_action(oc_action(self.context, "patch", all_namespaces=self.all_namespaces, cmd_args=["-f", "-", args], stdin_obj=resource_info))
 
         r.fail_if("Error running patch on objects")
         return r
@@ -513,7 +456,7 @@ class Selector(Result):
             poll_period = min(poll_period + 1, 15)
 
 
-def selector(kind_or_qname_or_qnames=None, labels=None, all_namespaces=False, *args, **kwargs):
+def selector(kind_or_qname_or_qnames=None, labels=None, all_namespaces=False, context=None, *args, **kwargs):
     """
     selector( "kind" )
     selector( "kind", labels=[ 'k': 'v' ] )
@@ -523,7 +466,7 @@ def selector(kind_or_qname_or_qnames=None, labels=None, all_namespaces=False, *a
     :return: A Selector object
     :rtype: Selector
     """
-    return Selector("selector", kind_or_qname_or_qnames, labels=labels, all_namespaces=all_namespaces, *args, **kwargs)
+    return Selector("selector", kind_or_qname_or_qnames, labels=labels, all_namespaces=all_namespaces, context=context, *args, **kwargs)
 
 
 from .action import oc_action

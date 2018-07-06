@@ -83,8 +83,9 @@ def _access_field(val, err_msg, if_missing=_DEFAULT, lowercase=False):
 
 class APIObject:
 
-    def __init__(self, dict_to_model=None):
+    def __init__(self, dict_to_model=None, context=None):
         # Create a Model representation of the object.
+        self.context = context if context else cur_context()
         self._model = Model(dict_to_model)
 
     def as_dict(self):
@@ -134,10 +135,9 @@ class APIObject:
         """
         return self.kind() + '/' + self.name()
 
-    def _object_def_action(self, verb, check_for_change=False, *args):
+    def _object_def_action(self, verb, *args):
         """
         :param verb: The verb to execute
-        :param check_for_change: Whether to check for changes before the action takes place
         :param args: Other arguments to pass to the verb
         :return: The Result
         :rtype: Result
@@ -148,24 +148,10 @@ class APIObject:
         # Convert Model into a json string
         content = self.as_json()
 
-        if check_for_change:
-            pre_versions = get_resource_versions(cur_context(), qname)
-
         a = list(args)
         a.extend(["-o=name", "-f", "-"])
         result = Result(verb)
-        result.add_action(oc_action(cur_context(), verb, cmd_args=a, stdin=content))
-
-        if check_for_change:
-            post_versions = get_resource_versions(cur_context(), qname)
-
-            # If change check failed then assume changes were made. Otherwise, compare pre and post changes.
-            if post_versions is None or post_versions != pre_versions:
-                cur_context().register_changes(qname)
-
-        else:
-            # If we aren't checking for a change, assume changes (e.g. create/replace)
-            cur_context().register_changes(qname)
+        result.add_action(oc_action(self.context, verb, cmd_args=a, stdin_obj=content))
 
         result.fail_if("Error during object {}".format(verb))
         return result
@@ -178,7 +164,7 @@ class APIObject:
         :param on_absent_func: The function to execute if the object does not exist
         :return: Boolean indicated whether the object exists, followed by return value of function, if present
         """
-        does_exist = selector('{}/{}'.format(self.kind(), self.name())).count_existing() == 1
+        does_exist = selector('{}/{}'.format(self.kind(), self.name()), context=self.context).count_existing() == 1
 
         ret = None
         if does_exist:
@@ -231,9 +217,8 @@ class APIObject:
         if ignore_not_found is True:
             base_args.append("--ignore-not-found")
 
-        r.add_action(oc_action(cur_context(), cmd_args=["delete", self.kind(), self.name(), base_args, args]))
+        r.add_action(oc_action(self.context, cmd_args=["delete", self.kind(), self.name(), base_args, args]))
         r.fail_if("Error deleting object")
-        cur_context().register_changes(self.qname())
         return r
 
     def elements(self):
@@ -262,9 +247,9 @@ class APIObject:
         # Convert python object into a json string
         content = json.dumps(template, indent=4).strip()
         r = Result("process")
-        r.add_action(oc_action(cur_context(), cmd_args=["process", "-f", "-", args], stdin=content))
+        r.add_action(oc_action(self.context, cmd_args=["process", "-f", "-", args], stdin_obj=content))
         r.fail_if("Error processing template")
         return _objdef_to_pylist(r.out())
 
 from .context import cur_context
-from .selector import selector, get_resource_versions
+from .selector import selector
