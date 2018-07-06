@@ -178,25 +178,28 @@ class Context(object):
 
         return min_secs
 
-    # Returns a list of changes registered with this context.
-    # If no changes were registered, an empty list is returned
     def get_changes(self):
+        """
+        :return: Returns a list of changes registered with this context.
+        If no changes were registered, an empty list is returned. List entries
+        are strings of the form '[ns:]kind/name'
+        """
         return self.change_tracker
 
-    def register_changes(self, *args):
+    def register_changes(self, *qnames):
         """
         Registers an object change in this context and
         any enclosing context.
-        :param args: A list of qualified names
+        :param qnames: A list of qualified names
         """
 
-        if len(args) == 0:
+        if not qnames:
             return
 
         c = self
         while c is not None:
             if c.change_tracker is not None:
-                c.change_tracker.extend(args)
+                c.change_tracker.extend(qnames)
             c = c.parent
 
     # Returns a master "Result" of all actions registered with this context.

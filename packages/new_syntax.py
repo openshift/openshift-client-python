@@ -3,6 +3,7 @@
 import openshift
 import logging
 import paramiko
+import traceback
 
 logging.getLogger("paramiko").setLevel(logging.DEBUG)
 paramiko.util.log_to_file("paramiko.log")
@@ -13,6 +14,8 @@ with openshift.tracker() as t:
         with openshift.project("jmp-test-3"):
 
             try:
+                openshift.selector('pod/busybox').delete(ignore_not_found=True)
+
                 openshift.create({
                     'apiVersion': 'v1',
                     'kind': 'Pod',
@@ -24,26 +27,28 @@ with openshift.tracker() as t:
                             {
                                 'name': 'busybox',
                                 'image': 'busybox',
-                                'command': [ 'sleep', '60']
+                                'command': ['sleep', '60']
                             }
                         ],
                         'restartPolicy': 'Never',
                         'terminationGracePeriodSeconds': '0'
                     },
                 })
-            except Exception as e:
-                print 'e:\n{}'.format(e)
+
+            except Exception:
+                traceback.print_exc()
 
             #for pod in openshift.selector("pods", all_namespaces=True):
             #    print pod.name()
 
-            #for node in openshift.selector("nodes"):
-            #    with openshift.node_ssh_client(node, address_type_pref="Hostname") as node_client:
-            #        _, stdout, stderr = node_client.exec_command("hostname")
-            #        rc = stdout.channel.recv_exit_status()
-            #        lines = stdout.read()
-            #        print("Hostname ({}): {}".format(rc, lines.strip()))
+            #or node in openshift.selector("nodes"):
+            #   with openshift.node_ssh_client(node, address_type_pref="Hostname") as node_client:
+            #       _, stdout, stderr = node_client.exec_command("hostname")
+            #       rc = stdout.channel.recv_exit_status()
+            #       lines = stdout.read()
+            #       print("Hostname ({}): {}".format(rc, lines.strip()))
 
-    print("Result:\n{}".format(t.get_result()))
+    print "The following objects have been changed: {}".format(t.get_changes())
+    #print("Result:\n{}".format(t.get_result()))
 
 

@@ -63,8 +63,10 @@ def new_project(name, *args):
     return project(name)
 
 
-def delete_project(name, *args):
+def delete_project(name, ignore_not_found=False, *args):
     r = Result("delete-project")
+    if ignore_not_found:
+        args.append("--ignore-not-found")
     r.add_action(oc_action(cur_context(), "delete", cmd_args=["project", name, args]))
     r.fail_if("Unable to create delete project: {}".format(name))
     cur_context().register_changes('project/{}'.format(name))

@@ -144,7 +144,6 @@ class APIObject:
         """
 
         qname = self.qname()
-        objdef = self._model._primitive()
 
         # Convert Model into a json string
         content = self.as_json()

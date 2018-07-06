@@ -27,27 +27,41 @@ class ChangeTrackingFor(object):
     def __exit__(self, type, value, traceback):
         post_versions = get_resource_versions(self.context, *self.names)
 
+        # TODO: pre/post versions contain namespace; that namespace needs to be included in registred changes
+
         # If change check failed then assume changes were made. Otherwise, compare pre and post changes.
         if post_versions is None or post_versions != self.pre_versions:
             self.context.register_changes(*self.names)
 
 
-# Arguments should be a list of fully qualified names. e.g.: ( "pod/x", "user/y" )
-# Returns a dict of resource-name -> resource-version
-# If an error occurs, None is returned.
 def get_resource_versions(context, *names):
-    sel = Selector(context, "get_resource_versions", *names)
-    action = sel.raw_action("get", "-o=custom-columns=NAME:.metadata.name,RV:.metadata.resourceVersion", "--no-headers",
+    """
+    :param context: The context for the changes
+    :param names: List of fully qualified names
+    :return: Returns a dict of resource-name->resource-version. In case of error None is returned.
+    """
+    sel = Selector("get_resource_versions", object_list=names, context=context)
+    action = sel.raw_action("get", "-o=custom-columns=NS:.metadata.namespace,NAME:.metadata.name,RV:.metadata.resourceVersion",
+                            "--no-headers",
                             internal=True)
     if action.status != 0:
         return None
+
     lines = action.out.strip().split("\n")
     map = {}
-    for line in lines:  # Each line looks like "jupierce   56314"
+    for line in lines:  # Each line looks like "[namespace] jupierce   56314"
         elements = line.strip().split()
-        if len(elements) != 2:
-            raise RuntimeError("Unexpected output from custom-columns: " + line + "\nFull output:\n" + lines)
-        map[elements[0]] = elements[1]
+        if len(elements) == 2:
+            # Element has no namespace
+            name = elements[0]
+        elif len(elements) == 3:
+            # Element has namespace; name name into ns:kind/name
+            name = '{}:{}'.format(elements[0], elements[1])
+        else:
+            raise IOError("Unexpected output from custom-columns: " + line + "\nFull output:\n" + lines)
+
+        # Map name to the resource version
+        print map
     return map
 
 
@@ -58,10 +72,12 @@ class Selector(Result):
                  object_list=None,
                  object_action=None,
                  all_namespaces=False,
+                 context=None,
                  **kwargs):
 
         super(self.__class__, self).__init__(high_level_operation)
 
+        self.context_override = context
         self.object_list = object_list
         self.labels = labels
         self.all_namespaces = all_namespaces
@@ -107,7 +123,7 @@ class Selector(Result):
 
     @property
     def context(self):
-        return cur_context()
+        return self.context_override if self.context_override else cur_context()
 
     def _selection_args(self, needs_all=False):
 
@@ -124,6 +140,8 @@ class Selector(Result):
             return self.object_list
 
         args.append(self.kind)
+
+        print 'labels: {}'.format(self.labels)
 
         if self.labels is not None:
             sel = "--selector="
@@ -408,7 +426,7 @@ class Selector(Result):
         # to identify which server resources to act upon.
         resource_info = self.object_json()
 
-        with ChangeTrackingFor(cur_context(), *names):
+        with ChangeTrackingFor(self.context, *names):
             args.append("--patch=" + patch_def)
             r.add_action(oc_action(self.context, "patch", all_namespaces=self.all_namespaces, cmd_args=["-f", "-", args], stdin=resource_info))
 
