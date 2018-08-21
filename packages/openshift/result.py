@@ -16,7 +16,9 @@ class Result(object):
     def status(self):
         s = 0
         for action in self.__actions:
-            s |= int(action.status)
+            # If not the last attempt, return status does not matter; errors ignored.
+            if action.last_attempt:
+                s |= int(action.status)
         return s
 
     # Returns aggregate stdout from all underlying actions

@@ -86,27 +86,20 @@ class APIObject:
     def __init__(self, dict_to_model=None, context=None):
         # Create a Model representation of the object.
         self.context = context if context else cur_context()
-        self._model = Model(dict_to_model)
+        self.model = Model(dict_to_model)
 
     def as_dict(self):
         """
         :return: Returns a python dict representation of the APIObject. Changes are not communicated
          back to this APIObject's model.
         """
-        return self._model._primitive()
+        return self.model._primitive()
 
     def as_json(self, indent=4):
         """
         :return: Returns a JSON presentation of the APIObject.
         """
-        return json.dumps(self._model._primitive(), indent=4).strip()
-
-    def model(self):
-        """
-        :return: Returns a reference to the underlying Model object. Changes to the Model will persist in memory
-         but not be reflected in the API server unless applied.
-        """
-        return self._model
+        return json.dumps(self.model._primitive(), indent=4).strip()
 
     def kind(self, if_missing=_DEFAULT):
         """
@@ -115,7 +108,7 @@ class APIObject:
         :param if_missing: Value to return if kind is not present in Model.
         :return: The kind or if_missing.
         """
-        return _access_field(self._model.kind,
+        return _access_field(self.model.kind,
                              "Object model does not contain .kind", if_missing=if_missing, lowercase=True)
 
     def name(self, if_missing=_DEFAULT):
@@ -125,7 +118,7 @@ class APIObject:
         :param if_missing: Value to return if kind is not present in Model.
         :return: The kind or if_missing.
         """
-        return _access_field(self._model.metadata.name,
+        return _access_field(self.model.metadata.name,
                              "Object model does not contain .metadata.name", if_missing=if_missing,
                              lowercase=True)
 
@@ -135,9 +128,10 @@ class APIObject:
         """
         return self.kind() + '/' + self.name()
 
-    def _object_def_action(self, verb, *args):
+    def _object_def_action(self, verb, auto_raise=True, *args):
         """
         :param verb: The verb to execute
+        :param auto_raise: If True, any failed action will cause an exception to be raised automatically.
         :param args: Other arguments to pass to the verb
         :return: The Result
         :rtype: Result
@@ -145,15 +139,17 @@ class APIObject:
 
         qname = self.qname()
 
-        # Convert Model into a json string
-        content = self.as_json()
+        # Convert Model into a dict
+        content = self.as_dict()
 
         a = list(args)
         a.extend(["-o=name", "-f", "-"])
         result = Result(verb)
         result.add_action(oc_action(self.context, verb, cmd_args=a, stdin_obj=content))
 
-        result.fail_if("Error during object {}".format(verb))
+        if auto_raise:
+            result.fail_if("Error during object {}".format(verb))
+
         return result
 
     def exists(self, on_exists_func=_DEFAULT, on_absent_func=_DEFAULT):
@@ -202,13 +198,42 @@ class APIObject:
 
         return action
 
-    def apply(self, *args):
+    def modify_and_apply(self, modifier_func, retries=0, *args):
         """
-        Applies the modeled object against the API server
-        :return: An Result object
+        Calls the modifier_func with self. The function should modify the model of the receiver
+        and return True if it wants this method to try to apply the change via the API. For robust
+        implementations, a non-zero number of retries is recommended.
+
+        :param modifier_func: Called before each attempt with an self. The associated model will be refreshed before
+            each call if necessary. Function should modify the model with desired changes and return True to
+            have those changes applied.
+        :param retries: The number of times to retry. Zero=one attempt.
+        :return: A Result object
         :rtype: Result
         """
-        return self._object_def_action("apply", check_for_change=True, *args)
+        r = Result("apply")
+
+        for attempt in reversed(range(retries + 1)):
+
+            do_apply = modifier_func(self)
+
+            # Modifier does not want to modify this object -- stop retrying
+            if not do_apply:
+                break
+
+            apply_action = oc_action(self.context, "apply", cmd_args=["-f", "-", args], stdin_obj=self.as_dict(),
+                                     last_attempt=(attempt == 0))
+
+            r.add_action(apply_action)
+
+            if apply_action.status == 0:
+                break
+
+            if attempt != 0:
+                # Get a fresh copy of the API object from the server
+                self.refresh()
+
+        return r
 
     def delete(self, ignore_not_found=False, *args):
         r = Result("delete")
@@ -217,9 +242,21 @@ class APIObject:
         if ignore_not_found is True:
             base_args.append("--ignore-not-found")
 
-        r.add_action(oc_action(self.context, cmd_args=["delete", self.kind(), self.name(), base_args, args]))
+        r.add_action(oc_action(self.context, "delete", cmd_args=[self.kind(), self.name(), base_args, args]))
         r.fail_if("Error deleting object")
         return r
+
+    def refresh(self):
+        """
+        Refreshes this APIObject's cache of the object it represents from the server.
+        :return: self
+        """
+        r = Result("refresh")
+        base_args = ["-o=json"]
+        r.add_action(oc_action(self.context, "get", cmd_args=[self.kind(), self.name(), base_args]))
+        r.fail_if("Error refreshing object content")
+        self.model = Model(json.loads(r.out()))
+        return self
 
     def elements(self):
         """
@@ -230,13 +267,13 @@ class APIObject:
             return [self]
 
         l = []
-        for e in self._model['items']:
+        for e in self.model['items']:
             l.append(APIObject(e._primitive()))
 
         return l
 
     def process(self, parameters={}, **args):
-        template = self._model._primitive()
+        template = self.model._primitive()
         args = list(args)
         args.append("-o=json")
 
@@ -247,7 +284,7 @@ class APIObject:
         # Convert python object into a json string
         content = json.dumps(template, indent=4).strip()
         r = Result("process")
-        r.add_action(oc_action(self.context, cmd_args=["process", "-f", "-", args], stdin_obj=content))
+        r.add_action(oc_action(self.context, "process", cmd_args=["-f", "-", args], stdin_obj=content))
         r.fail_if("Error processing template")
         return _objdef_to_pylist(r.out())
 

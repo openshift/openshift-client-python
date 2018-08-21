@@ -5,7 +5,7 @@ from .model import *
 from .util import split_names
 import json
 import time
-
+import copy
 
 def _normalize_object_list(ol):
     new_ol = []

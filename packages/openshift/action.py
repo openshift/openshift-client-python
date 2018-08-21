@@ -12,8 +12,7 @@ def _redact_token_arg(arg):
 
 
 def _is_sensitive(content_str):
-    content_str = content_str.lower()
-    return "secret" in content_str or "password" in content_str or "token" in content_str
+    return 'kind: Secret' in content_str or 'kind: "Secret"' in content_str
 
 
 def _redaction_string():
@@ -28,7 +27,8 @@ def _redact_content(content_str):
 
 class Action(object):
 
-    def __init__(self, verb, cmd_list, out, err, references, status, stdin_obj=None, timeout=False, internal=False):
+    def __init__(self, verb, cmd_list, out, err, references, status, stdin_obj=None, timeout=False, last_attempt=True,
+                 internal=False):
         self.status = status
         self.verb = verb
         self.cmd = cmd_list
@@ -37,6 +37,7 @@ class Action(object):
         self.stdin_obj = stdin_obj
         self.references = references
         self.timeout = timeout
+        self.last_attempt = last_attempt
         self.internal = internal
 
         if not self.references:
@@ -53,6 +54,7 @@ class Action(object):
             'stdin_obj': self.stdin_obj,
             'references': self.references,
             'timeout': self.timeout,
+            'last_attempt': self.last_attempt,
             'internal': self.internal,
         }
 
@@ -96,7 +98,7 @@ def _flatten_list(l):
 
 
 def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=False, references=None, stdin_obj=None,
-              **kwargs):
+              last_attempt=True, **kwargs):
     """
     Executes oc client verb with arguments. Returns an Action with result information.
     :param context: context information for the execution
@@ -106,8 +108,7 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
     :param no_namespace: If true, namespace will not be included in invocation
     :param references: A dict of values to include in the tracking information for this action
     :param stdin_obj: A json serializable object to supply to stdin for the oc invocation
-    :param args: Argument strings to add to the invocation (e.g. '--output=name'). Each argument can also be a list
-        of strings which will be flattened (e.g. ['--output=name', '--ignore_not_found'])
+    :param last_attempt: If False, implies that this action will be retried by higher level control on failure.
     :param kwargs:
     :return: An Action object.
     :rtype: Action
@@ -204,6 +205,7 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
             returncode = -1
 
     internal = kwargs.get("internal", False)
-    a = Action(verb, cmds, stdout, stderr, references, returncode, stdin_obj=stdin_obj, timeout=timeout, internal=internal)
+    a = Action(verb, cmds, stdout, stderr, references, returncode, stdin_obj=stdin_obj, timeout=timeout,
+               last_attempt=last_attempt, internal=internal)
     context.register_action(a)
     return a

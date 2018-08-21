@@ -4,6 +4,7 @@ import openshift
 import logging
 import paramiko
 import traceback
+import json
 
 logging.getLogger("paramiko").setLevel(logging.DEBUG)
 paramiko.util.log_to_file("paramiko.log")
@@ -14,7 +15,8 @@ with openshift.tracker() as t:
         with openshift.project("jmp-test-3"):
 
             try:
-                openshift.selector('pod/busybox').delete(ignore_not_found=True)
+                bb = openshift.selector('pod/busybox')
+                bb.delete(ignore_not_found=True)
 
                 openshift.create({
                     'apiVersion': 'v1',
@@ -34,6 +36,17 @@ with openshift.tracker() as t:
                         'terminationGracePeriodSeconds': '0'
                     },
                 })
+
+                def apply_update(apiobj):
+
+                    def make_model_change(apiobj):
+                        apiobj.model.spec.containers[0].command[1] = '70'
+                        return True
+
+                    apiobj.modify_and_apply(make_model_change, retries=5)
+                    return True
+
+                bb.for_each(apply_update)
 
             except Exception:
                 traceback.print_exc()
