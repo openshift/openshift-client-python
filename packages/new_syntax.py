@@ -1,10 +1,17 @@
 #!/usr/bin/env python
 
+# Current thinking
+# - Use model extensively. The use of dicts is just too painful syntax-wise.
+# - Do not implement watch. Not targeting writing a controller and user can easy poll for changes they are
+# interested in. It's technically possible if you polled channel recv_ready & read lines, but why bother with this
+# complexity?
+#
+
+
 import openshift
 import logging
 import paramiko
 import traceback
-import json
 
 logging.getLogger("paramiko").setLevel(logging.DEBUG)
 paramiko.util.log_to_file("paramiko.log")

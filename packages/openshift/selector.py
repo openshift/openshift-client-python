@@ -92,8 +92,6 @@ class Selector(Result):
 
         args.append(self.kind)
 
-        print 'labels: {}'.format(self.labels)
-
         if self.labels is not None:
             sel = "--selector="
             pairs = []
@@ -462,7 +460,7 @@ def selector(kind_or_qname_or_qnames=None, labels=None, all_namespaces=False, co
     selector( "kind", labels=[ 'k': 'v' ] )
     selector( ["kind/name1", "kind/name2", ...] )
     selector( "kind/name" )
-    :param labels: Required labels if only kind is specified
+    :param labels: Required labels if only kind is specified (AND logic is applied)
     :return: A Selector object
     :rtype: Selector
     """

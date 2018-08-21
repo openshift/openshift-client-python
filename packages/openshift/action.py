@@ -2,6 +2,7 @@ import subprocess
 import time
 import socket
 import json
+import yaml
 from .util import TempFile
 
 
@@ -43,7 +44,7 @@ class Action(object):
         if not self.references:
             self.references = {}
 
-    def as_dict(self, truncate_stdout=50, redact_tokens=True, redact_references=True, redact_streams=True):
+    def as_dict(self, truncate_stdout=-1, redact_tokens=True, redact_references=True, redact_streams=True):
 
         d = {
             'status': self.status,
@@ -51,7 +52,7 @@ class Action(object):
             'cmd': self.cmd,
             'out': self.out,
             'err': self.err,
-            'stdin_obj': self.stdin_obj,
+            'in_obj': self.stdin_obj,
             'references': self.references,
             'timeout': self.timeout,
             'last_attempt': self.last_attempt,
@@ -66,12 +67,20 @@ class Action(object):
 
         if redact_streams:
             d['out'] = _redact_content(self.out)
+            d['err'] = _redact_content(self.err)
             if self.stdin_obj and _is_sensitive(json.dumps(self.stdin_obj, indent=None)):
-                d['stdin_obj'] = _redaction_string()
+                d['in_obj'] = _redaction_string()
 
-        if truncate_stdout and truncate_stdout > -1:
-            content = d['out']
-            d['out'] = (content[:truncate_stdout] + '...') if len(content) > content else content
+        if len(self.out) > truncate_stdout > -1:
+            d['out'] = (self.out[:truncate_stdout] + '...')
+        else:
+            try:
+                # If the output can be parsed as json, do so
+                if self.out.startswith('{'):
+                    d['out_obj'] = json.loads(self.out)
+                    del d['out']
+            except:
+                pass
 
         return d
 
@@ -97,8 +106,10 @@ def _flatten_list(l):
     return agg
 
 
-def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=False, references=None, stdin_obj=None,
-              last_attempt=True, **kwargs):
+def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=False,
+              references=None, stdin_obj=None, last_attempt=True,
+              on_line_update_func=None,
+              **kwargs):
     """
     Executes oc client verb with arguments. Returns an Action with result information.
     :param context: context information for the execution
@@ -109,6 +120,8 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
     :param references: A dict of values to include in the tracking information for this action
     :param stdin_obj: A json serializable object to supply to stdin for the oc invocation
     :param last_attempt: If False, implies that this action will be retried by higher level control on failure.
+    :param on_line_update_func: Specifying runs action in watch mode. Method will be invoked for every update.
+            stdout in Action will not be populated.
     :param kwargs:
     :return: An Action object.
     :rtype: Action
@@ -154,8 +167,6 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
     if context.get_ssh_client() is not None:
         command_string = ""
 
-        # If paramiko fails to timeout, consider using polling: https://stackoverflow.com/a/45844203
-
         for i, c in enumerate(cmds):
             # index zero is 'oc' -- no need to escape
             if i > 0:
@@ -164,19 +175,23 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
             command_string += c
 
         try:
+
+            # This timeout applies to individual read / write channel operations which follow.
+            # If paramiko fails to timeout, consider using polling: https://stackoverflow.com/a/45844203
             ssh_stdin, ssh_stdout, ssh_stderr = context.get_ssh_client().exec_command(command=command_string,
                                                                                       timeout=context.get_min_remaining_seconds())
+            if stdin_str:
+                ssh_stdin.write(stdin_str)
+                ssh_stdin.flush()
+                ssh_stdin.channel.shutdown_write()
+
+            stdout = ssh_stdout.read()
+            stderr = ssh_stderr.read()
+            returncode = ssh_stdout.channel.recv_exit_status()
+
         except socket.timeout as error:
             timeout = True
-
-        if stdin_str:
-            ssh_stdin.write(stdin_str)
-            ssh_stdin.flush()
-            ssh_stdin.channel.shutdown_write()
-
-        stdout = ssh_stdout.read()
-        stderr = ssh_stderr.read()
-        returncode = ssh_stdout.channel.recv_exit_status()
+            returncode = -1
 
     else:
 
