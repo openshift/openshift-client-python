@@ -7,6 +7,7 @@ import json
 import time
 import copy
 
+
 def _normalize_object_list(ol):
     new_ol = []
     for qname in ol:
@@ -17,7 +18,6 @@ def _normalize_object_list(ol):
 
 
 class Selector(Result):
-
     def __init__(self, high_level_operation,
                  kind_or_qname_or_qnames=None, labels=None,
                  object_list=None,
@@ -133,7 +133,8 @@ class Selector(Result):
         return qnames[0]
 
     def raw_action(self, verb, *args, **kwargs):
-        return oc_action(self.context, verb, all_namespaces=self.all_namespaces, cmd_args=[self._selection_args(), args], **kwargs)
+        return oc_action(self.context, verb, all_namespaces=self.all_namespaces,
+                         cmd_args=[self._selection_args(), args], **kwargs)
 
     def _query_names(self):
 
@@ -143,7 +144,8 @@ class Selector(Result):
         """
 
         result = Result("query_names")
-        result.add_action(oc_action(self.context, 'get', all_namespaces=self.all_namespaces, cmd_args=['-o=name', self._selection_args()]))
+        result.add_action(oc_action(self.context, 'get', all_namespaces=self.all_namespaces,
+                                    cmd_args=['-o=name', self._selection_args()]))
 
         # TODO: This check is necessary until --ignore-not-found is implemented and prevalent
         if result.status() != 0 and "(NotFound)" in result.err():
@@ -264,7 +266,8 @@ class Selector(Result):
 
         verb = "export" if exportable else "get"
         r = Result(verb)
-        r.add_action(oc_action(self.context, verb, all_namespaces=self.all_namespaces, cmd_args=["-o=json", self._selection_args()]))
+        r.add_action(oc_action(self.context, verb, all_namespaces=self.all_namespaces,
+                               cmd_args=["-o=json", self._selection_args()]))
         r.fail_if("Unable to read object")
 
         return r.out()
@@ -311,7 +314,8 @@ class Selector(Result):
 
     def describe(self, send_to_stdout=True, *args):
         r = Result("describe")
-        r.add_action(oc_action(self.context, "describe", all_namespaces=self.all_namespaces, cmd_args=[self._selection_args(), args]))
+        r.add_action(oc_action(self.context, "describe", all_namespaces=self.all_namespaces,
+                               cmd_args=[self._selection_args(), args]))
         r.fail_if("Error describing objects")
         if send_to_stdout:
             print r.out()
@@ -329,32 +333,55 @@ class Selector(Result):
             args.append("--ignore-not-found")
         args.append("-o=name")
 
-        r.add_action(oc_action(self.context, "delete", all_namespaces=self.all_namespaces, cmd_args=[self._selection_args(needs_all=True), args]))
+        r.add_action(oc_action(self.context, "delete", all_namespaces=self.all_namespaces,
+                               cmd_args=[self._selection_args(needs_all=True), args]))
 
         r.fail_if("Error deleting objects")
         r.object_list = split_names(r.out())
         return r
 
-    def label(self, labels, *args):
-        names = self.qnames()
+    def label(self, labels, overwrite=True, *args):
 
         r = Result("label")
         args = list(args)
-        args.append("-o=name")
-        args.append("--overwrite")
 
-        for l, v in labels.items():
-            if v is None:
+        if overwrite:
+            args.append("--overwrite")
+
+        for l, v in labels.iteritems():
+            if not v:
                 if not l.endswith("-"):
                     l += "-"  # Indicate removal on command line if caller has not applied "-" suffix
                 args.append(l)
             else:
-                args.append(l + "=" + v)
+                args.append('{}={}'.format(l, v))
 
-        for name in names:
-            r.add_action(oc_action(self.context, "label", all_namespaces=self.all_namespaces, cmd_args=[name, args]))
+        r.add_action(oc_action(self.context, "label", all_namespaces=self.all_namespaces,
+                               cmd_args=[self._selection_args(needs_all=True), args]))
 
-        r.fail_if("Error running label on at least one item: " + str(self.qnames()))
+        r.fail_if("Error running label")
+        return self
+
+    def annotate(self, annotations, overwrite=True, *args):
+
+        r = Result("annotate")
+        args = list(args)
+
+        if overwrite:
+            args.append("--overwrite")
+
+        for l, v in annotations.iteritems():
+            if not v:
+                if not l.endswith("-"):
+                    l += "-"  # Indicate removal on command line if caller has not applied "-" suffix
+                args.append(l)
+            else:
+                args.append('{}={}'.format(l, v))
+
+        r.add_action(oc_action(self.context, "annotate", all_namespaces=self.all_namespaces,
+                               cmd_args=[self._selection_args(needs_all=True), args]))
+
+        r.fail_if("Error running annotate")
         return self
 
     def patch(self, patch_def, strategy="strategic", *args):
@@ -369,7 +396,8 @@ class Selector(Result):
         resource_info = json.loads(self.object_json())
 
         args.append("--patch=" + patch_def)
-        r.add_action(oc_action(self.context, "patch", all_namespaces=self.all_namespaces, cmd_args=["-f", "-", args], stdin_obj=resource_info))
+        r.add_action(oc_action(self.context, "patch", all_namespaces=self.all_namespaces, cmd_args=["-f", "-", args],
+                               stdin_obj=resource_info))
 
         r.fail_if("Error running patch on objects")
         return r
@@ -464,7 +492,8 @@ def selector(kind_or_qname_or_qnames=None, labels=None, all_namespaces=False, co
     :return: A Selector object
     :rtype: Selector
     """
-    return Selector("selector", kind_or_qname_or_qnames, labels=labels, all_namespaces=all_namespaces, context=context, *args, **kwargs)
+    return Selector("selector", kind_or_qname_or_qnames, labels=labels, all_namespaces=all_namespaces, context=context,
+                    *args, **kwargs)
 
 
 from .action import oc_action

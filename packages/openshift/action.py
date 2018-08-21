@@ -108,7 +108,6 @@ def _flatten_list(l):
 
 def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=False,
               references=None, stdin_obj=None, last_attempt=True,
-              on_line_update_func=None,
               **kwargs):
     """
     Executes oc client verb with arguments. Returns an Action with result information.
@@ -120,8 +119,6 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
     :param references: A dict of values to include in the tracking information for this action
     :param stdin_obj: A json serializable object to supply to stdin for the oc invocation
     :param last_attempt: If False, implies that this action will be retried by higher level control on failure.
-    :param on_line_update_func: Specifying runs action in watch mode. Method will be invoked for every update.
-            stdout in Action will not be populated.
     :param kwargs:
     :return: An Action object.
     :rtype: Action

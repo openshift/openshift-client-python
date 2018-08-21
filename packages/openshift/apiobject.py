@@ -51,9 +51,6 @@ def _obj_to_primitive(obj):
     raise ValueError("Unknown how to transform into dict: {}".format(type(obj)))
 
 
-
-
-
 def _as_model(obj):
     """
     :param obj: The object to return as a Model
@@ -82,7 +79,6 @@ def _access_field(val, err_msg, if_missing=_DEFAULT, lowercase=False):
 
 
 class APIObject:
-
     def __init__(self, dict_to_model=None, context=None):
         # Create a Model representation of the object.
         self.context = context if context else cur_context()
@@ -99,7 +95,7 @@ class APIObject:
         """
         :return: Returns a JSON presentation of the APIObject.
         """
-        return json.dumps(self.model._primitive(), indent=4).strip()
+        return json.dumps(self.model._primitive(), indent=indent).strip()
 
     def kind(self, if_missing=_DEFAULT):
         """
@@ -152,6 +148,12 @@ class APIObject:
 
         return result
 
+    def selector(self):
+        """
+        :return: Returns a selector that selects this exact receiver
+        """
+        return selector('{}/{}'.format(self.kind(), self.name()), context=self.context)
+
     def exists(self, on_exists_func=_DEFAULT, on_absent_func=_DEFAULT):
         """
         Returns whether the specified object exists according to the API server.
@@ -160,7 +162,7 @@ class APIObject:
         :param on_absent_func: The function to execute if the object does not exist
         :return: Boolean indicated whether the object exists, followed by return value of function, if present
         """
-        does_exist = selector('{}/{}'.format(self.kind(), self.name()), context=self.context).count_existing() == 1
+        does_exist = self.selector().count_existing() == 1
 
         ret = None
         if does_exist:
@@ -253,10 +255,43 @@ class APIObject:
         """
         r = Result("refresh")
         base_args = ["-o=json"]
-        r.add_action(oc_action(self.context, "get", cmd_args=[self.kind(), self.name(), base_args]))
+
+        for attempt in reversed(range(9)):
+            r_action = oc_action(self.context, "get", cmd_args=[self.kind(), self.name(), base_args],
+                                 last_attempt=(attempt == 0))
+
+            r.add_action(r_action)
+            if r_action.status == 0:
+                self.model = Model(json.loads(r_action.out))
+                break
+
+            time.sleep(1)
+
         r.fail_if("Error refreshing object content")
-        self.model = Model(json.loads(r.out()))
         return self
+
+    def label(self, labels, overwrite=True, *args):
+        """"
+        Applies the specified labels to the api object.
+        :param labels: A dictionary of labels to apply to the object. If value is None, label will be removed.
+        :param overwrite: Whether to pass the --overwrite argument.
+        :return: Result
+        """
+
+        result = self.selector().label(labels, overwrite, *args)
+        self.refresh()
+        return result
+
+    def annotate(self, annotations, overwrite=True, *args):
+        """"
+        Applies the specified labels to the api object.
+        :param annotations: A dictionary of annotations to apply to the object. If value is None, annotation will be removed.
+        :param overwrite: Whether to pass the --overwrite argument.
+        :return: Result
+        """
+        result = self.selector().annotate(annotations=annotations, overwrite=overwrite, *args)
+        self.refresh()
+        return result
 
     def elements(self):
         """
@@ -287,6 +322,7 @@ class APIObject:
         r.add_action(oc_action(self.context, "process", cmd_args=["-f", "-", args], stdin_obj=content))
         r.fail_if("Error processing template")
         return _objdef_to_pylist(r.out())
+
 
 from .context import cur_context
 from .selector import selector
