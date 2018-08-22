@@ -1,11 +1,10 @@
 from .selector import Selector, selector
 from .action import oc_action
-from .context import cur_context, context, project
+from .context import cur_context, project
 from .result import Result
 from .apiobject import APIObject
 from .model import Model, Missing
 import paramiko
-import json
 
 
 def __new_objects_action_selector(verb, cmd_args=[], stdin_obj=None):
@@ -91,7 +90,7 @@ def _to_dict_list(dict_or_model_or_apiobject_or_list_thereof):
     return l
 
 
-def create(dict_or_model_or_apiobject_or_list_thereof, *args):
+def create(dict_or_model_or_apiobject_or_list_thereof, cmd_args=[]):
 
     m = {
         'kind': 'List',
@@ -100,8 +99,19 @@ def create(dict_or_model_or_apiobject_or_list_thereof, *args):
         'items': _to_dict_list(dict_or_model_or_apiobject_or_list_thereof)
     }
 
-    return __new_objects_action_selector("create", cmd_args=["-f", "-", args], stdin_obj=m)
+    return __new_objects_action_selector("create", cmd_args=["-f", "-", cmd_args], stdin_obj=m)
 
+
+def apply(dict_or_model_or_apiobject_or_list_thereof, cmd_args=[]):
+
+    m = {
+        'kind': 'List',
+        'apiVersion': 'v1',
+        'metadata': {},
+        'items': _to_dict_list(dict_or_model_or_apiobject_or_list_thereof)
+    }
+
+    return __new_objects_action_selector("apply", cmd_args=["-f", "-", cmd_args], stdin_obj=m)
 
 def node_ssh_client(apiobj_node_name_or_qname,
                     port=22,

@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 import openshift as oc
-from openshift.model import Missing
+from openshift import Missing
 import traceback
 
 with oc.tracker() as t:

@@ -154,7 +154,7 @@ d = project.as_dict()
 
 
 ### Making changes to APIObjects
-```
+```python
 # APIObject exposes simple interfaces to delete and patch the resource it represents.
 # But, more interestingly, you can make detailed changes to the model and apply those
 # changes to the API.
