@@ -23,8 +23,14 @@ class OutputCapture(object):
         sys.stderr = sys.__stderr__
 
 
-class TempFileContent(object):
-    def __init__(self, content, suffix=".tmp"):
+class TempFile(object):
+    """
+    Creates a temporary file, open for reading/writing within the context.
+    If content is specified, it is written into the file when created and
+    the file position is reset to 0.
+    """
+
+    def __init__(self, content=None, suffix=".tmp"):
         self.suffix = suffix
         self.file = None
         self.path = None
@@ -33,57 +39,16 @@ class TempFileContent(object):
     def __enter__(self):
         self.file, self.path = tempfile.mkstemp(self.suffix, "openshift-python")
 
-        try:
-            os.write(self.file, self.content)
-            os.close(self.file)
-        except Exception as e:
-            self.destroy()
-            raise e
-
-        return self.path
-
-    def destroy(self):
-        if self.file is not None:
+        if self.content:
             try:
-                os.close(self.file)
-            except StandardError:
-                pass
-        if self.path is not None:
-            try:
-                os.unlink(self.path)
-            except:
-                pass
-        self.file = None
-        self.path = None
+                os.write(self.file, self.content)
+                self.flush()
+                os.lseek(self.file, 0, os.SEEK_SET)  # seek to the beginning of the file
+            except Exception as e:
+                self.destroy()
+                raise e
 
-    def __exit__(self, type, value, traceback):
-        self.destroy()
-
-
-class TempFile(object):
-
-    def __init__(self, suffix=".tmp"):
-        self.suffix = suffix
-        self.file = None
-        self.path = None
-
-    def __enter__(self):
-        self.file, self.path = tempfile.mkstemp(self.suffix, "openshift-python")
         return self
-
-    def destroy(self):
-        if self.file is not None:
-            try:
-                os.close(self.file)
-            except StandardError:
-                pass
-        if self.path is not None:
-            try:
-                os.unlink(self.path)
-            except:
-                pass
-        self.file = None
-        self.path = None
 
     def flush(self):
         os.fsync(self.file)
@@ -93,5 +58,31 @@ class TempFile(object):
         with codecs.open(self.path, mode="rb", encoding=encoding, buffering=1024) as cf:
             return cf.read(size=max_size)
 
+    def destroy(self):
+        if self.file is not None:
+            try:
+                os.close(self.file)
+            except StandardError:
+                pass
+        if self.path is not None:
+            try:
+                os.unlink(self.path)
+            except:
+                pass
+        self.file = None
+        self.path = None
+
     def __exit__(self, type, value, traceback):
         self.destroy()
+
+
+def split_names(output):
+    """
+    Designed to split up output from -o=name into a
+    simple list of qualified object names ['kind/name', 'kind/name', ...]
+    :param output: A single string containing all of the output to parse
+    :return: A list of qualified object names
+    """
+    if output is None:
+        return []
+    return [x.strip() for x in output.strip().split("\n") if x.strip() != ""]

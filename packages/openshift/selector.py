@@ -1,111 +1,91 @@
 from .result import Result
 from .naming import expand_kind
 from .naming import normalize_kind
-from .action import oc_action
-from .util import *
 from .model import *
+from .util import split_names
 import json
 import time
 
 
-class ChangeTrackingFor(object):
-
-    def __init__(self, context, *names):
-        self.context = context
-        self.names = names
-
-    def __enter__(self, ):
-        self.pre_versions = get_resource_versions(self.context, *self.names)
-
-    def __exit__(self, type, value, traceback):
-        post_versions = get_resource_versions(self.context, *self.names)
-
-        # If change check failed then assume changes were made. Otherwise, compare pre and post changes.
-        if post_versions is None or post_versions != self.pre_versions:
-            self.context.register_changes(*self.names)
-
-
-# Designed to split up output from -o=name into a
-# simple list of object names
-def split_names(output):
-    if output is None:
-        return []
-    return [x.strip() for x in output.strip().split("\n") if x.strip() != ""]
-
-
-# Converts python modeled OpenShift objects as
-# json text. Lists are turned into kind=List.
-# Strings are returned without modification.
-def to_single_string(objdef):
-    if isinstance(objdef, str):
-        return objdef
-
-    if isinstance(objdef, list):
-        objdef = {
-            "kind": "List",
-            "apiVersion": "v1",
-            "items": objdef
-        }
-
-    return json.dumps(objdef, indent=4).strip()
-
-
-# Arguments should be a list of fully qualified names. e.g.: ( "pod/x", "user/y" )
-# Returns a dict of resource-name -> resource-version
-# If an error occurs, None is returned.
-def get_resource_versions(context, *names):
-    sel = Selector(context, "get_resource_versions", *names)
-    action = sel.raw_action("get", "-o=custom-columns=NAME:.metadata.name,RV:.metadata.resourceVersion", "--no-headers", internal=True)
-    if action.status != 0:
-        return None
-    lines = action.out.strip().split("\n")
-    map = {}
-    for line in lines: # Each line looks like "jupierce   56314"
-        elements = line.strip().split()
-        if len(elements) != 2:
-            raise RuntimeError("Unexpected output from custom-columns: " + line + "\nFull output:\n"+ lines)
-        map[elements[0]] = elements[1]
-    return map
+def _normalize_object_list(ol):
+    new_ol = []
+    for qname in ol:
+        kind, name = str(qname).split("/")
+        kind = normalize_kind(kind)
+        new_ol.append('{}/{}'.format(kind, name))
+    return new_ol
 
 
 class Selector(Result):
 
-    def __init__(self, context, high_level_operation, *args, **kwargs):
+    def __init__(self, high_level_operation,
+                 kind_or_qname_or_qnames=None, labels=None,
+                 object_list=None,
+                 object_action=None,
+                 filter_func=None,
+                 all_namespaces=False,
+                 static_context=None):
+
         super(self.__class__, self).__init__(high_level_operation)
-        self.context = context
 
-        self.object_list = kwargs.get("object_list", None)
-        self.labels = kwargs.get("labels", None)
+        self.context_override = static_context
+        self.object_list = object_list
+        self.labels = labels
+        self.filter_func = filter_func
+        self.all_namespaces = all_namespaces
 
-        if len(args) == 0:  # caller must set object_list if it wasn't in kwargs
+        if object_action:
+            self.add_action(object_action)
+            action_output = object_action.out
+            self.object_list = action_output.strip().split()
+
+        if self.object_list is not None:
+            if labels or kind_or_qname_or_qnames:
+                raise ValueError("Kind/labels cannot be specified in conjunction with object_list")
             return
 
         if self.labels is not None:
-            if len(args) != 1:
-                raise ValueError("Expected kind as first parameter when labels are specified")
-            self.kind = expand_kind(args[0])
-        else:
-            # Otherwise, allow Selector( 'kind", "name" ) or Selector( "kind/name", "kind2/name2", ...)
-            if len(args) == 0:
-                raise ValueError("Requires kind or qualified object name")
+            # You can't query using labels without specifying a kind. Use 'all'.
+            if kind_or_qname_or_qnames is None:
+                kind_or_qname_or_qnames = "all"
+            self.kind = expand_kind(kind_or_qname_or_qnames)
 
-            first = args[0]
-            if "/" not in first:  # Caller has specified ("kind", ["name"])
-                self.kind = normalize_kind(first)
-                if len(args) == 2:  # Caller has specified ("kind", "name")
-                    self.object_list = ["%s/%s" % (self.kind, args[1])]
-                elif len(args) > 1:
-                    raise ValueError("Invalid parameters")
-            else:  # Caller specified ( qualified_name1, qualified_name2, ...)
-                self.object_list = []
-                for a in args:
-                    kind, name = str(a).split("/")
-                    self.object_list.append("%s/%s" % (normalize_kind(kind), name))
+        else:
+
+            # Otherwise, allow args[0] of
+            #  "kind"
+            #  "kind/name"
+            #  [ "kind/name", ... ]
+
+            if kind_or_qname_or_qnames is None:
+                raise ValueError("Requires kind, qualified name, or list of qualified names")
+
+            first = kind_or_qname_or_qnames
+
+            # List of qualified names
+            if isinstance(first, list):
+                self.object_list = _normalize_object_list(first)
+            else:
+                if "/" not in first:  # Caller has specified ("kind")
+                    self.kind = normalize_kind(first)
+                else:  # Caller specified ( "kind/name" )
+                    self.object_list = _normalize_object_list([first])
 
     def __iter__(self):
         return self.objects().__iter__()
 
-    def selection_args(self, needs_all=False):
+    @property
+    def context(self):
+        return self.context_override if self.context_override else cur_context()
+
+    def _selection_args(self, needs_all=False):
+
+        """
+        :param needs_all: Set to True to include --all
+        :return: Returns a list of arguments for oc which, when executed, should select the underlying objects
+        selected by this selector.
+        """
+
         args = []
 
         # If this is a static selector, just return our list of names.
@@ -115,31 +95,59 @@ class Selector(Result):
         args.append(self.kind)
 
         if self.labels is not None:
-            for k, v in self.labels.items():
-                args.append("-l %s=%s" % (k, v))
+            sel = "--selector="
+            pairs = []
+            for k, v in self.labels.iteritems():
+                pairs.append('{}={}'.format(k, v))
+            sel += ','.join(pairs)
+            args.append(sel)
         elif needs_all:
             # e.g. "oc delete pods" will fail unless --all is specified
             args.append("--all")
 
         return args
 
-    def name(self):
-        names = self.names()
+    def qnames(self):
+        """
+        :return: Returns the qualified object names (kind/name) selected by this selector. List may be empty.
+        """
 
-        if len(names) == 0:
+        if self.object_list is not None:
+            return list(self.object_list)
+
+        return self._query_names()
+
+    def qname(self):
+
+        """
+        :return: Returns the qualified object name (kind/name) selected by this selector. Method expects
+        exactly one item to be selected, otherwise it will throw an exception.
+        """
+
+        qnames = self.qnames()
+
+        if len(qnames) == 0:
             raise OpenShiftException("Expected single name, but selector returned no resources")
 
-        if len(names) > 1:
+        if len(qnames) > 1:
             raise OpenShiftException("Expected single name, but selector returned multiple resources")
 
-        return names[0]
+        return qnames[0]
 
     def raw_action(self, verb, *args, **kwargs):
-        return oc_action(self.context, verb, self.selection_args(), *args, **kwargs)
+        return oc_action(self.context, verb, all_namespaces=self.all_namespaces,
+                         cmd_args=[self._selection_args(), args], **kwargs)
 
-    def query_names(self):
+    def _query_names(self):
+
+        """
+        Invokes oc to query for current objects selected by this selector.
+        :return: Returns a list of qualified names (list may be empty).
+        """
+
         result = Result("query_names")
-        result.add_action(oc_action(self.context, 'get', '-o=name', self.selection_args()))
+        result.add_action(oc_action(self.context, 'get', all_namespaces=self.all_namespaces,
+                                    cmd_args=['-o=name', self._selection_args()]))
 
         # TODO: This check is necessary until --ignore-not-found is implemented and prevalent
         if result.status() != 0 and "(NotFound)" in result.err():
@@ -148,11 +156,6 @@ class Selector(Result):
         # Otherwise, errors are fatal
         result.fail_if("Unable to retrieve object names")
         return split_names(result.out())
-
-    def names(self):
-        if self.object_list is not None:
-            return self.object_list
-        return self.query_names()
 
     def narrow(self, kind_or_func):
         """
@@ -164,7 +167,7 @@ class Selector(Result):
         :param kind_or_func: A string specifying the kind to include in the resulting
           selector OR a callable which should return True for objects to be included
           in the resulting selector. The callable will be called once for each
-          object selected by the receiver. The argument to the callable will be a Model.
+          object selected by the receiver. The argument to the callable will be an APIObject.
         :return: A new static selector which selects a subset of the receiver's selection.
         """
 
@@ -172,63 +175,32 @@ class Selector(Result):
         if callable(kind_or_func):
             for obj in self.objects():
                 if kind_or_func(obj):
-                    ns.append("%s/%s" % (normalize_kind(obj.kind), obj.metadata.name))
+                    ns.append(obj.qname())
         elif isinstance(kind_or_func, str) or isinstance(kind_or_func, unicode):
             kind = normalize_kind(kind_or_func)
-            ns = [n for n in self.names() if n.startswith(kind + "/")]
+            ns = [n for n in self.qnames() if (n.startswith(kind + "/") or n.startswith(kind + "."))]
         else:
             raise ValueError("Don't know how to narrow with type: " + type(kind_or_func))
 
-        s = Selector(self.context, "narrow", object_list=ns)
+        s = Selector("narrow", object_list=ns, static_context=self.context)
         return s
 
-    def related(self):
+    def freeze(self):
         """
-        Returns a dynamic selector which selects objects related to the single object
-        selected by the receiver. For example, if the receiver selects a single template,
-        a selector will be returned which is capable of finding all objects created
-        by that template.
-        :return: A dynamic selector which selects objects related to the object selected
-            by this receiver.
+        :return: Returns a new static Selector with the set of objects currently selected by this receiver.
+        This is useful if business logic needs the underlying objects being selected to not change between
+        queries (i.e. qnames() will always return the same thing even if objects are deleted from the server).
         """
-        labels = {}
-        kind, name = self.name().split("/")
+        return Selector("freeze", object_list=self.qnames())
 
-        if kind == "templates":
-            labels["template"] = name
-        elif kind == "deploymentconfigs":
-            labels["deploymentconfig"] = name
-        elif kind == "buildconfigs":
-            labels["openshift.io/build-config.name"] = name
-        elif kind == "jobs":
-            labels["job-name"] = name
-        else:
-            raise OpenShiftException("Unknown how to find resources to related to kind: " + kind)
-
-        return Selector("related", labels=labels)
-
-    def count(self):
+    def count_existing(self):
         """
         :return: Returns the number of objects this receiver selects that actually exist on the
             server.
         """
-        return len(self.query_names())
+        return len(self._query_names())
 
-    def exists(self, min=1):
-        """
-        In the case of a static selector, returns whether all named resources exist on the
-        server (and exceed the minimum count).
-        In the case of a dynamic selector, returns whether the receiver selects a minimum
-        number of existing objects on the server.
-        :param min: The minimum number of objects which must exist.
-        :return: Returns True or False depending on the existence condition described above.
-        """
-
-        if self.object_list is not None:
-            return min <= len(self.object_list) == self.count()
-        return self.count(self) >= min
-
-    def as_json(self, exportable=False):
+    def object_json(self, exportable=False):
         """
         Returns all objects selected by the receiver as a JSON string. If multiple objects are
         selected, an OpenShift List kind will be returned.
@@ -236,7 +208,7 @@ class Selector(Result):
         :return: Returns all selected objects marshalled as an OpenShift JSON representation.
         """
 
-        # If the selctor is static and empty return an empty list object
+        # If the selector is static and empty return an empty list object
         if self.object_list is not None and len(self.object_list) == 0:
             return json.dumps({
                 "apiVersion": "v1",
@@ -247,132 +219,123 @@ class Selector(Result):
 
         verb = "export" if exportable else "get"
         r = Result(verb)
-        r.add_action(oc_action(self.context, verb, "-o=json", self.selection_args()))
+        r.add_action(oc_action(self.context, verb, all_namespaces=self.all_namespaces,
+                               cmd_args=["-o=json", self._selection_args()]))
         r.fail_if("Unable to read object")
 
         return r.out()
 
-    # Returns a single Model object that represents the selected resource. The Selector
-    # must select exact one object or an exception will be thrown.
     def object(self, exportable=False):
         """
-        Returns a single Model object that represents the selected resource. If multiple
+        Returns a single APIObject that represents the selected resource. If multiple
         resources are being selected an exception will be thrown (use objects() when
         there is a possibility of selecting multiple objects).
         :param exportable: Whether export should be used instead of get.
         :return: A Model of the selected resource.
         """
+        objs = self.objects(exportable)
+        if len(objs) == 0:
+            raise OpenShiftException("Expected a single object, but selected 0")
+        elif len(objs) > 1:
+            raise OpenShiftException("Expected a single object, but selected more than one")
 
-        obj = json.loads(self.as_json(exportable))
-        if obj["kind"] == "List":
-            if len(obj["items"]) == 0:
-                raise OpenShiftException("Expected a single object, but selected 0")
-            else:
-                raise OpenShiftException("Expected a single object, but selected more than one")
-        return Model(obj)
+        return objs[0]
 
-    # Returns a pylist of Model objects that represent the selected resources.
     def objects(self, exportable=False):
         """
-        Returns a python list of Model objects that represent the selected resources. An
+        Returns a python list of APIObject objects that represent the selected resources. An
         empty is returned if nothing is selected.
         :param exportable: Whether export should be used instead of get.
         :return: A list of Model objects representing the receiver's selected resources.
         """
 
-        objs = []
-        obj = json.loads(self.as_json(exportable))
-        if obj["kind"] == "List":
-            for item in obj["items"]:
-                objs.append(Model(item))
-        else:
-            objs.append(Model(obj))
+        obj = json.loads(self.object_json(exportable))
+        return APIObject(obj).elements()
 
-        return objs
-
-    def start_build(self, *args):
+    def start_build(self, cmd_args=[]):
         r = Selector()
 
         # Have start-build output a list of objects it creates
-        args = list(args).append("-o=name")
+        cmd_args = list(cmd_args).append("-o=name")
 
-        for name in self.names():
-            r.add_action(oc_action(self.context, "start-build", name, *args))
+        for name in self.qnames():
+            r.add_action(oc_action(self.context, "start-build", cmd_args=[name, cmd_args]))
 
-        r.fail_if("Error running start-build on at least one item: " + str(self.names()))
+        r.fail_if("Error running start-build on at least one item: " + str(self.qnames()))
         r.object_list = split_names(r.out())
-        self.context.register_changes(r.names())
         return r
 
-    def describe(self, send_to_stdout=True, *args):
+    def describe(self, send_to_stdout=True, cmd_args=[]):
         r = Result("describe")
-        r.add_action(oc_action(self.context, "describe", self.selection_args(), *args))
+        r.add_action(oc_action(self.context, "describe", all_namespaces=self.all_namespaces,
+                               cmd_args=[self._selection_args(), cmd_args]))
         r.fail_if("Error describing objects")
         if send_to_stdout:
             print r.out()
         return r
 
-    def delete(self, ignore_not_found=True, *args):
-        names = self.names()
+    def delete(self, ignore_not_found=True, cmd_args=[]):
+        names = self.qnames()
 
         if len(names) == 0:
             return
 
         r = Result("delete")
-        args = list(args)
+        cmd_args = list(cmd_args)
         if ignore_not_found:
-            args.append("--ignore-not-found")
-        args.append("-o=name")
+            cmd_args.append("--ignore-not-found")
+        cmd_args.append("-o=name")
 
-        with ChangeTrackingFor(self.context, *names):
-            r.add_action(oc_action(self.context, "delete", self.selection_args(needs_all=True), *args))
+        r.add_action(oc_action(self.context, "delete", all_namespaces=self.all_namespaces,
+                               cmd_args=[self._selection_args(needs_all=True), cmd_args]))
 
         r.fail_if("Error deleting objects")
         r.object_list = split_names(r.out())
         return r
 
-    def label(self, labels, *args):
-        names = self.names()
+    def label(self, labels, overwrite=True, cmd_ags=[]):
 
         r = Result("label")
-        args = list(args)
-        args.append("-o=name")
-        args.append("--overwrite")
+        cmd_ags = list(cmd_ags)
 
-        for l, v in labels.items():
-            if v is None:
+        if overwrite:
+            cmd_ags.append("--overwrite")
+
+        for l, v in labels.iteritems():
+            if not v:
                 if not l.endswith("-"):
                     l += "-"  # Indicate removal on command line if caller has not applied "-" suffix
-                args.append(l)
+                cmd_ags.append(l)
             else:
-                args.append(l + "=" + v)
+                cmd_ags.append('{}={}'.format(l, v))
 
-        with ChangeTrackingFor(self.context, *names):
-            for name in names:
-                r.add_action(oc_action(self.context, "label", name, *args))
+        r.add_action(oc_action(self.context, "label", all_namespaces=self.all_namespaces,
+                               cmd_args=[self._selection_args(needs_all=True), cmd_ags]))
 
-        r.fail_if("Error running label on at least one item: " + str(self.names()))
+        r.fail_if("Error running label")
         return self
 
-    def patch(self, patch_def, strategy="strategic", *args):
-        names = self.names()
+    def annotate(self, annotations, overwrite=True, cmd_args=[]):
 
-        r = Result("patch")
-        args = list(args)
-        args.append("--type=" + strategy)
-        args.append("-o=name")
+        r = Result("annotate")
+        cmd_args = list(cmd_args)
 
-        content = to_single_string(patch_def)
+        if overwrite:
+            cmd_args.append("--overwrite")
 
-        with ChangeTrackingFor(self.context, *names):
-            with TempFileContent(content) as path:
-                args.append("--patch=" + content)
-                for name in names:
-                    r.add_action(oc_action(self.context, "patch", name, *args, reference={path: content}))
+        for l, v in annotations.iteritems():
+            if not v:
+                if not l.endswith("-"):
+                    l += "-"  # Indicate removal on command line if caller has not applied "-" suffix
+                cmd_args.append(l)
+            else:
+                cmd_args.append('{}={}'.format(l, v))
 
-        r.fail_if("Error running patch on at least one item: " + str(self.names()))
-        r.object_list = split_names(r.out())
-        return r
+        r.add_action(oc_action(self.context, "annotate", all_namespaces=self.all_namespaces,
+                               cmd_args=[self._selection_args(needs_all=True), cmd_args]))
+
+        r.fail_if("Error running annotate")
+        return self
 
     def for_each(self, func, *args, **kwargs):
         """
@@ -387,6 +350,16 @@ class Selector(Result):
         for obj in self.objects():
             r.append(func(obj, *args, **kwargs))
         return r
+
+    def scale(self, replicas, cmd_args=[]):
+        r = Result("scale")
+        cmd_args = list(cmd_args)
+        cmd_args.append('--scale={}'.format(replicas))
+        r.add_action(oc_action(self.context, "scale", all_namespaces=self.all_namespaces,
+                               cmd_args=[self._selection_args(needs_all=False), cmd_args]))
+
+        r.fail_if("Error running scale")
+        return self
 
     def until_any(self, success_func, failure_func=None, *args, **kwargs):
         """
@@ -413,7 +386,7 @@ class Selector(Result):
                 if failure_func is not None and failure_func(obj, *args, **kwargs):
                     return False, obj
             time.sleep(poll_period)
-            poll_period = min(poll_period+1, 15)
+            poll_period = min(poll_period + 1, 15)
 
     def until_all(self, min_count, success_func, failure_func=None, *args, **kwargs):
         """
@@ -425,14 +398,17 @@ class Selector(Result):
         the user specified callable(s) will be invoked once with the object
         as a Model (*args and **kwargs will also be passed along).
 
+        :param min_count: Minimum number of objects which must exist before check will be performed
         :param success_func: If this function returns True on ALL objects, iteration will stop
-            and until_all will return (True, objs) where objs is a list of Model objects
-            which satisfied the condition.
+            and until_all will return (True, objs, None) where objs is a list of APIObjects
+            selected/checked.
         :param failure_func: If this function returns True on ANY obj, iteration will stop
-            and until_all will return (False, objs) where objs is the list of Model objects
-            which triggered the failure.
-        :return: (bool, objs) where bool is True if the success condition was satisfied
-            and False if the failure condition triggered.
+            and until_all will return (False, objs, bad) where objs is the list of APIObjects
+            selected/checked and bad is the APIObject which failed.
+        :return: (bool, objs, bad) where bool is True if the success condition was satisfied
+            and False if the failure condition triggered. objs is the list of selected objects
+            which were checked, and bad will be an non-None APIObject if an object failed
+            the check.
         """
 
         poll_period = 1
@@ -446,8 +422,34 @@ class Selector(Result):
                     if failure_func is not None:
                         failer |= failure_func(obj, *args, **kwargs)
                 if successer:
-                    return True, objs
+                    return True, objs, None
                 if failer:
-                    return False, objs
+                    return False, objs, obj
             time.sleep(poll_period)
-            poll_period = min(poll_period+1, 15)
+            poll_period = min(poll_period + 1, 15)
+
+
+def selector(kind_or_qname_or_qnames=None, labels=None, all_namespaces=False, static_context=None):
+    """
+    selector( "kind" )
+    selector( "kind", labels=[ 'k': 'v' ] )
+    selector( ["kind/name1", "kind/name2", ...] )
+    selector( "kind/name" )
+    :param kind_or_qname_or_qnames: A kind ('pod'), qualified name ('pod/some_name') or
+        a list of qualified names ['pod/abc', 'pod/def'].
+    :param labels: labels to require for the specified kind (AND logic is applied). Do not use in conjunction with
+        qnames.
+    :param all_namespaces: Whether the selector should select from all namespaces.
+    :param static_context: Usually, a selector will select from its current context. For example,
+        openshift.selector('pods') will select pods from the openshift.project(..) in which it resides. Selectors
+        can to be locked to a specific context by specifying it here.
+    :return: A Selector object
+    :rtype: Selector
+    """
+    return Selector("selector", kind_or_qname_or_qnames, labels=labels,
+                    all_namespaces=all_namespaces, static_context=static_context)
+
+
+from .action import oc_action
+from .apiobject import APIObject
+from .context import cur_context
