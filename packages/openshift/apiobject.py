@@ -1,6 +1,7 @@
 from .action import *
 from .model import *
 from .result import *
+from .naming import kind_matches
 import yaml
 import json
 
@@ -336,6 +337,80 @@ class APIObject:
         r.add_action(oc_action(self.context, "process", cmd_args=["-f", "-", cmd_args], stdin_obj=content))
         r.fail_if("Error processing template")
         return _objdef_to_pylist(r.out())
+
+    def do_i_own(self, apiobj):
+
+        # Does the object has any ownerReferences?
+        if apiobj.model.metadata.ownerReferences is Missing:
+            return False
+
+        '''
+        Example:
+          ownerReferences:
+          - apiVersion: v1
+            blockOwnerDeletion: true
+            controller: true
+            kind: ReplicationController
+            name: ruby-hello-world-1
+            uid: 50347024-a615-11e8-8841-0a46c474dfe0
+        '''
+
+        for ref in apiobj.model.metadata.ownerReferences:
+            if kind_matches(self.kind(), ref.kind) and self.name() == ref.name:
+                return True
+
+        return False
+
+    def get_owned(self, find_kind):
+
+        """
+        Returns a list of apiobjects which are declare an object of this kind/name
+        as their owner.
+        :param find_kind: The kind to check for ownerReferenes
+        :return: A (potentially empty) list of APIObjects owned by this object
+        """
+
+        owned = []
+
+        def check_owned_by_me(apiobj):
+            if self.do_i_own(apiobj):
+                owned.append(apiobj)
+
+        selector(find_kind).for_each(check_owned_by_me)
+
+        return owned
+
+    def related(self, find_kind):
+        """
+        Returns a dynamic selector which all of a the specified kind of object which is related to this
+        object.
+        For example, if this object is a template and find_kind=='buildconfig', it will select buildconfigs created by
+        this template.
+        If this object is a buildconfig and find_kind='builds', builds created by this buildconfig will be selected.
+
+        :return: A dynamic selector which selects objects of kind find_kind which are related to this object.
+        """
+        labels = {}
+
+        this_kind = self.kind()
+        name = self.name()
+
+        # TODO: add rc, rs, ds, project, ... ?
+
+        if this_kind.startswith("template"):
+            labels["template"] = name
+        elif this_kind.startswith("deploymentconfig"):
+            labels["deploymentconfig"] = name
+        elif this_kind.startswith("deployment"):
+            labels["deployment"] = name
+        elif this_kind.startswith("buildconfig"):
+            labels["openshift.io/build-config.name"] = name
+        elif this_kind.startswith("job"):
+            labels["job-name"] = name
+        else:
+            raise OpenShiftException("Unknown how to find resources to related to kind: " + this_kind)
+
+        return selector(find_kind, labels=labels)
 
 
 from .context import cur_context

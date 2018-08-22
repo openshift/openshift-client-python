@@ -55,6 +55,12 @@ with openshift.tracker() as t:
 
                 bb.for_each(apply_update)
 
+                def build_exists(apiobj):
+                    print "Checking builds: {}".format(apiobj.get_owned('build'))
+                    return len(apiobj.get_owned('build')) > 0
+
+                na_sel.narrow('bc').until_all(1, build_exists)
+
             except Exception:
                 traceback.print_exc()
 

@@ -34,3 +34,9 @@ def singularize_kind(kind):
 
 def normalize_kind(kind):
     return singularize_kind(expand_kind(kind))
+
+
+def kind_matches(k1, k2):
+    k1 = normalize_kind(k1)
+    k2 = normalize_kind(k2)
+    return k1 == k2 or k1.startswith(k2 + '.') or k2.startswith(k1 + '.')

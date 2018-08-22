@@ -22,6 +22,7 @@ class Selector(Result):
                  kind_or_qname_or_qnames=None, labels=None,
                  object_list=None,
                  object_action=None,
+                 filter_func=None,
                  all_namespaces=False,
                  static_context=None):
 
@@ -30,6 +31,7 @@ class Selector(Result):
         self.context_override = static_context
         self.object_list = object_list
         self.labels = labels
+        self.filter_func = filter_func
         self.all_namespaces = all_namespaces
 
         if object_action:
@@ -43,8 +45,9 @@ class Selector(Result):
             return
 
         if self.labels is not None:
+            # You can't query using labels without specifying a kind. Use 'all'.
             if kind_or_qname_or_qnames is None:
-                raise ValueError("Expected kind as first parameter when labels are specified")
+                kind_or_qname_or_qnames = "all"
             self.kind = expand_kind(kind_or_qname_or_qnames)
 
         else:
@@ -189,55 +192,6 @@ class Selector(Result):
         queries (i.e. qnames() will always return the same thing even if objects are deleted from the server).
         """
         return Selector("freeze", object_list=self.qnames())
-
-    def related(self, to_kind=None):
-        """
-        Returns a dynamic selector which selects objects related to an object
-        selected by the receiver. For example, if the receiver selects a single template,
-        a selector will be returned which is capable of finding all objects created
-        by that template.
-
-        :param to_kind: If unspecified, receiver must select exactly one object. If specified, the receiver
-        is allowed to select multiple objects, but only one of the specified kind. For example, if the receiver
-        selects, two deployments and one buildconfig, you can specify to_kind=buildconfig to find builds related to
-        the buildconfig. If, you specified to_kind=deployment (or did not specify to_kind), an exception would be thrown
-        since the request is ambiguous.
-
-        :return: A dynamic selector which selects objects related to the object selected
-            by this receiver.
-        """
-        labels = {}
-
-        if to_kind is None:
-            name, to_kind = self.qname().split("/")[0]
-        else:
-            qnames = self.qnames()
-            qname = None
-            for qn in qnames:
-                if qn.startswith(to_kind + '/'):
-                    if qname is None:
-                        qname = qn
-                    else:
-                        raise OpenShiftException(
-                            "Unable to find related objects - kind ({}) is ambigous in selected objects: {}".format(
-                                to_kind, qnames))
-
-            name = qname.split("/")[1]
-
-        # TODO: add deployment, rc, rs, ds, project, ... ?
-
-        if to_kind == "templates":
-            labels["template"] = name
-        elif to_kind == "deploymentconfigs":
-            labels["deploymentconfig"] = name
-        elif to_kind == "buildconfigs":
-            labels["openshift.io/build-config.name"] = name
-        elif to_kind == "jobs":
-            labels["job-name"] = name
-        else:
-            raise OpenShiftException("Unknown how to find resources to related to kind: " + to_kind)
-
-        return Selector("related", labels=labels)
 
     def count_existing(self):
         """
@@ -446,13 +400,15 @@ class Selector(Result):
 
         :param min_count: Minimum number of objects which must exist before check will be performed
         :param success_func: If this function returns True on ALL objects, iteration will stop
-            and until_all will return (True, objs) where objs is a list of Model objects
-            which satisfied the condition.
+            and until_all will return (True, objs, None) where objs is a list of APIObjects
+            selected/checked.
         :param failure_func: If this function returns True on ANY obj, iteration will stop
-            and until_all will return (False, objs) where objs is the list of Model objects
-            which triggered the failure.
-        :return: (bool, objs) where bool is True if the success condition was satisfied
-            and False if the failure condition triggered.
+            and until_all will return (False, objs, bad) where objs is the list of APIObjects
+            selected/checked and bad is the APIObject which failed.
+        :return: (bool, objs, bad) where bool is True if the success condition was satisfied
+            and False if the failure condition triggered. objs is the list of selected objects
+            which were checked, and bad will be an non-None APIObject if an object failed
+            the check.
         """
 
         poll_period = 1
@@ -466,9 +422,9 @@ class Selector(Result):
                     if failure_func is not None:
                         failer |= failure_func(obj, *args, **kwargs)
                 if successer:
-                    return True, objs
+                    return True, objs, None
                 if failer:
-                    return False, objs
+                    return False, objs, obj
             time.sleep(poll_period)
             poll_period = min(poll_period + 1, 15)
 
