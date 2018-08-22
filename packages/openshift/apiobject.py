@@ -150,7 +150,7 @@ class APIObject:
         """
         :return: Returns a selector that selects this exact receiver
         """
-        return selector('{}/{}'.format(self.kind(), self.name()), context=self.context)
+        return selector('{}/{}'.format(self.kind(), self.name()), static_context=self.context)
 
     def exists(self, on_exists_func=_DEFAULT, on_absent_func=_DEFAULT):
         """
@@ -268,7 +268,7 @@ class APIObject:
         r.fail_if("Error refreshing object content")
         return self
 
-    def label(self, labels, overwrite=True, args=[]):
+    def label(self, labels, overwrite=True, cmd_args=[]):
         """"
         Applies the specified labels to the api object.
         :param labels: A dictionary of labels to apply to the object. If value is None, label will be removed.
@@ -276,33 +276,33 @@ class APIObject:
         :return: Result
         """
 
-        result = self.selector().label(labels, overwrite, args=args)
+        result = self.selector().label(labels, overwrite, cmd_ags=cmd_args)
         self.refresh()
         return result
 
-    def annotate(self, annotations, overwrite=True, args=[]):
+    def annotate(self, annotations, overwrite=True, cmd_args=[]):
         """"
         Applies the specified labels to the api object.
         :param annotations: A dictionary of annotations to apply to the object. If value is None, annotation will be removed.
         :param overwrite: Whether to pass the --overwrite argument.
-        :param args: Additional list of arguments to pass on the command line.
+        :param cmd_args: Additional list of arguments to pass on the command line.
         :return: Result
         """
-        result = self.selector().annotate(annotations=annotations, overwrite=overwrite, args=args)
+        result = self.selector().annotate(annotations=annotations, overwrite=overwrite, cmd_args=cmd_args)
         self.refresh()
         return result
 
-    def patch(self, patch_dict, strategy="strategic", args=[]):
+    def patch(self, patch_dict, strategy="strategic", cmd_args=[]):
 
         r = Result("patch")
-        args = list(args)
-        args.append("--type=" + strategy)
+        cmd_args = list(cmd_args)
+        cmd_args.append("--type=" + strategy)
 
-        args.append('{}/{}'.format(self.kind(), self.name()))
+        cmd_args.append('{}/{}'.format(self.kind(), self.name()))
         patch_def = json.dumps(patch_dict, indent=None)
 
-        args.append("--patch=" + patch_def)
-        r.add_action(oc_action(self.context, "patch", cmd_args=[args]))
+        cmd_args.append("--patch=" + patch_def)
+        r.add_action(oc_action(self.context, "patch", cmd_args=[cmd_args]))
 
         r.fail_if("Error running patch on objects")
         return r
@@ -321,19 +321,19 @@ class APIObject:
 
         return l
 
-    def process(self, parameters={}, args=[]):
+    def process(self, parameters={}, cmd_args=[]):
         template = self.model._primitive()
-        args = list(args)
-        args.append("-o=json")
+        cmd_args = list(cmd_args)
+        cmd_args.append("-o=json")
 
         for k, v in parameters.items():
-            args.append("-p")
-            args.append(k + "=" + v)
+            cmd_args.append("-p")
+            cmd_args.append(k + "=" + v)
 
         # Convert python object into a json string
         content = json.dumps(template, indent=4).strip()
         r = Result("process")
-        r.add_action(oc_action(self.context, "process", cmd_args=["-f", "-", args], stdin_obj=content))
+        r.add_action(oc_action(self.context, "process", cmd_args=["-f", "-", cmd_args], stdin_obj=content))
         r.fail_if("Error processing template")
         return _objdef_to_pylist(r.out())
 

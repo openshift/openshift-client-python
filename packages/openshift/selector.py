@@ -5,7 +5,6 @@ from .model import *
 from .util import split_names
 import json
 import time
-import copy
 
 
 def _normalize_object_list(ol):
@@ -24,12 +23,11 @@ class Selector(Result):
                  object_list=None,
                  object_action=None,
                  all_namespaces=False,
-                 context=None,
-                 **kwargs):
+                 static_context=None):
 
         super(self.__class__, self).__init__(high_level_operation)
 
-        self.context_override = context
+        self.context_override = static_context
         self.object_list = object_list
         self.labels = labels
         self.all_namespaces = all_namespaces
@@ -166,7 +164,7 @@ class Selector(Result):
         :param kind_or_func: A string specifying the kind to include in the resulting
           selector OR a callable which should return True for objects to be included
           in the resulting selector. The callable will be called once for each
-          object selected by the receiver. The argument to the callable will be a Model.
+          object selected by the receiver. The argument to the callable will be an APIObject.
         :return: A new static selector which selects a subset of the receiver's selection.
         """
 
@@ -174,14 +172,14 @@ class Selector(Result):
         if callable(kind_or_func):
             for obj in self.objects():
                 if kind_or_func(obj):
-                    ns.append("%s/%s" % (normalize_kind(obj.model.kind), obj.model.metadata.qname))
+                    ns.append(obj.qname())
         elif isinstance(kind_or_func, str) or isinstance(kind_or_func, unicode):
             kind = normalize_kind(kind_or_func)
-            ns = [n for n in self.qnames() if n.startswith(kind + "/")]
+            ns = [n for n in self.qnames() if (n.startswith(kind + "/") or n.startswith(kind + "."))]
         else:
             raise ValueError("Don't know how to narrow with type: " + type(kind_or_func))
 
-        s = Selector(self.context, "narrow", object_list=ns)
+        s = Selector("narrow", object_list=ns, static_context=self.context)
         return s
 
     def freeze(self):
@@ -300,87 +298,87 @@ class Selector(Result):
         obj = json.loads(self.object_json(exportable))
         return APIObject(obj).elements()
 
-    def start_build(self, args=[]):
+    def start_build(self, cmd_args=[]):
         r = Selector()
 
         # Have start-build output a list of objects it creates
-        args = list(args).append("-o=name")
+        cmd_args = list(cmd_args).append("-o=name")
 
         for name in self.qnames():
-            r.add_action(oc_action(self.context, "start-build", cmd_args=[name, args]))
+            r.add_action(oc_action(self.context, "start-build", cmd_args=[name, cmd_args]))
 
         r.fail_if("Error running start-build on at least one item: " + str(self.qnames()))
         r.object_list = split_names(r.out())
         return r
 
-    def describe(self, send_to_stdout=True, args=[]):
+    def describe(self, send_to_stdout=True, cmd_args=[]):
         r = Result("describe")
         r.add_action(oc_action(self.context, "describe", all_namespaces=self.all_namespaces,
-                               cmd_args=[self._selection_args(), args]))
+                               cmd_args=[self._selection_args(), cmd_args]))
         r.fail_if("Error describing objects")
         if send_to_stdout:
             print r.out()
         return r
 
-    def delete(self, ignore_not_found=True, args=[]):
+    def delete(self, ignore_not_found=True, cmd_args=[]):
         names = self.qnames()
 
         if len(names) == 0:
             return
 
         r = Result("delete")
-        args = list(args)
+        cmd_args = list(cmd_args)
         if ignore_not_found:
-            args.append("--ignore-not-found")
-        args.append("-o=name")
+            cmd_args.append("--ignore-not-found")
+        cmd_args.append("-o=name")
 
         r.add_action(oc_action(self.context, "delete", all_namespaces=self.all_namespaces,
-                               cmd_args=[self._selection_args(needs_all=True), args]))
+                               cmd_args=[self._selection_args(needs_all=True), cmd_args]))
 
         r.fail_if("Error deleting objects")
         r.object_list = split_names(r.out())
         return r
 
-    def label(self, labels, overwrite=True, args=[]):
+    def label(self, labels, overwrite=True, cmd_ags=[]):
 
         r = Result("label")
-        args = list(args)
+        cmd_ags = list(cmd_ags)
 
         if overwrite:
-            args.append("--overwrite")
+            cmd_ags.append("--overwrite")
 
         for l, v in labels.iteritems():
             if not v:
                 if not l.endswith("-"):
                     l += "-"  # Indicate removal on command line if caller has not applied "-" suffix
-                args.append(l)
+                cmd_ags.append(l)
             else:
-                args.append('{}={}'.format(l, v))
+                cmd_ags.append('{}={}'.format(l, v))
 
         r.add_action(oc_action(self.context, "label", all_namespaces=self.all_namespaces,
-                               cmd_args=[self._selection_args(needs_all=True), args]))
+                               cmd_args=[self._selection_args(needs_all=True), cmd_ags]))
 
         r.fail_if("Error running label")
         return self
 
-    def annotate(self, annotations, overwrite=True, args=[]):
+    def annotate(self, annotations, overwrite=True, cmd_args=[]):
 
         r = Result("annotate")
-        args = list(args)
+        cmd_args = list(cmd_args)
 
         if overwrite:
-            args.append("--overwrite")
+            cmd_args.append("--overwrite")
 
         for l, v in annotations.iteritems():
             if not v:
                 if not l.endswith("-"):
                     l += "-"  # Indicate removal on command line if caller has not applied "-" suffix
-                args.append(l)
+                cmd_args.append(l)
             else:
-                args.append('{}={}'.format(l, v))
+                cmd_args.append('{}={}'.format(l, v))
 
         r.add_action(oc_action(self.context, "annotate", all_namespaces=self.all_namespaces,
-                               cmd_args=[self._selection_args(needs_all=True), args]))
+                               cmd_args=[self._selection_args(needs_all=True), cmd_args]))
 
         r.fail_if("Error running annotate")
         return self
@@ -398,6 +396,16 @@ class Selector(Result):
         for obj in self.objects():
             r.append(func(obj, *args, **kwargs))
         return r
+
+    def scale(self, replicas, cmd_args=[]):
+        r = Result("scale")
+        cmd_args = list(cmd_args)
+        cmd_args.append('--scale={}'.format(replicas))
+        r.add_action(oc_action(self.context, "scale", all_namespaces=self.all_namespaces,
+                               cmd_args=[self._selection_args(needs_all=False), cmd_args]))
+
+        r.fail_if("Error running scale")
+        return self
 
     def until_any(self, success_func, failure_func=None, *args, **kwargs):
         """
@@ -465,18 +473,25 @@ class Selector(Result):
             poll_period = min(poll_period + 1, 15)
 
 
-def selector(kind_or_qname_or_qnames=None, labels=None, all_namespaces=False, context=None, *args, **kwargs):
+def selector(kind_or_qname_or_qnames=None, labels=None, all_namespaces=False, static_context=None):
     """
     selector( "kind" )
     selector( "kind", labels=[ 'k': 'v' ] )
     selector( ["kind/name1", "kind/name2", ...] )
     selector( "kind/name" )
-    :param labels: Required labels if only kind is specified (AND logic is applied)
+    :param kind_or_qname_or_qnames: A kind ('pod'), qualified name ('pod/some_name') or
+        a list of qualified names ['pod/abc', 'pod/def'].
+    :param labels: labels to require for the specified kind (AND logic is applied). Do not use in conjunction with
+        qnames.
+    :param all_namespaces: Whether the selector should select from all namespaces.
+    :param static_context: Usually, a selector will select from its current context. For example,
+        openshift.selector('pods') will select pods from the openshift.project(..) in which it resides. Selectors
+        can to be locked to a specific context by specifying it here.
     :return: A Selector object
     :rtype: Selector
     """
-    return Selector("selector", kind_or_qname_or_qnames, labels=labels, all_namespaces=all_namespaces, context=context,
-                    *args, **kwargs)
+    return Selector("selector", kind_or_qname_or_qnames, labels=labels,
+                    all_namespaces=all_namespaces, static_context=static_context)
 
 
 from .action import oc_action

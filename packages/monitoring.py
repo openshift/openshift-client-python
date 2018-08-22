@@ -24,7 +24,7 @@ with oc.tracker() as t:
                             'cr_patch': 'yes'
                         }
                     }
-                }, strategy="strategic", args=['-o=yaml'])
+                }, strategy="strategic", cmd_args=['-o=yaml'])
 
                 #cr_rules.object().label({
                 #    'cr_test': 'yes',

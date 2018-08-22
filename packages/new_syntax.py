@@ -22,32 +22,32 @@ with openshift.tracker() as t:
         with openshift.project("jmp-test-3"):
 
             try:
-                bb = openshift.selector('pod/busybox')
+
+                openshift.selector('all').delete(ignore_not_found=True)
+
+                bb = openshift.selector('secrets/test-secret')
                 bb.delete(ignore_not_found=True)
+
+                na_sel = openshift.new_app("https://github.com/openshift/ruby-hello-world")
+                print("Created objects with new-app: {}".format(na_sel.qnames()))
+                print('Found buildconfig: {}'.format(na_sel.narrow('bc').qnames()))
 
                 openshift.create({
                     'apiVersion': 'v1',
-                    'kind': 'Pod',
+                    'kind': 'Secret',
+                    'type': 'Opaque',
                     'metadata': {
-                        'name': 'busybox'
+                        'name': 'test-secret'
                     },
-                    'spec': {
-                        'containers': [
-                            {
-                                'name': 'busybox',
-                                'image': 'busybox',
-                                'command': ['sleep', '60']
-                            }
-                        ],
-                        'restartPolicy': 'Never',
-                        'terminationGracePeriodSeconds': '0'
-                    },
+                    'data': {
+                        'somefile.yaml': 'abcd'
+                    }
                 })
 
                 def apply_update(apiobj):
 
                     def make_model_change(apiobj):
-                        apiobj.model.spec.containers[0].command[1] = '70'
+                        apiobj.model.data['somefile.yaml'] = 'wyxz'
                         return True
 
                     apiobj.modify_and_apply(make_model_change, retries=5)
@@ -68,6 +68,6 @@ with openshift.tracker() as t:
             #       lines = stdout.read()
             #       print("Hostname ({}): {}".format(rc, lines.strip()))
 
-    print("Result:\n{}".format(t.get_result()))
+    # print("Result:\n{}".format(t.get_result()))
 
 

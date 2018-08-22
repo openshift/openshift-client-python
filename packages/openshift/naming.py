@@ -1,12 +1,15 @@
 abbreviations = {
-    "svc": "services",
-    "p": "pods",
-    "po": "pods",
-    "bc": "buildconfigs",
-    "is": "imagestreams",
-    "rc": "replicationcontrollers",
-    "dc": "deploymentconfigs",
-    "ep": "endpoints"
+    "svc": "service",
+    "p": "pod",
+    "po": "pod",
+    "bc": "buildconfig",
+    "is": "imagestream",
+    "rc": "replicationcontroller",
+    "ds": "daemonset",
+    "rs": "replicaset",
+    "dc": "deploymentconfig",
+    "deploy": "deployment",
+    "ep": "endpoint"
 }
 
 
@@ -17,12 +20,17 @@ def expand_kind(kind):
     return kind
 
 
-def pluralize_kind(kind):
+def singularize_kind(kind):
     kind = kind.strip().lower()
-    if kind.endswith("s"):
+
+    # if a fully qualified kind is supplied, don't assume we know better
+    if '.' in kind:
         return kind
-    return kind + "s"
+
+    if kind.endswith("s"):
+        return kind[:-1]
+    return kind
 
 
 def normalize_kind(kind):
-    return pluralize_kind(expand_kind(kind))
+    return singularize_kind(expand_kind(kind))
