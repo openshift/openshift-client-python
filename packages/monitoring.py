@@ -17,6 +17,15 @@ with oc.tracker() as t:
                 oc.selector('pods').annotate(annotations={
                     'cr_annotation_test': None,
                 })
+
+                oc.selector('node/ip-172-31-79-85.us-east-2.compute.internal').object().patch({
+                    'metadata': {
+                        'annotations': {
+                            'cr_patch': 'yes'
+                        }
+                    }
+                }, strategy="strategic", args=['-o=yaml'])
+
                 #cr_rules.object().label({
                 #    'cr_test': 'yes',
                 #})

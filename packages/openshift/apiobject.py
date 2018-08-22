@@ -79,6 +79,7 @@ def _access_field(val, err_msg, if_missing=_DEFAULT, lowercase=False):
 
 
 class APIObject:
+
     def __init__(self, dict_to_model=None, context=None):
         # Create a Model representation of the object.
         self.context = context if context else cur_context()
@@ -124,7 +125,7 @@ class APIObject:
         """
         return self.kind() + '/' + self.name()
 
-    def _object_def_action(self, verb, auto_raise=True, *args):
+    def _object_def_action(self, verb, auto_raise=True, args=[]):
         """
         :param verb: The verb to execute
         :param auto_raise: If True, any failed action will cause an exception to be raised automatically.
@@ -132,9 +133,6 @@ class APIObject:
         :return: The Result
         :rtype: Result
         """
-
-        qname = self.qname()
-
         # Convert Model into a dict
         content = self.as_dict()
 
@@ -173,34 +171,34 @@ class APIObject:
 
         return does_exist, ret
 
-    def create(self, *args):
+    def create(self, args=[]):
         """
         Creates the modeled object if possible.
         :return: A Result object
         :rtype: Result
         """
-        return self._object_def_action("create", *args)
+        return self._object_def_action("create", args=args)
 
-    def replace(self, *args):
+    def replace(self, args=[]):
         """
         Replaces the modeled object if possible.
         :return: A Result object
         :rtype: Result
         """
-        return self._object_def_action("replace", *args)
+        return self._object_def_action("replace", args=args)
 
-    def create_or_replace(self, *args):
+    def create_or_replace(self, args=[]):
         """
         Replaces the modeled object if it exists; creates otherwise.
         :return: A Result object
         :rtype: Result
         """
-        _, action = self.exists(on_exists_func=lambda: self.replace(*args),
-                                on_absent_func=lambda: self.create(*args))
+        _, action = self.exists(on_exists_func=lambda: self.replace(args=args),
+                                on_absent_func=lambda: self.create(args=args))
 
         return action
 
-    def modify_and_apply(self, modifier_func, retries=0, *args):
+    def modify_and_apply(self, modifier_func, retries=0, args=[]):
         """
         Calls the modifier_func with self. The function should modify the model of the receiver
         and return True if it wants this method to try to apply the change via the API. For robust
@@ -237,7 +235,7 @@ class APIObject:
 
         return r
 
-    def delete(self, ignore_not_found=False, *args):
+    def delete(self, ignore_not_found=False, args=[]):
         r = Result("delete")
         base_args = ["-o=name"]
 
@@ -270,7 +268,7 @@ class APIObject:
         r.fail_if("Error refreshing object content")
         return self
 
-    def label(self, labels, overwrite=True, *args):
+    def label(self, labels, overwrite=True, args=[]):
         """"
         Applies the specified labels to the api object.
         :param labels: A dictionary of labels to apply to the object. If value is None, label will be removed.
@@ -278,20 +276,36 @@ class APIObject:
         :return: Result
         """
 
-        result = self.selector().label(labels, overwrite, *args)
+        result = self.selector().label(labels, overwrite, args=args)
         self.refresh()
         return result
 
-    def annotate(self, annotations, overwrite=True, *args):
+    def annotate(self, annotations, overwrite=True, args=[]):
         """"
         Applies the specified labels to the api object.
         :param annotations: A dictionary of annotations to apply to the object. If value is None, annotation will be removed.
         :param overwrite: Whether to pass the --overwrite argument.
+        :param args: Additional list of arguments to pass on the command line.
         :return: Result
         """
-        result = self.selector().annotate(annotations=annotations, overwrite=overwrite, *args)
+        result = self.selector().annotate(annotations=annotations, overwrite=overwrite, args=args)
         self.refresh()
         return result
+
+    def patch(self, patch_dict, strategy="strategic", args=[]):
+
+        r = Result("patch")
+        args = list(args)
+        args.append("--type=" + strategy)
+
+        args.append('{}/{}'.format(self.kind(), self.name()))
+        patch_def = json.dumps(patch_dict, indent=None)
+
+        args.append("--patch=" + patch_def)
+        r.add_action(oc_action(self.context, "patch", cmd_args=[args]))
+
+        r.fail_if("Error running patch on objects")
+        return r
 
     def elements(self):
         """
@@ -307,7 +321,7 @@ class APIObject:
 
         return l
 
-    def process(self, parameters={}, **args):
+    def process(self, parameters={}, args=[]):
         template = self.model._primitive()
         args = list(args)
         args.append("-o=json")

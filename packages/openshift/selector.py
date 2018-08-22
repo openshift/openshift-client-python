@@ -18,6 +18,7 @@ def _normalize_object_list(ol):
 
 
 class Selector(Result):
+
     def __init__(self, high_level_operation,
                  kind_or_qname_or_qnames=None, labels=None,
                  object_list=None,
@@ -299,7 +300,7 @@ class Selector(Result):
         obj = json.loads(self.object_json(exportable))
         return APIObject(obj).elements()
 
-    def start_build(self, *args):
+    def start_build(self, args=[]):
         r = Selector()
 
         # Have start-build output a list of objects it creates
@@ -312,7 +313,7 @@ class Selector(Result):
         r.object_list = split_names(r.out())
         return r
 
-    def describe(self, send_to_stdout=True, *args):
+    def describe(self, send_to_stdout=True, args=[]):
         r = Result("describe")
         r.add_action(oc_action(self.context, "describe", all_namespaces=self.all_namespaces,
                                cmd_args=[self._selection_args(), args]))
@@ -321,7 +322,7 @@ class Selector(Result):
             print r.out()
         return r
 
-    def delete(self, ignore_not_found=True, *args):
+    def delete(self, ignore_not_found=True, args=[]):
         names = self.qnames()
 
         if len(names) == 0:
@@ -340,7 +341,7 @@ class Selector(Result):
         r.object_list = split_names(r.out())
         return r
 
-    def label(self, labels, overwrite=True, *args):
+    def label(self, labels, overwrite=True, args=[]):
 
         r = Result("label")
         args = list(args)
@@ -362,7 +363,7 @@ class Selector(Result):
         r.fail_if("Error running label")
         return self
 
-    def annotate(self, annotations, overwrite=True, *args):
+    def annotate(self, annotations, overwrite=True, args=[]):
 
         r = Result("annotate")
         args = list(args)
@@ -383,24 +384,6 @@ class Selector(Result):
 
         r.fail_if("Error running annotate")
         return self
-
-    def patch(self, patch_def, strategy="strategic", *args):
-
-        r = Result("patch")
-        args = list(args)
-        args.append("--type=" + strategy)
-        args.append("-o=name")
-
-        # Get the current list of objects since the patch verb needs a file input
-        # to identify which server resources to act upon.
-        resource_info = json.loads(self.object_json())
-
-        args.append("--patch=" + patch_def)
-        r.add_action(oc_action(self.context, "patch", all_namespaces=self.all_namespaces, cmd_args=["-f", "-", args],
-                               stdin_obj=resource_info))
-
-        r.fail_if("Error running patch on objects")
-        return r
 
     def for_each(self, func, *args, **kwargs):
         """
