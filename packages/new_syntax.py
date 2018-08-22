@@ -17,6 +17,7 @@ logging.getLogger("paramiko").setLevel(logging.DEBUG)
 paramiko.util.log_to_file("paramiko.log")
 
 with openshift.tracker() as t:
+
     with openshift.client_host(hostname="54.147.205.250", username="root", auto_add_host=True):
 
         with openshift.project("jmp-test-3"):
@@ -24,15 +25,14 @@ with openshift.tracker() as t:
             try:
 
                 openshift.selector('all').delete(ignore_not_found=True)
+                openshift.selector('secrets/test-secret').delete(ignore_not_found=True)
 
-                bb = openshift.selector('secrets/test-secret')
-                bb.delete(ignore_not_found=True)
 
                 na_sel = openshift.new_app("https://github.com/openshift/ruby-hello-world")
                 print("Created objects with new-app: {}".format(na_sel.qnames()))
                 print('Found buildconfig: {}'.format(na_sel.narrow('bc').qnames()))
 
-                openshift.create({
+                secret_sel = openshift.create({
                     'apiVersion': 'v1',
                     'kind': 'Secret',
                     'type': 'Opaque',
@@ -53,7 +53,7 @@ with openshift.tracker() as t:
                     apiobj.modify_and_apply(make_model_change, retries=5)
                     return True
 
-                bb.for_each(apply_update)
+                secret_sel.for_each(apply_update)
 
                 def build_exists(apiobj):
                     print "Checking builds: {}".format(apiobj.get_owned('build'))

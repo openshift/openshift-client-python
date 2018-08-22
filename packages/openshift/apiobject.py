@@ -199,7 +199,7 @@ class APIObject:
 
         return action
 
-    def modify_and_apply(self, modifier_func, retries=0, args=[]):
+    def modify_and_apply(self, modifier_func, retries=0, cmd_args=[]):
         """
         Calls the modifier_func with self. The function should modify the model of the receiver
         and return True if it wants this method to try to apply the change via the API. For robust
@@ -222,7 +222,7 @@ class APIObject:
             if not do_apply:
                 break
 
-            apply_action = oc_action(self.context, "apply", cmd_args=["-f", "-", args], stdin_obj=self.as_dict(),
+            apply_action = oc_action(self.context, "apply", cmd_args=["-f", "-", cmd_args], stdin_obj=self.as_dict(),
                                      last_attempt=(attempt == 0))
 
             r.add_action(apply_action)
@@ -236,14 +236,25 @@ class APIObject:
 
         return r
 
-    def delete(self, ignore_not_found=False, args=[]):
+    def apply(self, cmd_args=[]):
+        """
+        Applies any changes which have been made to the underlying model to the API.
+        You should use modify_and_apply for robust code if the targeted API object may have been updated
+        between the time this APIObject was created and when you call apply.
+        :return: A Result object
+        :rtype: Result
+        """
+
+        return self.modify_and_apply(lambda: True, retries=0, cmd_args=cmd_args)
+
+    def delete(self, ignore_not_found=False, cmd_args=[]):
         r = Result("delete")
         base_args = ["-o=name"]
 
         if ignore_not_found is True:
             base_args.append("--ignore-not-found")
 
-        r.add_action(oc_action(self.context, "delete", cmd_args=[self.kind(), self.name(), base_args, args]))
+        r.add_action(oc_action(self.context, "delete", cmd_args=[self.kind(), self.name(), base_args, cmd_args]))
         r.fail_if("Error deleting object")
         return r
 
