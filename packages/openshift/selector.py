@@ -193,6 +193,38 @@ class Selector(Result):
         """
         return Selector("freeze", object_list=self.qnames())
 
+    def union(self, with_selector):
+        """
+        :param with_selector: A selector with which to union
+        :return: Returns a static selector which will select the object names associated with the receiver AND
+            the argument.
+        """
+        s1 = set(self.qnames())
+        s2 = set(with_selector.qnames())
+        qnames = list(s1.union(s2))
+        return Selector("union", object_list=qnames)
+
+    def intersect(self, with_selector):
+        """
+        :param with_selector: A selector with which to intersect
+        :return: Returns a static selector which will select the object names associated with the receiver intersected
+            with the argument.
+        """
+        s1 = set(self.qnames())
+        s2 = set(with_selector.qnames())
+        qnames = list(s1.intersection(s2))
+        return Selector("intersect", object_list=qnames)
+
+    def subtract(self, with_selector):
+        """
+        :param with_selector: A selector to subtract
+        :return: Returns a static selector which selects names of this receiver minus names selected by the argument
+        """
+        s1 = set(self.qnames())
+        s2 = set(with_selector.qnames())
+        qnames = list(s1.difference(s2))
+        return Selector("subtract", object_list=qnames)
+
     def count_existing(self):
         """
         :return: Returns the number of objects this receiver selects that actually exist on the
