@@ -92,11 +92,17 @@ def _to_dict_list(dict_or_model_or_apiobject_or_list_thereof):
 
 def create(dict_or_model_or_apiobject_or_list_thereof, cmd_args=[]):
 
+    items = _to_dict_list(dict_or_model_or_apiobject_or_list_thereof)
+
+    # If there is nothing to act on, return empty selector
+    if not items:
+        return selector([])
+
     m = {
         'kind': 'List',
         'apiVersion': 'v1',
         'metadata': {},
-        'items': _to_dict_list(dict_or_model_or_apiobject_or_list_thereof)
+        'items': items
     }
 
     return __new_objects_action_selector("create", cmd_args=["-f", "-", cmd_args], stdin_obj=m)
@@ -104,11 +110,17 @@ def create(dict_or_model_or_apiobject_or_list_thereof, cmd_args=[]):
 
 def apply(dict_or_model_or_apiobject_or_list_thereof, cmd_args=[]):
 
+    items = _to_dict_list(dict_or_model_or_apiobject_or_list_thereof)
+
+    # If there is nothing to act on, return empty selector
+    if not items:
+        return selector([])
+
     m = {
         'kind': 'List',
         'apiVersion': 'v1',
         'metadata': {},
-        'items': _to_dict_list(dict_or_model_or_apiobject_or_list_thereof)
+        'items': items
     }
 
     return __new_objects_action_selector("apply", cmd_args=["-f", "-", cmd_args], stdin_obj=m)
