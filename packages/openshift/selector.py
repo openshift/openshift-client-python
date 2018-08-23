@@ -309,10 +309,11 @@ class Selector(Result):
     def delete(self, ignore_not_found=True, cmd_args=[]):
         names = self.qnames()
 
-        if len(names) == 0:
-            return
-
         r = Result("delete")
+
+        if len(names) == 0:
+            return r
+
         cmd_args = list(cmd_args)
         if ignore_not_found:
             cmd_args.append("--ignore-not-found")
