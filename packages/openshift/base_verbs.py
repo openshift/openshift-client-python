@@ -91,6 +91,11 @@ def _to_dict_list(dict_or_model_or_apiobject_or_list_thereof):
 
 
 def create(dict_or_model_or_apiobject_or_list_thereof, cmd_args=[]):
+    items = _to_dict_list(dict_or_model_or_apiobject_or_list_thereof)
+
+    # If nothing is going to be acted on, return an empty selected
+    if not items:
+        return selector([])
 
     items = _to_dict_list(dict_or_model_or_apiobject_or_list_thereof)
 

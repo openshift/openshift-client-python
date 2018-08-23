@@ -143,8 +143,18 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
     elif context.get_project() is not None and not no_namespace:
         cmds.append("--namespace=%s" % context.get_project())
 
-    if context.get_token() is not None:
-        cmds.append("--token=%s" % context.get_token())
+    for k, v in context.get_options().iteritems():
+        # If a value was set to None, it should not impact the command line
+        if not v:
+            continue
+
+        if not k.startswith('-'):
+            if len(k) > 1:
+                k = '--{}'.format(k)
+            else:
+                k = '-{}'.format(k)
+
+        cmds.append('{}={}'.format(k, v).lower())
 
     if context.get_loglevel() is not None:
         cmds.append("--loglevel=%s" % context.get_loglevel())

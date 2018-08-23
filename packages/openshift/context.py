@@ -4,7 +4,6 @@ from threading import local
 import paramiko
 
 from .result import Result
-from .action import oc_action
 
 # All threads will have a context which is
 # managed by a stack of Context objects. As
@@ -17,7 +16,7 @@ context.stack = []
 context.default_kubeconfig_path = None
 context.default_cluster = None
 context.default_project = None
-context.default_token = None
+context.default_options = {}
 context.default_loglevel = None
 
 
@@ -31,10 +30,10 @@ class Context(object):
         self.kubeconfig_path = None
         self.api_url = None
         self.project_name = None
-        self.token = None
         self.loglevel_value = None
         self.context_result = None
         self.timeout_datetime = None
+        self.options = None
 
         # ssh configuration
         self.ssh_client = None
@@ -128,12 +127,22 @@ class Context(object):
             return self.parent.get_project()
         return context.default_project
 
-    def get_token(self):
-        if self.token is not None:
-            return self.token
-        if self.parent is not None:
-            return self.parent.get_token()
-        return context.default_token
+    def get_options(self, add_to={}):
+
+        aggregate = add_to
+
+        # If we are the top context, apply default options
+        if not self.parent:
+            aggregate.update(context.default_options)
+        else:
+            # Otherwise, aggregate our ancestor options recursively
+            self.parent.get_options(add_to=aggregate)
+
+        # Contribute the options of this context (override anything from ancestors)
+        if self.options:
+            aggregate.update(self.options)
+
+        return aggregate
 
     def get_loglevel(self):
         if self.loglevel_value is not None:
@@ -279,17 +288,37 @@ def tracker():
     return c
 
 
-def token(v):
+def options(*args):
     """
-    Establishes a context in which inner oc interactions
-    will use the specified authentication token. token contexts
-    can be nested. The most immediate ancestor token context
-    will define the credentials used by an action.
-    :param v: The token value.
+    Establishes a context in which inner oc invocations will be passed
+    an arbitrary set of options. This is most useful in ensuring, for
+    example, that a certain --token, --as, --context, etc, is passed to each
+    oc invocation.
+
+    Keys should be long form option names, without preceding hyphens. e.g.
+    { 'token': '.....' } .
+
+    Unlike most other contexts, .options is additive. If on oc invocation is
+    embedded within two .options, it will include both sets. Inner option
+    contexts will override the same key specified at outer levels. A value
+    of None will prevent the option from being passed.
+
+    Tip for flags: Even flags like --insecure-skip-tls-verify can be
+    specified as key=value:  --insecure-skip-tls-verify=true
+
+    :param args: A vararg list of dicts.
+        Keys in dicts will be pre-pended with '-' if single letter or
+        '--' if multiple letter not already preceded with a hyphen.
+
     :return: The context object. Can be safely ignored.
     """
+
     c = Context()
-    c.token = v
+    c.options = {}
+
+    for d in args:
+        c.options.update(d)
+
     return c
 
 
