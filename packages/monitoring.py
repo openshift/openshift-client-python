@@ -8,6 +8,13 @@ with oc.tracker() as t:
     with oc.client_host(hostname="18.222.71.125", username="root", auto_add_host=True):  # free-stg
         with oc.project("openshift-monitoring"):
             try:
+
+                result = oc.selector('pod/alertmanager-main-0').object().execute(['cat'],
+                                                                                 container_name='alertmanager',
+                                                                                 stdin='stdin for cat')
+                print(result.out())
+                exit(0)
+
                 cr_rules = oc.selector("prometheusrules")
                 print("CR has the following rule sets: {}".format(cr_rules.qnames()))
 
@@ -26,13 +33,10 @@ with oc.tracker() as t:
                     }
                 }, strategy="strategic", cmd_args=['-o=yaml'])
 
-                #cr_rules.object().label({
+                # cr_rules.object().label({
                 #    'cr_test': 'yes',
-                #})
+                # })
 
                 print("Result:\n{}".format(t.get_result()))
             except Exception:
                 traceback.print_exc()
-
-
-

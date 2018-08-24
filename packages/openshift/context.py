@@ -221,6 +221,15 @@ def set_default_loglevel(v):
     context.default_loglevel = v
 
 
+def blank():
+    """
+    :return:  Returns a blank context which can be used to temporarily replace a real context in a with statement.
+    Mostly useful for debugging programs without having to tab/untab a large amount of code.
+    """
+    c = Context()
+    return c
+
+
 def client_host(hostname, port=22, username=None, password=None, auto_add_host=False, connect_timeout=600):
     """
     Will ssh to the specified host to in order to run oc commands

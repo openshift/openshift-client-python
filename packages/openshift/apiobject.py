@@ -423,6 +423,30 @@ class APIObject:
 
         return selector(find_kind, labels=labels)
 
+    def execute(self, cmd_to_exec=[], stdin=None, container_name=None, auto_raise=True):
+        """
+        Performs an oc exec operation on a pod object - passing all of the arguments.
+        :param cmd_to_exec: An array containing all elements of the command to execute.
+        :param stdin: Any input that should be streamed into the executed process.
+        :param container_name: If the pod has more than one container, specifies the container in which to exec.
+        :param auto_raise: Raise an exception if the command returns a non-zero status.
+        :return: A result object
+        """
+        oc_args = []
+
+        if stdin:
+            oc_args.append('-i')
+
+        if container_name:
+            oc_args.append('--container={}'.format(container_name))
+
+        r = Result("exec")
+        r.add_action(oc_action(self.context, "exec", cmd_args=[oc_args, self.name(), "--", cmd_to_exec], stdin_str=stdin))
+        if auto_raise:
+            r.fail_if("Error running exec")
+        return r
+
+
 
 from .context import cur_context
 from .selector import selector

@@ -10,6 +10,7 @@ this API.
 - Virtually always up-to-date. The version of oc installed on a cluster is always compatible with the version that cluster
 is running. We say "virtually" here because it is possible that oc may deprecate or dramatically change aspects of the
 command-line interface. Thankfully, such changes are extremely rare.
+- No special cases for dynamic / custom resources. Every resource is treated as dynamic.
 - Low learning curve. If you can use oc, you can understand this library quickly.
 
 Cons:
@@ -44,7 +45,8 @@ For example:
 1. oc cluster up
 2. oc login -u system:admin
 
-Then run the following Python application:
+Can you run `oc get project` successfully from the command line? Then write your app!
+
 ```python
 #!/usr/bin/python
 import openshift as oc
@@ -52,14 +54,21 @@ import openshift as oc
 print "Current project: " + oc.get_project_name()
 ```
 
-Cluster not local? No problem. Easy remote all CLI interactions over SSH. Before running this
-command, you will need to load your ssh agent up with a key appropriate to the target host.
+Need credentials to access your cluster? Use contexts to apply a set of command line options
+to all oc invocations within them.
 
 ```python
-#!/usr/bin/python
-import openshift as oc
+with oc.options({'token': 'abc..'}):  # ensure --token=abc... is included in every invocation within
+    print "Current project: " + oc.get_project_name()
+```
 
+Cluster not local? No problem. Easy remote all CLI interactions over SSH using the client_host
+context. Before running this command, you will need to load your ssh agent up with a key
+appropriate to the target client host.
+
+```python
 with openshift.client_host(hostname="my.cluster.com", username="root", auto_add_host=True):
+    # oc invocations will take place on my.cluster.com host as the root user.
     print "Current project: " + oc.get_project_name()
 ```
 
@@ -177,4 +186,14 @@ def make_model_change(apiobj):
 # up to the specified retry account.
 configmap.modify_and_apply(make_model_change, retries=5)
 
+```
+
+### Other examples:
+
+Running oc exec on a pod.
+```python
+    result = oc.selector('pod/alertmanager-main-0').object().execute(['cat'],
+                                                                     container_name='alertmanager',
+                                                                     stdin='stdin for cat')
+    print(result.out())
 ```

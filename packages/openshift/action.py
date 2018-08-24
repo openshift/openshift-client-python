@@ -28,14 +28,14 @@ def _redact_content(content_str):
 
 class Action(object):
 
-    def __init__(self, verb, cmd_list, out, err, references, status, stdin_obj=None, timeout=False, last_attempt=True,
-                 internal=False):
+    def __init__(self, verb, cmd_list, out, err, references, status, stdin_str=None,
+                 timeout=False, last_attempt=True, internal=False):
         self.status = status
         self.verb = verb
         self.cmd = cmd_list
         self.out = out
         self.err = err
-        self.stdin_obj = stdin_obj
+        self.stdin_str = stdin_str
         self.references = references
         self.timeout = timeout
         self.last_attempt = last_attempt
@@ -52,7 +52,7 @@ class Action(object):
             'cmd': self.cmd,
             'out': self.out,
             'err': self.err,
-            'in_obj': self.stdin_obj,
+            'in': self.stdin_str,
             'references': self.references,
             'timeout': self.timeout,
             'last_attempt': self.last_attempt,
@@ -66,21 +66,33 @@ class Action(object):
             d['references'] = {key: _redact_content(value) for (key, value) in self.references.iteritems()}
 
         if redact_streams:
-            d['out'] = _redact_content(self.out)
             d['err'] = _redact_content(self.err)
-            if self.stdin_obj and _is_sensitive(json.dumps(self.stdin_obj, indent=None)):
-                d['in_obj'] = _redaction_string()
 
-        if len(self.out) > truncate_stdout > -1:
-            d['out'] = (self.out[:truncate_stdout] + '...')
+        if self.stdin_str:
+            if redact_streams and _is_sensitive(self.stdin_str):
+                d['in'] = _redaction_string()
+            else:
+                try:
+                    # If the input can be parsed as json, do so
+                    if self.stdin_str.strip().startswith('{'):
+                        d['in_obj'] = json.loads(self.stdin_str)
+                        del d['in']
+                except:
+                    pass
+
+        if redact_streams and _is_sensitive(self.out):
+            d['out'] = _redact_content(self.out)
         else:
-            try:
-                # If the output can be parsed as json, do so
-                if self.out.startswith('{'):
-                    d['out_obj'] = json.loads(self.out)
-                    del d['out']
-            except:
-                pass
+            if len(self.out) > truncate_stdout > -1:
+                d['out'] = (self.out[:truncate_stdout] + '...truncated...')
+            else:
+                try:
+                    # If the output can be parsed as json, do so
+                    if self.out.startswith('{'):
+                        d['out_obj'] = json.loads(self.out)
+                        del d['out']
+                except:
+                    pass
 
         return d
 
@@ -107,7 +119,7 @@ def _flatten_list(l):
 
 
 def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=False,
-              references=None, stdin_obj=None, last_attempt=True,
+              references=None, stdin_obj=None, stdin_str=None, last_attempt=True,
               **kwargs):
     """
     Executes oc client verb with arguments. Returns an Action with result information.
@@ -118,6 +130,7 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
     :param no_namespace: If true, namespace will not be included in invocation
     :param references: A dict of values to include in the tracking information for this action
     :param stdin_obj: A json serializable object to supply to stdin for the oc invocation
+    :param stdin_str: If stdin is not a json serializable object. Cannot be specified in conjunction with stdin_obj.
     :param last_attempt: If False, implies that this action will be retried by higher level control on failure.
     :param kwargs:
     :return: An Action object.
@@ -166,8 +179,7 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
 
     timeout = False
 
-    stdin_str = None
-
+    # If stdin_object is specified, serialize into the string.
     if stdin_obj:
         stdin_str = json.dumps(stdin_obj, indent=None)
 
@@ -181,7 +193,7 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
 
             command_string += c
 
-        # print "Running: {}".format(command_string)
+        print "Running: {}".format(command_string)
 
         try:
 
@@ -229,7 +241,7 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
             returncode = -1
 
     internal = kwargs.get("internal", False)
-    a = Action(verb, cmds, stdout, stderr, references, returncode, stdin_obj=stdin_obj, timeout=timeout,
-               last_attempt=last_attempt, internal=internal)
+    a = Action(verb, cmds, stdout, stderr, references, returncode,
+               stdin_str=stdin_str, timeout=timeout, last_attempt=last_attempt, internal=internal)
     context.register_action(a)
     return a
