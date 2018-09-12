@@ -159,6 +159,16 @@ print('{}'.format(project.as_json())
 
 # Or getting deep copy dict. Changes made to this dict will not affect the APIObject.
 d = project.as_dict()
+
+# Model objects also simplify looking through kubernetes style lists. For example, can_match
+# returns True if the modeled list contains an object with the subset of attributes specified.
+# If this example, we are checking if the a node's kubelet is reporting Ready:
+oc.selector('node/alpha').object().model.status.conditions.can_match(
+    {
+        'type': 'Ready',
+        'status': "True",
+    }
+)
 ```
 
 
