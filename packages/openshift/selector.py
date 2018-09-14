@@ -17,7 +17,6 @@ def _normalize_object_list(ol):
 
 
 class Selector(Result):
-
     def __init__(self, high_level_operation,
                  kind_or_qname_or_qnames=None, labels=None,
                  object_list=None,
@@ -232,11 +231,12 @@ class Selector(Result):
         """
         return len(self._query_names())
 
-    def object_json(self, exportable=False):
+    def object_json(self, exportable=False, ignore_not_found=False):
         """
         Returns all objects selected by the receiver as a JSON string. If multiple objects are
         selected, an OpenShift List kind will be returned.
         :param exportable: Set to True if the export verb should be used.
+        :param ignore_not_found: If True, no error will result if receiver tries to select objects which are not present
         :return: Returns all selected objects marshalled as an OpenShift JSON representation.
         """
 
@@ -250,10 +250,26 @@ class Selector(Result):
             })
 
         verb = "export" if exportable else "get"
+
+        cmd_args = ["-o=json",
+                    self._selection_args()]
+
+        if ignore_not_found:
+            cmd_args.append("--ignore-not-found")
+
         r = Result(verb)
         r.add_action(oc_action(self.context, verb, all_namespaces=self.all_namespaces,
-                               cmd_args=["-o=json", self._selection_args()]))
+                               cmd_args=cmd_args))
         r.fail_if("Unable to read object")
+
+        # --ignore-not-found returns an empty string instead of an error if nothing is found
+        if not r.out().strip():
+            return json.dumps({
+                "apiVersion": "v1",
+                "kind": "List",
+                "metadata": {},
+                "items": []
+            })
 
         return r.out()
 
@@ -281,7 +297,7 @@ class Selector(Result):
         :return: A list of Model objects representing the receiver's selected resources.
         """
 
-        obj = json.loads(self.object_json(exportable))
+        obj = json.loads(self.object_json(exportable, ignore_not_found=True))
         return APIObject(obj).elements()
 
     def start_build(self, cmd_args=[]):
