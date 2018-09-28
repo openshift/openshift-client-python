@@ -136,7 +136,7 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
     :return: An Action object.
     :rtype: Action
     """
-    cmds = ["oc", verb]
+    cmds = [context.get_oc_path(), verb]
 
     if context.get_kubeconfig_path() is not None:
         cmds.append("--config=%s" % context.get_kubeconfig_path())

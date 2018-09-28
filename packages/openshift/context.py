@@ -13,6 +13,7 @@ from .result import Result
 context = local()
 
 context.stack = []
+context.default_oc_path = "oc"  # Assume oc is in $PATH by default
 context.default_kubeconfig_path = None
 context.default_cluster = None
 context.default_project = None
@@ -27,6 +28,7 @@ def cur_context():
 class Context(object):
     def __init__(self):
         self.parent = None
+        self.oc_path = None
         self.kubeconfig_path = None
         self.api_url = None
         self.project_name = None
@@ -79,6 +81,13 @@ class Context(object):
         if self.parent is not None:
             return self.parent.get_api_url()
         return context.default_cluster
+
+    def get_oc_path(self):
+        if self.oc_path is not None:
+            return self.oc_path
+        if self.parent is not None:
+            return self.parent.get_oc_path()
+        return context.default_oc_path
 
     def get_kubeconfig_path(self):
         if self.kubeconfig_path is not None:
@@ -201,6 +210,14 @@ class Context(object):
             c = c.parent
 
 
+def set_default_oc_path(path):
+    """
+    Sets the default full patch of the oc binary to execute for this thread.
+    If no client_path() context is in use, this path will be used.
+    """
+    context.default_oc_path = path
+
+
 def set_default_kubeconfig_path(path):
     context.default_kubeconfig_path = path
 
@@ -253,13 +270,27 @@ def client_host(hostname, port=22, username=None, password=None, auto_add_host=F
     return c
 
 
+def client_path(oc_path):
+    """
+    Specifies the full path to the oc binary in this context. If unspecified, 'oc' is invoked and
+    it should be in $PATH.
+    :param oc_path: Fully path to executable oc binary
+    :return:
+    """
+    c = Context()
+
+    c.oc_path = oc_path
+    return c
+
+
 def cluster(api_url=None, kubeconfig_path=None):
     """
     Establishes a context in which inner oc interactions
-    will target the specified OpenShift cluster. cluster contexts
+    will target the specified OpenShift cluster or kubeconfig. cluster contexts
     can be nested. The most immediate ancestor cluster context
     will define the cluster targeted by an action.
-    :param name: The name of the project.
+    :param api_url: The oc --server argument to use.
+    :param kubeconfig_path: The oc --config argument to use.
     :return: The context object. Can be safely ignored.
     """
 
