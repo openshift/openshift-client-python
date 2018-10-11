@@ -23,16 +23,16 @@ def __new_objects_action_selector(verb, cmd_args=[], stdin_obj=None):
     return sel
 
 
-def new_app(*args):
-    return __new_objects_action_selector("new-app", cmd_args=args)
+def new_app(cmd_args=[]):
+    return __new_objects_action_selector("new-app", cmd_args=cmd_args)
 
 
-def new_build(*args):
-    return __new_objects_action_selector("new-build", cmd_args=args)
+def new_build(cmd_args=[]):
+    return __new_objects_action_selector("new-build", cmd_args=cmd_args)
 
 
-def start_build(*args):
-    return __new_objects_action_selector("start-build", cmd_args=args)
+def start_build(cmd_args=[]):
+    return __new_objects_action_selector("start-build", cmd_args=cmd_args)
 
 
 def get_project_name(*args):
@@ -62,6 +62,7 @@ def new_project(name, *args):
 
 def delete_project(name, ignore_not_found=False, *args):
     r = Result("delete-project")
+    args = list(args)
     if ignore_not_found:
         args.append("--ignore-not-found")
     r.add_action(oc_action(cur_context(), "delete", cmd_args=["project", name, args]))
@@ -112,6 +113,29 @@ def create(dict_or_model_or_apiobject_or_list_thereof, cmd_args=[]):
 
     return __new_objects_action_selector("create", cmd_args=["-f", "-", cmd_args], stdin_obj=m)
 
+def create_raw(cmd_args=[]):
+    """
+    Relies on caller to provide sensible command line arguments. -o=name will
+    be added to the arguments automatically.
+    :param cmd_args: An array of arguments to pass along to oc create
+    :return: A selector for the newly created objects
+    """
+    return __new_objects_action_selector("create", cmd_args)
+
+def raw(verb, cmd_args=[], stdin_str=None, auto_fail=True):
+    """
+    Invokes oc with the supplied arguments.
+    :param verb: The verb to execute
+    :param cmd_args: An array of arguments to pass along to oc
+    :param stdin_str: The standard input to supply to the process
+    :param auto_fail: Raise an exception if the command returns a non-zero return code
+    :return: A Result object containing the executed Action(s) with the output captured.
+    """
+    r = Result('raw')
+    r.add_action(oc_action(cur_context(), verb, cmd_args, stdin_str=stdin_str))
+    if auto_fail:
+        r.fail_if("Non-zero return code from raw action")
+    return r
 
 def apply(dict_or_model_or_apiobject_or_list_thereof, cmd_args=[]):
 

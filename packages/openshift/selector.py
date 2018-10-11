@@ -410,7 +410,7 @@ class Selector(Result):
         r.fail_if("Error running scale")
         return self
 
-    def until_any(self, success_func, failure_func=None, *args, **kwargs):
+    def until_any(self, success_func=None, failure_func=None, *args, **kwargs):
         """
         Polls the server until a selected resource satisfies a user specified
         success condition or violates a user specified failure condition.
@@ -420,8 +420,13 @@ class Selector(Result):
         the user specified callable(s) will be invoked once with the object
         as a Model (*args and **kwargs will also be passed along).
 
+        You can use this function to wait for the existence of any satisfying
+        object to be returned by the API by not specifying any success or failure
+        criteria.
+
         :param success_func: If this function returns True on any obj, iteration will stop
-            and until_any will return (True, obj) where obj was the object
+            and until_any will return (True, obj) where obj was the object. If no success_func
+            is specified, the method behaves as if any object returns True.
         :param failure_func: If this function returns True on any obj, iteration will stop
             and until_any will return (False, obj) where obj was the object
         :return: (bool, obj) where bool is True if the success condition was satisfied
@@ -430,14 +435,14 @@ class Selector(Result):
         poll_period = 1
         while True:
             for obj in self.objects():
-                if success_func(obj, *args, **kwargs):
-                    return True, obj
                 if failure_func is not None and failure_func(obj, *args, **kwargs):
                     return False, obj
+                if success_func is None or success_func(obj, *args, **kwargs):
+                    return True, obj
             time.sleep(poll_period)
             poll_period = min(poll_period + 1, 15)
 
-    def until_all(self, min_count, success_func, failure_func=None, *args, **kwargs):
+    def until_all(self, min_count, success_func=None, failure_func=None, *args, **kwargs):
         """
         Polls the server until ALL selected resources satisfy a user specified
         success condition or ANY violate a user specified failure condition.
@@ -447,10 +452,13 @@ class Selector(Result):
         the user specified callable(s) will be invoked once with the object
         as a Model (*args and **kwargs will also be passed along).
 
+        until_all with a min_count and not success_func will wait until at least min_count
+        objects are selected.
+
         :param min_count: Minimum number of objects which must exist before check will be performed
         :param success_func: If this function returns True on ALL objects, iteration will stop
             and until_all will return (True, objs, None) where objs is a list of APIObjects
-            selected/checked.
+            selected/checked. If not specified, a function that always returns True will be used.
         :param failure_func: If this function returns True on ANY obj, iteration will stop
             and until_all will return (False, objs, bad) where objs is the list of APIObjects
             selected/checked and bad is the APIObject which failed.
@@ -459,6 +467,9 @@ class Selector(Result):
             which were checked, and bad will be an non-None APIObject if an object failed
             the check.
         """
+
+        if not success_func:
+            success_func = lambda x: True
 
         poll_period = 1
         while True:

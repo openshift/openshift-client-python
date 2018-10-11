@@ -9,7 +9,8 @@ abbreviations = {
     "rs": "replicaset",
     "dc": "deploymentconfig",
     "deploy": "deployment",
-    "ep": "endpoint"
+    "ep": "endpoint",
+    "istag": "imagestreamtag",
 }
 
 
