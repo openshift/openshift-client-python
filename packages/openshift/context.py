@@ -2,6 +2,7 @@ from datetime import datetime
 from datetime import timedelta
 from threading import local
 import paramiko
+import os
 
 from .result import Result
 
@@ -13,12 +14,18 @@ from .result import Result
 context = local()
 
 context.stack = []
-context.default_oc_path = "oc"  # Assume oc is in $PATH by default
-context.default_kubeconfig_path = None
-context.default_cluster = None
-context.default_project = None
+context.default_oc_path = os.getenv("OPENSHIFT_PYTHON_DEFAULT_OC_PATH", "oc")  # Assume oc is in $PATH by default
+context.default_kubeconfig_path = os.getenv("OPENSHIFT_PYTHON_DEFAULT_CONFIG_PATH", None)
+context.default_cluster = os.getenv("OPENSHIFT_PYTHON_DEFAULT_CLUSTER", None)
+context.default_project = os.getenv("OPENSHIFT_PYTHON_DEFAULT_PROJECT", None)
 context.default_options = {}
-context.default_loglevel = None
+context.default_loglevel = os.getenv("OPENSHIFT_PYTHON_DEFAULT_LOGLEVEL", None)
+
+# Provides defaults for ssh_client context instantiations
+DEFAULT_SSH_HOSTNAME = os.getenv("OPENSHIFT_PYTHON_DEFAULT_SSH_HOSTNAME", None)
+DEFAULT_SSH_USERNAME = os.getenv("OPENSHIFT_PYTHON_DEFAULT_SSH_USERNAME", None)
+DEFAULT_SSH_PORT = int(os.getenv("OPENSHIFT_PYTHON_DEFAULT_SSH_PORT", "22"))
+DEFAULT_SSH_AUTO_ADD = os.getenv("OPENSHIFT_PYTHON_DEFAULT_SSH_AUTO_ADD", "false").lower() in ("yes", "true", "t", "1")
 
 
 def cur_context():
@@ -26,6 +33,7 @@ def cur_context():
 
 
 class Context(object):
+
     def __init__(self):
         self.parent = None
         self.oc_path = None
@@ -40,6 +48,7 @@ class Context(object):
         # ssh configuration
         self.ssh_client = None
         self.ssh_hostname = None
+
         self.ssh_port = 22
         self.ssh_username = None
         self.ssh_password = None
@@ -247,14 +256,17 @@ def blank():
     return c
 
 
-def client_host(hostname, port=22, username=None, password=None, auto_add_host=False, connect_timeout=600):
+def client_host(hostname=DEFAULT_SSH_HOSTNAME, port=DEFAULT_SSH_PORT, username=DEFAULT_SSH_USERNAME, password=None, auto_add_host=DEFAULT_SSH_AUTO_ADD, connect_timeout=600):
     """
-    Will ssh to the specified host to in order to run oc commands
-    :param hostname: The hostname or IP address
-    :param port: The ssh port
-    :param username: The username to use
+    Will ssh to the specified host to in order to run oc commands. If hostname is not specified,
+    the environment variable OPENSHIFT_PYTHON_DEFAULT_SSH_HOSTNAME will be used. If the environment variable is
+    not defined, this context will have no effect and the current host will be assumed to be the
+    host on which oc will be run.
+    :param hostname: The hostname or IP address. Defaults to environment variable OPENSHIFT_PYTHON_DEFAULT_SSH_HOSTNAME then None.
+    :param port: The ssh port. Defaults to OPENSHIFT_PYTHON_DEFAULT_SSH_PORT, then None.
+    :param username: The username to use. Defaults to OPENSHIFT_PYTHON_DEFAULT_USERNAME, then None.
     :param password: The username's password
-    :param auto_add_host: Whether to auto accept host certificates
+    :param auto_add_host: Whether to auto accept host certificates. Defaults to OPENSHIFT_PYTHON_DEFAULT_SSH_AUTO_ADD, then None.
     :param connect_timeout: Connection timeout
     :return:
     """

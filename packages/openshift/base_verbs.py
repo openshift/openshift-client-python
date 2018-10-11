@@ -154,6 +154,7 @@ def apply(dict_or_model_or_apiobject_or_list_thereof, cmd_args=[]):
 
     return __new_objects_action_selector("apply", cmd_args=["-f", "-", cmd_args], stdin_obj=m)
 
+
 def node_ssh_client(apiobj_node_name_or_qname,
                     port=22,
                     username=None,
