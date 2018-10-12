@@ -19,13 +19,16 @@ context.default_kubeconfig_path = os.getenv("OPENSHIFT_PYTHON_DEFAULT_CONFIG_PAT
 context.default_cluster = os.getenv("OPENSHIFT_PYTHON_DEFAULT_CLUSTER", None)
 context.default_project = os.getenv("OPENSHIFT_PYTHON_DEFAULT_PROJECT", None)
 context.default_options = {}
-context.default_loglevel = os.getenv("OPENSHIFT_PYTHON_DEFAULT_LOGLEVEL", None)
+context.default_loglevel = os.getenv("OPENSHIFT_PYTHON_DEFAULT_OC_LOGLEVEL", None)
 
 # Provides defaults for ssh_client context instantiations
 DEFAULT_SSH_HOSTNAME = os.getenv("OPENSHIFT_PYTHON_DEFAULT_SSH_HOSTNAME", None)
 DEFAULT_SSH_USERNAME = os.getenv("OPENSHIFT_PYTHON_DEFAULT_SSH_USERNAME", None)
 DEFAULT_SSH_PORT = int(os.getenv("OPENSHIFT_PYTHON_DEFAULT_SSH_PORT", "22"))
-DEFAULT_SSH_AUTO_ADD = os.getenv("OPENSHIFT_PYTHON_DEFAULT_SSH_AUTO_ADD", "false").lower() in ("yes", "true", "t", "1")
+DEFAULT_SSH_AUTO_ADD = os.getenv("OPENSHIFT_PYTHON_DEFAULT_SSH_AUTO_ADD", "false").lower() in ("yes", "true", "t", "y", "1")
+
+# Environment variable can specify generally how long openshift operations can execute before an exception
+MASTER_TIMEOUT = int(os.getenv("OPENSHIFT_PYTHON_MASTER_TIMEOUT", -1))
 
 
 def cur_context():
@@ -169,9 +172,10 @@ class Context(object):
             return self.parent.get_loglevel()
         return context.default_loglevel
 
-    # Returns true if any surrounding timeout context is
-    # expired.
     def is_out_of_time(self):
+        """
+        :return: Returns true if any surrounding timeout context is expired.
+        """
         c = self
         now = datetime.utcnow()
         while c is not None:
@@ -217,6 +221,19 @@ class Context(object):
             if c.context_result is not None:
                 c.context_result.add_action(action)
             c = c.parent
+
+    def set_timeout(self, seconds):
+        """
+        Sets the internal timeout for this context the specified number of
+        seconds in the future from the time it is called. Internal use only.
+        :param seconds: The number of seconds from now to start timing out oc invocations. If None, timeout
+            for this context is cleared.
+        :return: N/A
+        """
+        if seconds and seconds > 0:
+            self.timeout_datetime = datetime.utcnow() + timedelta(seconds=seconds)
+        else:
+            self.timeout_datetime = None
 
 
 def set_default_oc_path(path):
@@ -401,11 +418,13 @@ def timeout(seconds):
     :return: The context object. Can be safely ignored.
     """
     c = Context()
-    if seconds is not None:
-        c.timeout_datetime = datetime.utcnow() + timedelta(seconds=seconds)
+    c.set_timeout(seconds)
     return c
 
 
+root_context = Context()
+root_context.set_timeout(MASTER_TIMEOUT)
+
 # Ensure stack always has at least one member to simplify getting last
 # with [-1]
-context.stack = [Context()]
+context.stack = [root_context]

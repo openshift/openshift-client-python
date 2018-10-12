@@ -183,65 +183,77 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
     if stdin_obj:
         stdin_str = json.dumps(stdin_obj, indent=None)
 
-    if context.get_ssh_client() is not None:
-        command_string = ""
+    # Set defaults in case is_out_of_time is true
+    stdout = ""
+    stderr = ""
+    return_code = -1
 
-        for i, c in enumerate(cmds):
-            # index zero is 'oc' -- no need to escape
-            if i > 0:
-                c = " {}".format(escape_arg(c))
 
-            command_string += c
+    # If we are out of time, don't even try to execute.
+    if not context.is_out_of_time():
 
-        # print "Running: {}".format(command_string)
+        if context.get_ssh_client() is not None:
+            command_string = ""
 
-        try:
+            for i, c in enumerate(cmds):
+                # index zero is 'oc' -- no need to escape
+                if i > 0:
+                    c = " {}".format(escape_arg(c))
 
-            # This timeout applies to individual read / write channel operations which follow.
-            # If paramiko fails to timeout, consider using polling: https://stackoverflow.com/a/45844203
-            ssh_stdin, ssh_stdout, ssh_stderr = context.get_ssh_client().exec_command(command=command_string,
-                                                                                      timeout=context.get_min_remaining_seconds())
-            if stdin_str:
-                ssh_stdin.write(stdin_str)
-                ssh_stdin.flush()
-                ssh_stdin.channel.shutdown_write()
+                command_string += c
 
-            stdout = ssh_stdout.read()
-            stderr = ssh_stderr.read()
-            returncode = ssh_stdout.channel.recv_exit_status()
+            # print "Running: {}".format(command_string)
 
-        except socket.timeout as error:
-            timeout = True
-            returncode = -1
+            try:
 
+                # This timeout applies to individual read / write channel operations which follow.
+                # If paramiko fails to timeout, consider using polling: https://stackoverflow.com/a/45844203
+                ssh_stdin, ssh_stdout, ssh_stderr = context.get_ssh_client().exec_command(command=command_string,
+                                                                                          timeout=context.get_min_remaining_seconds())
+                if stdin_str:
+                    ssh_stdin.write(stdin_str)
+                    ssh_stdin.flush()
+                    ssh_stdin.channel.shutdown_write()
+
+                stdout = ssh_stdout.read()
+                stderr = ssh_stderr.read()
+                return_code = ssh_stdout.channel.recv_exit_status()
+
+            except socket.timeout as error:
+                timeout = True
+                return_code = -1
+
+        else:
+
+            with TempFile(content=stdin_str) as stdin_file:
+                with TempFile() as out:
+                    with TempFile() as err:
+                        # When only python3 is supported, change to using standard timeout
+                        process = subprocess.Popen(cmds, stdin=stdin_file.file, stdout=out.file, stderr=err.file)
+
+                        while process.poll() is None:
+                            if context.is_out_of_time():
+                                try:
+                                    timeout = True
+                                    process.kill()
+                                    break
+                                except OSError:
+                                    pass  # ignore
+                            time.sleep(period)
+                            period = min(1, period + period)  # Poll fast at first, but slow down to 1/sec over time
+
+                        stdout = out.read()
+                        stderr = err.read()
+
+            return_code = process.returncode
+            if timeout:
+                return_code = -1
     else:
-
-        with TempFile(content=stdin_str) as stdin_file:
-            with TempFile() as out:
-                with TempFile() as err:
-                    # When only python3 is supported, change to using standard timeout
-                    process = subprocess.Popen(cmds, stdin=stdin_file.file, stdout=out.file, stderr=err.file)
-
-                    while process.poll() is None:
-                        if context.is_out_of_time():
-                            try:
-                                timeout = True
-                                process.kill()
-                                break
-                            except OSError:
-                                pass  # ignore
-                        time.sleep(period)
-                        period = min(1, period + period)  # Poll fast at first, but slow down to 1/sec over time
-
-                    stdout = out.read()
-                    stderr = err.read()
-
-        returncode = process.returncode
-        if timeout:
-            returncode = -1
+        timeout = True
+        return_code = -1
 
     internal = kwargs.get("internal", False)
-    a = Action(verb, cmds, stdout, stderr, references, returncode,
+    a = Action(verb, cmds, stdout, stderr, references, return_code,
                stdin_str=stdin_str, timeout=timeout, last_attempt=last_attempt, internal=internal)
     context.register_action(a)
     return a
