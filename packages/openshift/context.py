@@ -16,7 +16,9 @@ context = local()
 context.stack = []
 context.default_oc_path = os.getenv("OPENSHIFT_PYTHON_DEFAULT_OC_PATH", "oc")  # Assume oc is in $PATH by default
 context.default_kubeconfig_path = os.getenv("OPENSHIFT_PYTHON_DEFAULT_CONFIG_PATH", None)
-context.default_cluster = os.getenv("OPENSHIFT_PYTHON_DEFAULT_CLUSTER", None)
+context.default_api_server = os.getenv("OPENSHIFT_PYTHON_DEFAULT_API_SERVER", None)
+context.default_token = None  # Does not support environment variable injection to discourage this insecure practice
+context.default_ca_cert_path = os.getenv("OPENSHIFT_PYTHON_DEFAULT_CA_CERT_PATH", None)
 context.default_project = os.getenv("OPENSHIFT_PYTHON_DEFAULT_PROJECT", None)
 context.default_options = {}
 context.default_loglevel = os.getenv("OPENSHIFT_PYTHON_DEFAULT_OC_LOGLEVEL", None)
@@ -42,6 +44,8 @@ class Context(object):
         self.oc_path = None
         self.kubeconfig_path = None
         self.api_url = None
+        self.token = None
+        self.ca_cert_path = None
         self.project_name = None
         self.loglevel_value = None
         self.context_result = None
@@ -88,11 +92,28 @@ class Context(object):
             self.ssh_client = None
 
     def get_api_url(self):
+
         if self.api_url is not None:
             return self.api_url
         if self.parent is not None:
             return self.parent.get_api_url()
-        return context.default_cluster
+        return context.default_api_server
+
+    def get_token(self):
+
+        if self.token is not None:
+            return self.token
+        if self.parent is not None:
+            return self.parent.get_token()
+        return context.default_token
+
+    def get_ca_cert_path(self):
+
+        if self.ca_cert_path is not None:
+            return self.ca_cert_path
+        if self.parent is not None:
+            return self.parent.get_ca_cert_path()
+        return context.default_ca_cert_path
 
     def get_oc_path(self):
         if self.oc_path is not None:
@@ -312,12 +333,12 @@ def client_path(oc_path):
     return c
 
 
-def cluster(api_url=None, kubeconfig_path=None):
+def api_server(api_url=None, ca_cert_path=None, kubeconfig_path=None):
     """
     Establishes a context in which inner oc interactions
-    will target the specified OpenShift cluster or kubeconfig. cluster contexts
-    can be nested. The most immediate ancestor cluster context
-    will define the cluster targeted by an action.
+    will target the specified OpenShift API server (--server arguments).
+    Contexts can be nested. The most immediate ancestor cluster context
+    will define the API server targeted by an action.
     :param api_url: The oc --server argument to use.
     :param kubeconfig_path: The oc --config argument to use.
     :return: The context object. Can be safely ignored.
@@ -326,6 +347,20 @@ def cluster(api_url=None, kubeconfig_path=None):
     c = Context()
     c.kubeconfig_path = kubeconfig_path
     c.api_url = api_url
+    c.ca_cert_path = ca_cert_path
+    return c
+
+
+def token(val=None):
+    """
+    Establishes a context in which inner oc interactions
+    will include the specified token on the command line with --token.
+    :param val: The oc --token argument to use.
+    :return: The context object. Can be safely ignored.
+    """
+
+    c = Context()
+    c.token = val
     return c
 
 

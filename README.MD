@@ -1,11 +1,34 @@
+
+<!-- Install doctoc with `npm install -g doctoc`  then `doctoc README.md --github` -->
+
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Overview](#overview)
+- [Reader Prerequisites](#reader-prerequisites)
+- [Setup](#setup)
+- [Usage](#usage)
+  - [Boilerplate](#boilerplate)
+  - [Introduction to Selectors](#introduction-to-selectors)
+  - [Accessing API objects as Python Objects](#accessing-api-objects-as-python-objects)
+  - [Making changes to APIObjects](#making-changes-to-apiobjects)
+  - [Other examples:](#other-examples)
+- [Environment Variables](#environment-variables)
+  - [Defaults when invoking `oc`](#defaults-when-invoking-oc)
+  - [Master timeout](#master-timeout)
+  - [SSH Client Host](#ssh-client-host)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Overview
-The [OpenShift](https://www.openshift.com) Python library aims to provide a readable, concise, comprehensive, and fluent
-API for rich interactions with an OpenShift cluster. Unlike other clients, this library exclusively uses the command
-line tool (oc) to achieve the interactions. This approach comes with important benefits and disadvantages when compare
+The [openshift-python](https://www.github.com/jupierce/openshift-python) library aims to provide a readable, concise, comprehensive, and fluent
+API for rich interactions with an [OpenShift](https://www.openshift.com) cluster. Unlike other clients, this library exclusively uses the command
+line tool (oc) to achieve the interactions. This approach comes with important benefits and disadvantages when compared
 to other client libraries.
 
 Pros:
-- No software needs to be installed on the cluster. If oc is available on a box you can ssh to, you are ready to use
+- No additional software needs to be installed on the cluster. If oc is available on a box you can ssh to, you are ready to use
 this API.
 - Virtually always up-to-date. The version of oc installed on a cluster is always compatible with the version that cluster
 is running. We say "virtually" here because it is possible that oc may deprecate or dramatically change aspects of the
@@ -15,9 +38,9 @@ command-line interface. Thankfully, such changes are extremely rare.
 
 Cons:
 - This API is not intended to implement something as complex as a controller. For example, we haven't even implemented
-watch functionality. This library is intended to dramatically simplify CLI interactions. If can't imagine using
-the CLI for your use case, this API is not for you.
-- If you care about whether a REST API returned a particular error code, this API is probably not for you. Since it
+watch functionality. This library is intended to dramatically simplify CLI interactions. If can't imagine accomplishing
+the CLI for your use case, this API is probably not for you.
+- If you care about whether a REST API returns a particular error code, this API is probably not for you. Since it
 is based on the CLI, high level return codes are used to determine success or failure.
 
 ## Reader Prerequisites
@@ -33,9 +56,7 @@ the CLI documentation to find the pass-through arguments a given interaction req
 1. Git clone https://github.com/jupierce/openshift-python.git (or your fork).
 2. Append ./packages to your PYTHONPATH environment variable (e.g. export PYTHONPATH=$(pwd)/packages:$PYTHONPATH).
 
-## Examples
-As the API is designed to be intuitive for experienced OpenShift users, the following high level examples
-serve to build that intuition before delving into the detailed documentation.
+## Usage
 
 ### Boilerplate
 Any standard Python application should be able to use the API if it imports the openshift package. The simplest
@@ -54,15 +75,25 @@ import openshift as oc
 print "Current project: " + oc.get_project_name()
 ```
 
-Need credentials to access your cluster? Use contexts to apply a set of command line options
-to all oc invocations within them.
+This approach also works if you are using the library within a Pod container -- the `oc` binary automatically
+detects it is running in a container and the injected serviceaccount token/cacert.
+
+If you are unable to use a KUBECONFIG environment variable or need fine grained control over the 
+server/credentials you communicate with for each invocation, use openshift-python contexts. 
+Contexts can be nested and cause oc invocations within them to use the most recently established 
+context information.
 
 ```python
-with oc.options({'token': 'abc..'}):  # ensure --token=abc... is included in every invocation within
-    print "Current project: " + oc.get_project_name()
+with oc.api_server('https:///....'):  # use the specified api server for nested oc invocations.
+    
+    with oc.token('abc..'):  # --server=... --token=abc... will be included in inner oc invocations.
+        print "Current project: " + oc.get_project_name()
+    
+    with oc.token('def..'):  # --server=... --token=def... will be included in inner oc invocations.
+        print "Current project: " + oc.get_project_name()
 ```
 
-Cluster not local? No problem. Easy remote all CLI interactions over SSH using the client_host
+Is your oc binary on a remote host? No problem. Easily remote all CLI interactions over SSH using the client_host
 context. Before running this command, you will need to load your ssh agent up with a key
 appropriate to the target client host.
 
@@ -207,3 +238,48 @@ Running oc exec on a pod.
                                                                      stdin='stdin for cat')
     print(result.out())
 ```
+
+## Environment Variables
+To allow openshift-python applications to be portable between environments without needing to be modified, 
+you can specify many default contexts in the environment. 
+
+### Defaults when invoking `oc`
+Establishing explicit contexts within an application will override these environment defaults.
+- `OPENSHIFT_PYTHON_DEFAULT_OC_PATH` - default path to use when invoking `oc`
+- `OPENSHIFT_PYTHON_DEFAULT_CONFIG_PATH` - default `--config` argument
+- `OPENSHIFT_PYTHON_DEFAULT_API_SERVER` - default `--server` argument
+- `OPENSHIFT_PYTHON_DEFAULT_CA_CERT_PATH` - default `--cacert` argument
+- `OPENSHIFT_PYTHON_DEFAULT_PROJECT` - default `--namespace` argument
+- `OPENSHIFT_PYTHON_DEFAULT_OC_LOGLEVEL` - default `--loglevel`
+- `OPENSHIFT_PYTHON_DEFAULT_TLS_CHECK` - If `false`, always include `--insecure-skip-tls-verify`
+
+### Master timeout
+Defines an implicit outer timeout(..) context for the entire application. This allows you to ensure
+that an application terminates within a reasonable time, even if the author of the application has
+not included explicit timeout contexts. Like any `timeout` context, this value is not overridden
+by subsequent `timeout` contexts within the application. It provides an upper bound for the entire
+application's oc interactions.
+
+- `OPENSHIFT_PYTHON_MASTER_TIMEOUT` 
+
+### SSH Client Host
+In some cases, it is desirable to run an openshift-python application using a local `oc` binary and 
+in other cases, the `oc` binary resides on a remote client. Encoding this decision in the application
+itself is unnecessary.
+
+Simply wrap you application in a `client_host` context without arguments. This will try to pull 
+client host information from environment variables if they are present. If they are not present,
+the application will execute on the local host.
+
+For example, the following application will ssh to `OPENSHIFT_PYTHON_DEFAULT_SSH_HOSTNAME` if it is defined
+in the environment. Otherwise, `oc` interactions will be executed on the host running the python application.
+
+```python
+with oc.client_host():  # if OPENSHIFT_PYTHON_DEFAULT_SSH_HOSTNAME if not defined in the environment, this is a no-op
+    print( 'Found nodes: {}'.format(oc.selector('nodes').qnames()) ) 
+```
+
+- `OPENSHIFT_PYTHON_DEFAULT_SSH_HOSTNAME` - The hostname on which the `oc` binary resides
+- `OPENSHIFT_PYTHON_DEFAULT_SSH_USERNAME` - Username to use for the ssh connection (optional)
+- `OPENSHIFT_PYTHON_DEFAULT_SSH_PORT` - SSH port to use (optional; defaults to 22)
+- `OPENSHIFT_PYTHON_DEFAULT_SSH_AUTO_ADD` - Whether to automatically trust news hosts
