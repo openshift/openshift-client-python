@@ -1,6 +1,6 @@
 
 
-class OpenShiftException(StandardError):
+class OpenShiftPythonException(StandardError):
 
     def __init__(self, msg, result=None, **kwargs):
         super(self.__class__, self).__init__(msg)
@@ -10,6 +10,13 @@ class OpenShiftException(StandardError):
 
     def attributes(self):
         return dict(self.kwargs)
+
+    def get_result(self):
+        """
+        :return: Returns the Result object associated with
+         this exception if any. Might be None.
+        """
+        return self.result
 
     def as_dict(self):
         d = dict(self.kwargs)

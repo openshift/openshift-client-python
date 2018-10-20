@@ -419,7 +419,7 @@ class APIObject:
         elif this_kind.startswith("job"):
             labels["job-name"] = name
         else:
-            raise OpenShiftException("Unknown how to find resources to related to kind: " + this_kind)
+            raise OpenShiftPythonException("Unknown how to find resources to related to kind: " + this_kind)
 
         return selector(find_kind, labels=labels)
 

@@ -132,10 +132,10 @@ class Selector(Result):
         qnames = self.qnames()
 
         if len(qnames) == 0:
-            raise OpenShiftException("Expected single name, but selector returned no resources")
+            raise OpenShiftPythonException("Expected single name, but selector returned no resources")
 
         if len(qnames) > 1:
-            raise OpenShiftException("Expected single name, but selector returned multiple resources")
+            raise OpenShiftPythonException("Expected single name, but selector returned multiple resources")
 
         return qnames[0]
 
@@ -289,9 +289,9 @@ class Selector(Result):
         """
         objs = self.objects(exportable)
         if len(objs) == 0:
-            raise OpenShiftException("Expected a single object, but selected 0")
+            raise OpenShiftPythonException("Expected a single object, but selected 0")
         elif len(objs) > 1:
-            raise OpenShiftException("Expected a single object, but selected more than one")
+            raise OpenShiftPythonException("Expected a single object, but selected more than one")
 
         return objs[0]
 

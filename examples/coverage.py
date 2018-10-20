@@ -150,12 +150,12 @@ try:
         try:
             oc.create(bark_obj)  # Should create an error
             assert False
-        except OpenShiftException as create_err:
+        except OpenShiftPythonException as create_err:
             print "What went wrong?: " + str(create_err)
 
         bark_bite_sel.until_any(lambda obj: obj.metadata.qname == "bite")
 
 
 
-except OpenShiftException as e:
+except OpenShiftPythonException as e:
     print "An exception occurred: " + str(e)

@@ -1,5 +1,5 @@
 import json
-from model import OpenShiftException
+from model import OpenShiftPythonException
 
 
 class Result(object):
@@ -30,11 +30,15 @@ class Result(object):
                 s += "\n"
         return s
 
-    def timeout(self):
-        t = False
+    def get_timeout(self):
+        """
+        :return: Iterates through all actions in this Result and returns the first Action object
+        it finds that indicates it timed out. If no action timed out, returns None.
+        """
         for action in self.__actions:
-            t |= action.timeout
-        return t
+            if action.timeout:
+                return action
+        return None
 
     # Returns aggregate stderr from all underlying actions
     def err(self):
@@ -70,8 +74,8 @@ class Result(object):
         return self.as_json()
 
     def fail_if(self, msg):
-        if self.timeout():
-            msg += " (Timeout)"
+        if self.get_timeout():
+            msg += " (Timeout during: {})".format(self.get_timeout().as_dict()['cmd'])
 
         if self.status() != 0:
-            raise OpenShiftException(msg, self)
+            raise OpenShiftPythonException(msg, self)
