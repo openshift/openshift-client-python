@@ -4,6 +4,7 @@ import io
 import os
 import codecs
 
+
 # Context manager that will swap stdout/stderr with buffers.
 # Anything the inner block prints will be captured in these
 # buffers and availed in the as: object.
@@ -86,3 +87,7 @@ def split_names(output):
     if output is None:
         return []
     return [x.strip() for x in output.strip().split("\n") if x.strip() != ""]
+
+
+def is_collection_type(obj):
+    return isinstance(obj, (list, tuple))

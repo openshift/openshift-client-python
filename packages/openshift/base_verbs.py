@@ -37,16 +37,28 @@ def start_build(cmd_args=[]):
     return __new_objects_action_selector("start-build", cmd_args=cmd_args)
 
 
-def get_project_name(*args):
+def get_project_name(cmd_args=[]):
     """
-    :param args: Additional arguments to pass to 'oc project'
+    :param cmd_args: Additional arguments to pass to 'oc project'
     :return: The name of the current project
     """
 
     r = Result("project-name")
-    r.add_action(oc_action(cur_context(), "project", cmd_args=["-q", args]))
+    r.add_action(oc_action(cur_context(), "project", cmd_args=["-q", cmd_args]))
     r.fail_if("Unable to determine current project")
-    return r.out()
+    return r.out().strip()
+
+
+def whoami(cmd_args=[]):
+    """
+    :param cmd_args: Additional arguments to pass to 'oc project'
+    :return: The current user
+    """
+
+    r = Result("whoami")
+    r.add_action(oc_action(cur_context(), "whoami", cmd_args=cmd_args))
+    r.fail_if("Unable to determine current user")
+    return r.out().strip()
 
 
 def new_project(name, ok_if_exists=False, cmd_args=[]):

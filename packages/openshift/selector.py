@@ -1,8 +1,8 @@
 from .result import Result
-from .naming import expand_kind
-from .naming import normalize_kind
+from .naming import expand_kinds
+from .naming import normalize_kinds, normalize_kind
 from .model import *
-from .util import split_names
+from .util import split_names, is_collection_type
 import json
 import time
 
@@ -17,8 +17,9 @@ def _normalize_object_list(ol):
 
 
 class Selector(Result):
+
     def __init__(self, high_level_operation,
-                 kind_or_qname_or_qnames=None, labels=None,
+                 kind_or_kinds_or_qname_or_qnames=None, labels=None,
                  object_list=None,
                  object_action=None,
                  filter_func=None,
@@ -39,34 +40,39 @@ class Selector(Result):
             self.object_list = action_output.strip().split()
 
         if self.object_list is not None:
-            if labels or kind_or_qname_or_qnames:
-                raise ValueError("Kind/labels cannot be specified in conjunction with object_list")
+            if labels or kind_or_kinds_or_qname_or_qnames:
+                raise ValueError("Kind(s)/labels cannot be specified in conjunction with object_list")
             return
 
         if self.labels is not None:
             # You can't query using labels without specifying a kind. Use 'all'.
-            if kind_or_qname_or_qnames is None:
-                kind_or_qname_or_qnames = "all"
-            self.kind = expand_kind(kind_or_qname_or_qnames)
+            if kind_or_kinds_or_qname_or_qnames is None:
+                kind_or_kinds_or_qname_or_qnames = "all"
+            self.kinds = expand_kinds(kind_or_kinds_or_qname_or_qnames)
 
         else:
 
             # Otherwise, allow args[0] of
             #  "kind"
+            #  [ "kind", ... ]
             #  "kind/name"
             #  [ "kind/name", ... ]
 
-            if kind_or_qname_or_qnames is None:
-                raise ValueError("Requires kind, qualified name, or list of qualified names")
+            if kind_or_kinds_or_qname_or_qnames is None:
+                raise ValueError("Requires kind, qualified name, or list of kinds or qualified names")
 
-            first = kind_or_qname_or_qnames
+            first = kind_or_kinds_or_qname_or_qnames
 
             # List of qualified names
-            if isinstance(first, list):
-                self.object_list = _normalize_object_list(first)
+            if is_collection_type(first):
+                if '/' in first[0]:  # collection of kind/name assumed
+                    self.object_list = _normalize_object_list(first)
+                else:  # Assume collection of kinds
+                    self.kinds = normalize_kinds(first)
+
             else:
                 if "/" not in first:  # Caller has specified ("kind")
-                    self.kind = normalize_kind(first)
+                    self.kinds = normalize_kinds(first)
                 else:  # Caller specified ( "kind/name" )
                     self.object_list = _normalize_object_list([first])
 
@@ -91,7 +97,7 @@ class Selector(Result):
         if self.object_list is not None:
             return self.object_list
 
-        args.append(self.kind)
+        args.append(','.join(self.kinds))
 
         if self.labels is not None:
             sel = "--selector="
@@ -175,7 +181,7 @@ class Selector(Result):
             for obj in self.objects():
                 if kind_or_func(obj):
                     ns.append(obj.qname())
-        elif isinstance(kind_or_func, str) or isinstance(kind_or_func, unicode):
+        elif isinstance(kind_or_func, basestring):
             kind = normalize_kind(kind_or_func)
             ns = [n for n in self.qnames() if (n.startswith(kind + "/") or n.startswith(kind + "."))]
         else:
@@ -489,13 +495,14 @@ class Selector(Result):
             poll_period = min(poll_period + 1, 15)
 
 
-def selector(kind_or_qname_or_qnames=None, labels=None, all_namespaces=False, static_context=None):
+def selector(kind_or_kinds_or_qname_or_qnames=None, labels=None, all_namespaces=False, static_context=None):
     """
     selector( "kind" )
-    selector( "kind", labels=[ 'k': 'v' ] )
+    selector( "kind", labels={ 'k': 'v' } )
+    selector( ["kind", "kind2", ...], labels={ 'k': 'v' } )
     selector( ["kind/name1", "kind/name2", ...] )
     selector( "kind/name" )
-    :param kind_or_qname_or_qnames: A kind ('pod'), qualified name ('pod/some_name') or
+    :param kind_or_kinds_or_qname_or_qnames: A kind ('pod'), qualified name ('pod/some_name') or
         a list of qualified names ['pod/abc', 'pod/def'].
     :param labels: labels to require for the specified kind (AND logic is applied). Do not use in conjunction with
         qnames.
@@ -506,7 +513,7 @@ def selector(kind_or_qname_or_qnames=None, labels=None, all_namespaces=False, st
     :return: A Selector object
     :rtype: Selector
     """
-    return Selector("selector", kind_or_qname_or_qnames, labels=labels,
+    return Selector("selector", kind_or_kinds_or_qname_or_qnames, labels=labels,
                     all_namespaces=all_namespaces, static_context=static_context)
 
 

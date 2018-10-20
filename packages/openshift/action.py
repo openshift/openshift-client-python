@@ -31,7 +31,7 @@ def _redact_content(content_str):
 class Action(object):
 
     def __init__(self, verb, cmd_list, out, err, references, status, stdin_str=None,
-                 timeout=False, last_attempt=True, internal=False):
+                 timeout=False, last_attempt=True, internal=False, elapsed_time=0):
         self.status = status
         self.verb = verb
         self.cmd = cmd_list
@@ -42,6 +42,7 @@ class Action(object):
         self.timeout = timeout
         self.last_attempt = last_attempt
         self.internal = internal
+        self.elapsed_time = elapsed_time
 
         if not self.references:
             self.references = {}
@@ -49,6 +50,7 @@ class Action(object):
     def as_dict(self, truncate_stdout=-1, redact_tokens=True, redact_references=True, redact_streams=True):
 
         d = {
+            'elapsed_time': self.elapsed_time,
             'status': self.status,
             'verb': self.verb,
             'cmd': self.cmd,
@@ -199,6 +201,7 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
     stderr = ""
     return_code = -1
 
+    start_time = time.time()
 
     # If we are out of time, don't even try to execute.
     if not context.is_out_of_time():
@@ -263,8 +266,11 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
         timeout = True
         return_code = -1
 
+    end_time = time.time()
+
     internal = kwargs.get("internal", False)
     a = Action(verb, cmds, stdout, stderr, references, return_code,
-               stdin_str=stdin_str, timeout=timeout, last_attempt=last_attempt, internal=internal)
+               stdin_str=stdin_str, timeout=timeout, last_attempt=last_attempt,
+               internal=internal, elapsed_time=(end_time-start_time))
     context.register_action(a)
     return a

@@ -72,11 +72,72 @@ Can you run `oc get project` successfully from the command line? Then write your
 #!/usr/bin/python
 import openshift as oc
 
-print "Current project: " + oc.get_project_name()
+print('Current project: {}'.format(oc.get_project_name()))
 ```
 
 This approach also works if you are using the library within a Pod container -- the `oc` binary automatically
 detects it is running in a container and the injected serviceaccount token/cacert.
+
+It is best practice with the library to setup a tracking context for your application so that
+you will be able to easily analyze what 'oc' invocations where made on your behalf and the result
+of those operations. *Note that details about all 'oc' invocations performed within the context will
+be stored within the tracker. Therefore, do not use a single tracker for a continuously running
+process -- it will consume memory for every oc invocation.*
+
+```python
+with oc.tracker() as tracker:
+    try:
+        print('Current project: {}'.format(oc.get_project_name()))
+        print('Current user: {}'.format(oc.whoami()))
+    except:
+        print('Error acquire details about project/user')
+    
+    # Print out details about the invocations made within this context.
+    print tracker.get_result()
+```
+
+In this case, the tracker output would look something like:
+```json
+{
+    "status": 0, 
+    "operation": "tracker", 
+    "actions": [
+        {
+            "status": 0, 
+            "verb": "project", 
+            "references": {}, 
+            "in": null, 
+            "out": "aos-cd\n", 
+            "err": "", 
+            "cmd": [
+                "oc", 
+                "project", 
+                "-q"
+            ], 
+            "elapsed_time": 0.15344810485839844, 
+            "internal": false, 
+            "timeout": false, 
+            "last_attempt": true
+        }, 
+        {
+            "status": 0, 
+            "verb": "whoami", 
+            "references": {}, 
+            "in": null, 
+            "out": "aos-ci-jenkins\n", 
+            "err": "", 
+            "cmd": [
+                "oc", 
+                "whoami"
+            ], 
+            "elapsed_time": 0.6328380107879639, 
+            "internal": false, 
+            "timeout": false, 
+            "last_attempt": true
+        }
+    ]
+}
+```
 
 If you are unable to use a KUBECONFIG environment variable or need fine grained control over the 
 server/credentials you communicate with for each invocation, use openshift-python contexts. 
