@@ -16,7 +16,7 @@ import traceback
 logging.getLogger("paramiko").setLevel(logging.DEBUG)
 paramiko.util.log_to_file("paramiko.log")
 
-with openshift.tracker() as t:
+with openshift.tracking() as t:
 
     with openshift.client_host(hostname="54.147.205.250", username="root", auto_add_host=True):
 

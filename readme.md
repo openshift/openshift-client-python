@@ -11,7 +11,8 @@
 - [Usage](#usage)
   - [Boilerplate](#boilerplate)
   - [Introduction to Selectors](#introduction-to-selectors)
-  - [Accessing API objects as Python Objects](#accessing-api-objects-as-python-objects)
+  - [Gathering Reports Logs with Selectors](#gathering-reports-logs-with-selectors)
+  - [Accessing API Objects as Python Objects](#accessing-api-objects-as-python-objects)
   - [Making changes to APIObjects](#making-changes-to-apiobjects)
   - [Other examples:](#other-examples)
 - [Environment Variables](#environment-variables)
@@ -78,19 +79,19 @@ print('Current project: {}'.format(oc.get_project_name()))
 This approach also works if you are using the library within a Pod container -- the `oc` binary automatically
 detects it is running in a container and the injected serviceaccount token/cacert.
 
-It is best practice with the library to setup a tracking context for your application so that
+It is good practice to setup at least one tracking context within your application so that
 you will be able to easily analyze what 'oc' invocations where made on your behalf and the result
 of those operations. *Note that details about all 'oc' invocations performed within the context will
 be stored within the tracker. Therefore, do not use a single tracker for a continuously running
 process -- it will consume memory for every oc invocation.*
 
 ```python
-with oc.tracker() as tracker:
+with oc.tracking() as tracker:
     try:
         print('Current project: {}'.format(oc.get_project_name()))
         print('Current user: {}'.format(oc.whoami()))
     except:
-        print('Error acquire details about project/user')
+        print('Error acquiring details about project/user')
     
     # Print out details about the invocations made within this context.
     print tracker.get_result()
@@ -137,6 +138,22 @@ In this case, the tracker output would look something like:
         }
     ]
 }
+```
+
+Alternatively, you could record actions yourself by specifying an action_handler to the tracking 
+contextmanager. Your action handler will be invoked each time an `oc` invocation completes.
+
+```python
+def print_action(action):
+    print('Performed: {} - status={}'.format(action.cmd, action.status))
+
+with oc.tracking(action_handler=print_action):
+    try:
+        print('Current project: {}'.format(oc.get_project_name()))
+        print('Current user: {}'.format(oc.whoami()))
+    except:
+        print('Error acquiring details about project/user')
+
 ```
 
 If you are unable to use a KUBECONFIG environment variable or need fine grained control over the 
@@ -195,7 +212,10 @@ sa_selector.label({"mylabel" : "myvalue"})
 sa_label_selector = oc.selector("sa", labels={"mylabel":"myvalue"})
 
 # We should find the service accounts we just labeled.
-print "Found labeled serviceaccounts: " + str(sa_label_selector.names())
+print("Found labeled serviceaccounts: " + str(sa_label_selector.names()))
+
+# Create a selector for a set of kinds.
+print(oc.selector(['dc', 'daemonset']).describe())
 ```
 
 The output should look something like this:
@@ -206,7 +226,55 @@ Number of projects: 8
 Found labeled serviceaccounts: [u'serviceaccounts/builder', u'serviceaccounts/deployer']
 ```
 
-### Accessing API objects as Python Objects
+### Gathering Reports Logs with Selectors
+
+Various objects within OpenShift have logs associated with them:
+- pods
+- deployments
+- daemonsets
+- statefulsets
+- builds
+- etc..
+
+A selector can gather logs from pods associated with each (and for each container within those pods). Each
+log will be a unique value in the dictionary returned.
+
+```python
+# Print logs for all pods associated with all daemonsets & deployments in openshift-monitoring namespace.
+with oc.project('openshift-monitoring'):
+    for k, v in oc.selector(['daemonset', 'deployment']).logs().iteritems():
+        print('Container: {}\n{}\n\n'.format(k, v))
+```
+
+The above example would output something like:
+```
+Container: openshift-monitoring:pod/node-exporter-hw5r5(node-exporter)
+time="2018-10-22T21:07:36Z" level=info msg="Starting node_exporter (version=0.16.0, branch=, revision=)" source="node_exporter.go:82"
+time="2018-10-22T21:07:36Z" level=info msg="Enabled collectors:" source="node_exporter.go:90"
+time="2018-10-22T21:07:36Z" level=info msg=" - arp" source="node_exporter.go:97"
+...
+```
+
+Note that these logs are held in memory. This operation is not recommended for huge logs.
+
+To simplify even further, you can ask the library to pretty-print the logs for you:
+```python
+oc.selector(['daemonset', 'deployment']).print_logs()
+```
+
+And to quickly pull together significant diagnostic data on selected objects, use `report()` or `print_report()`. 
+A report includes the following information for each selected object, if available:
+- `object` - The current state of the object.
+- `describe` - The output of describe on the object.
+- `logs` - If applicable, a map of logs -- one of each container associated with the object. 
+
+```python
+# Pretty-print a detail set of data about all deploymentconfigs, builds, and configmaps in the 
+# current namespace context.
+oc.selector(['dc', 'build', 'configmap']).print_report()
+```
+
+### Accessing API Objects as Python Objects
 
 Selectors allow you to perform "verb" level operations on a set of objects, but
 what if you want to interact objects at a schema level?
@@ -218,19 +286,19 @@ projects_sel = oc.selector("projects")
 # which model the selected resources.
 projects = projects_sel.objects()
 
-print "Selected " + str(len(projects)) + " projects"
+print("Selected " + str(len(projects)) + " projects")
 
 # Let's store one of the project APIObjects for easy access.
 project = projects[0]
 
 # The APIObject exposes methods providing simple access to metadata and common operations.
-print( 'The project is: {}/{}'.format(project.kind(), project.name()) )
+print('The project is: {}/{}'.format(project.kind(), project.name()))
 project.label({ 'mylabel': 'myvalue' })
 
 # And the APIObject allow you to interact with an object's data via the 'model' attribute.
 # The model is similar to a standard dict, but also allows dot notation to access elements
 # of the structured data.
-print( 'Annotations:\n{}\n.format( project.model.metadata.annotations ) )
+print('Annotations:\n{}\n.format(project.model.metadata.annotations))
 
 # There is no need to perform the verbose 'in' checking you may be familiar with when
 # exploring the model object. Accessing the model will always return a value. If the

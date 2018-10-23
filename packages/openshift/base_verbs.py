@@ -1,16 +1,19 @@
-import os
+from __future__ import print_function
 
+import os
 from .selector import Selector, selector
 from .action import oc_action
-from .context import cur_context, project
+from .context import cur_context, project, no_tracking
 from .result import Result
 from .apiobject import APIObject
 from .model import Model, Missing
+import util
+import naming
 import paramiko
+import base64
 
 
 def __new_objects_action_selector(verb, cmd_args=[], stdin_obj=None):
-
     """
     Performs and oc action and records objects output from the verb
     as changed in the content.
@@ -20,7 +23,8 @@ def __new_objects_action_selector(verb, cmd_args=[], stdin_obj=None):
     :return: A selector for the newly created objects
     """
 
-    sel = Selector(verb, object_action=oc_action(cur_context(), verb, cmd_args=['-o=name', cmd_args], stdin_obj=stdin_obj))
+    sel = Selector(verb,
+                   object_action=oc_action(cur_context(), verb, cmd_args=['-o=name', cmd_args], stdin_obj=stdin_obj))
     sel.fail_if('{} returned an error: {}'.format(verb, sel.err().strip()))
     return sel
 
@@ -130,7 +134,6 @@ def create(dict_or_model_or_apiobject_or_list_thereof, cmd_args=[]):
 
 
 def delete(dict_or_model_or_apiobject_or_list_thereof, ignore_not_found=False, cmd_args=[]):
-
     """
     Deletes one or more objects
     :param dict_or_model_or_apiobject_or_list_thereof:
@@ -191,7 +194,6 @@ def raw(verb, cmd_args=[], stdin_str=None, auto_fail=True):
 
 
 def apply(dict_or_model_or_apiobject_or_list_thereof, cmd_args=[]):
-
     items = _to_dict_list(dict_or_model_or_apiobject_or_list_thereof)
 
     # If there is nothing to act on, return empty selector
@@ -209,7 +211,6 @@ def apply(dict_or_model_or_apiobject_or_list_thereof, cmd_args=[]):
 
 
 def build_configmap_dict(configmap_name, dir_path=None, data_map={}, obj_labels={}):
-
     """
     Creates a python dict structure for a configmap (if remains to the caller to send
     the yaml to the server with create()). This method does not use/require oc to be resident
@@ -223,7 +224,7 @@ def build_configmap_dict(configmap_name, dir_path=None, data_map={}, obj_labels=
     :return: A python dict of a configmap resource.
     """
 
-    data_map = dict(data_map)
+    dm = dict(data_map)
 
     if dir_path:
         for entry in os.listdir(dir_path):
@@ -231,7 +232,7 @@ def build_configmap_dict(configmap_name, dir_path=None, data_map={}, obj_labels=
             if os.path.isfile(path):
                 with open(path, 'r') as f:
                     file_basename = os.path.basename(path)
-                    data_map[file_basename] = f.read()
+                    dm[file_basename] = f.read()
 
     d = {
         'kind': 'ConfigMap',
@@ -240,10 +241,163 @@ def build_configmap_dict(configmap_name, dir_path=None, data_map={}, obj_labels=
             'name': configmap_name,
             'labels': obj_labels,
         },
-        'data': data_map
+        'data': dm
     }
 
     return d
+
+
+def build_secret_dict(secret_name, dir_path=None, data_map={}, obj_labels={}):
+    """
+    Creates a python dict structure for a secret (if remains to the caller to send
+    the yaml to the server with create()). This method does not use/require oc to be resident
+    on the python host.
+    :param secret_name: The metadata.name to include
+    :param dir_path: All files within the specified directory will be included in the secret. Note
+    that the directory must be relative to the python application (it cannot be on an ssh client host).
+    :param data_map: A set of key value pairs to include in the secret (will be combined with dir_path
+    entries if both are specified. The values will be b64encoded automatically.
+    :param obj_labels: Additional labels to include in the resulting secret metadata.
+    :return: A python dict of a secret resource.
+    """
+
+    dm = dict()
+
+    # base64 encode the incoming data_map values
+    for k, v in data_map:
+        dm[k] = base64.b64encode(v)
+
+    if dir_path:
+        for entry in os.listdir(dir_path):
+            path = os.path.join(dir_path, entry)
+            if os.path.isfile(path):
+                with open(path, 'r') as f:
+                    file_basename = os.path.basename(path)
+                    dm[file_basename] = base64.b64encode(f.read())
+
+    d = {
+        'kind': 'Secret',
+        'apiVersion': 'v1',
+        'metadata': {
+            'name': secret_name,
+            'labels': obj_labels,
+        },
+        'data': dm
+    }
+
+    return d
+
+
+def dumpinfo_apiobject(dir, obj):
+    util.mkdir_p(dir)
+    prefix = os.path.join(dir, obj.name())
+
+    with no_tracking():
+        with open(prefix + '.describe', mode='w') as f:
+            f.write(obj.describe())
+
+        if not naming.kind_matches(obj.kind(), 'secret'):
+            with open(prefix + '.json', mode='w') as f:
+                f.write(obj.as_json())
+
+        if naming.kind_matches(obj.kind(), ['pod', 'build']):
+            with open(prefix + '.logs', mode='w') as f:
+                obj.print_logs(f)
+
+
+def dumpinfo_project(dir,
+                     project_name,
+                     kinds=['ds', 'dc', 'build', 'statefulset', 'deployment', 'pod', 'rs', 'rc', 'configmap']):
+    project_name = naming.qualify_name(project_name, 'project')
+
+    util.mkdir_p(dir)
+    with no_tracking():
+
+        # if the project does not exist, just a leave a file saying we tried
+        if selector(project_name).count_existing() == 0:
+            with open(os.path.join(dir, 'not-found'), mode='w') as f:
+                f.write('{} was not found'.format(project_name))
+            return
+
+        with project(project_name):
+
+            print('Collecting events for project: {}'.format(project_name))
+            with open(os.path.join(dir, 'events.describe'), mode='w') as f:
+                print('Collecting events for project: {}'.format(project_name))
+                f.write(selector('events').describe().out())
+
+            for obj in selector(kinds).objects():
+                dumpinfo_apiobject(dir, obj)
+
+
+def dumpinfo_core(base_dir,
+                  additional_nodes=[],
+                  additional_projects=[],
+                  additional_namespaced_kinds=[],
+                  include_crd_kinds=True):
+    util.mkdir_p(base_dir)
+
+    kinds = set(['ds', 'dc', 'build', 'statefulset', 'deployment', 'pod', 'rs', 'rc', 'configmap'])
+    kinds.update(additional_namespaced_kinds)
+
+    if include_crd_kinds:
+        for crd_obj in selector('crd').objects():
+            if crd_obj.model.spec.scope == 'Namespaced':
+                kinds.add(crd_obj.name())
+
+    # A large amount of stdout is going to be generated,
+    # don't burden memory by trying to store it in trackers.
+    with no_tracking():
+
+        # Start with a base set of master nodes and append additional nodes.
+        node_qnames = set(selector('node', labels={'node-role.kubernetes.io/master': True}).qnames())
+        for node_name in additional_nodes:
+            if '/' not in node_name:
+                node_name = 'node/' + node_name.lower()
+            node_qnames.add(node_name)
+
+        node_sel = selector(node_qnames)
+        fluentd_pods = selector('pod', labels={'component': 'fluentd'}, all_namespaces=True).objects()
+        print('Found {} fluentd pods on cluster'.format(len(fluentd_pods)))
+
+        for node in node_sel.objects():
+            node_dir = util.mkdir_p(os.path.join(base_dir, 'node', node.name()))
+            dumpinfo_apiobject(node_dir, node)
+
+            # If possible, find a fluentd pod that is scheduled on the node. The fluentd pod mounts in the
+            # host's journal directories -- so we capture information for debug.
+            node_fluentd_pod = next((pod for pod in fluentd_pods if pod.model.spec.nodeName == node.name()), None)
+            if node_fluentd_pod:
+
+                with open(os.path.join(node_dir, 'all.journal.export'), mode='w') as f:
+                    capture_action = node_fluentd_pod.execute(cmd_to_exec=['journalctl',
+                                                                           '-D', '/var/log/journal',
+                                                                           '-o', 'export',
+                                                                           '-n', '10000',
+                                                                           ],
+                                                              auto_raise=False)
+                    f.write(capture_action.out())
+
+                # In case extraneous events are flooding, isolate important services as well
+                with open(os.path.join(node_dir, 'critical.journal.export'), mode='w') as f:
+                    capture_action = node_fluentd_pod.execute(cmd_to_exec=['journalctl',
+                                                                           '-D', '/var/log/journal',  # Where fluentd mounts hosts journal
+                                                                           '-o', 'export',  # This can be converted back into .journal with systemd-journal-remote
+                                                                           '-n', '10000',  # Number of recent events to gather critical services
+                                                                           '-u', 'crio',
+                                                                           '-u', 'atomic-openshift-node',
+                                                                           '-u', 'docker',
+                                                                           ],
+                                                              auto_raise=False)
+                    f.write(capture_action.out())
+            else:
+                print('Unable to find a fluentd pod in the cluster for node {}'.format(node.name()))
+
+        projects = set(['kube-system', 'openshift-sdn', 'openshift-config', 'openshift-node'])
+        projects.update(additional_projects)
+
+        for project_name in projects:
+            dumpinfo_project(os.path.join(base_dir, 'project', project_name))
 
 
 def node_ssh_client(apiobj_node_name_or_qname,
@@ -282,7 +436,7 @@ def node_ssh_client(apiobj_node_name_or_qname,
 
         apiobj = selector(qname).object()
 
-    print "Checking node: {}".format(apiobj.qname())
+    print("Checking node: {}".format(apiobj.qname()))
     address_entries = apiobj.model().status.addresses
 
     if address_entries is Missing:
@@ -290,7 +444,8 @@ def node_ssh_client(apiobj_node_name_or_qname,
 
     for address_type in address_type_pref.split(','):
         # Find the first address of the preferred type:
-        address = next((entry.address for entry in address_entries if entry.type.lower() == address_type.lower().strip()), None)
+        address = next(
+            (entry.address for entry in address_entries if entry.type.lower() == address_type.lower().strip()), None)
         if address:
             ssh_client = paramiko.SSHClient()
             ssh_client.load_system_host_keys()

@@ -2,8 +2,11 @@ from .action import *
 from .model import *
 from .result import *
 from .naming import kind_matches
+import util
 import yaml
 import json
+import sys
+import copy
 
 _DEFAULT = object()
 
@@ -68,7 +71,11 @@ def _as_model(obj):
 
 
 def _access_field(val, err_msg, if_missing=_DEFAULT, lowercase=False):
-    if val is Missing:
+
+    # (or val == '') included since it has been observed that namespace can be
+    # returned from certain API queries as an empty string.
+
+    if val is Missing or val == '':
         if if_missing is _DEFAULT:
             raise ModelError(err_msg)
         else:
@@ -83,8 +90,14 @@ class APIObject:
 
     def __init__(self, dict_to_model=None, context=None):
         # Create a Model representation of the object.
-        self.context = context if context else cur_context()
         self.model = Model(dict_to_model)
+
+        # If an APIObject is instantiated by an all_namespace selector, it will not necessarily have
+        # a context with its own namespace. Therefore, on instantiation, grab a copy of our context and
+        # make sure to force a namespace.
+
+        self.context = copy.copy(context if context else cur_context())
+        self.context.project_name = self.namespace(None)
 
     def as_dict(self):
         """
@@ -113,12 +126,29 @@ class APIObject:
         """
         Return the API object's name if it possesses one.
         If it does not, returns if_missing. When if_missing not specified, throws a ModelError.
-        :param if_missing: Value to return if kind is not present in Model.
-        :return: The kind or if_missing.
+        :param if_missing: Value to return if name is not present in Model.
+        :return: The name or if_missing.
         """
         return _access_field(self.model.metadata.name,
                              "Object model does not contain .metadata.name", if_missing=if_missing,
                              lowercase=True)
+
+    def namespace(self, if_missing=_DEFAULT):
+        """
+        Return the API object's namespace if it possesses one.
+        If it does not, returns if_missing. When if_missing not specified, throws a ModelError.
+        :param if_missing: Value to return if namespace is not present in Model.
+        :return: The namespace or if_missing.
+        """
+        return _access_field(self.model.metadata.namespace,
+                             "Object model does not contain .metadata.namespace", if_missing=if_missing,
+                             lowercase=True)
+
+    def fqname(self):
+        """
+        :return: Returns the fully qualified name of the object (ns:kind/name).
+        """
+        return '{}:{}/{}'.format(self.namespace(if_missing=''), self.kind(), self.name())
 
     def qname(self):
         """
@@ -147,7 +177,7 @@ class APIObject:
 
         return result
 
-    def selector(self):
+    def self_selector(self):
         """
         :return: Returns a selector that selects this exact receiver
         """
@@ -161,7 +191,7 @@ class APIObject:
         :param on_absent_func: The function to execute if the object does not exist
         :return: Boolean indicated whether the object exists, followed by return value of function, if present
         """
-        does_exist = self.selector().count_existing() == 1
+        does_exist = self.self_selector().count_existing() == 1
 
         ret = None
         if does_exist:
@@ -198,6 +228,101 @@ class APIObject:
                                 on_absent_func=lambda: self.create(args=args))
 
         return action
+
+    def describe(self, auto_fail=True):
+        """
+        :param auto_fail: If True, returns empty string instead of throwing an exception
+        if describe results in an error.
+        :return: Returns a string with the oc describe output of an object.
+        """
+        r = Result('describe')
+        r.add_action(oc_action(self.context, "describe", cmd_args=[self.qname()]))
+
+        if auto_fail:
+            r.fail_if('Error describing object')
+
+        return r.out()
+
+    def logs(self, try_longshots=True):
+        """
+        Attempts to collect logs from running pods associated with this resource. Supports
+        daemonset, statefulset, deploymentconfig, deployment, replicationcontroller, replicationset,
+        buildconfig, build, pod.
+
+        If try_longshots==True, logs can also be collected to for any object which directly
+        owns pods or responds successfully with "oc logs kind/name".
+
+        Since pods can be pending or otherwise unable to deliver logs, if an error is encountered during
+        an 'oc logs' invocation, the stderr will be considered the 'logs' of the object. In other words, oc
+        returning an error will not terminate this function.
+
+        :param try_longshots: If True, an attempt we will be made to collect logs from resources which the library does
+        not natively understand to possess logs. If False and the object is not recognized, an empty dict will be
+        returned.
+
+        :return: Returns a dict of {<fully-qualified-name> -> <log output>}. The fully qualified name will be
+        a human readable, unique identifier containing namespace, object, and container-name (when applicable).
+        """
+        log_aggregation = {}
+
+        def add_entry(collection, entry_key, action):
+            entry = action.out
+            if action.status != 0:
+                entry += '\n>>>>Error during log collection rc={}<<<<\n{}\n'.format(action.status, action.err)
+            entry = entry.strip().replace('\r\n', '\n')
+            collection[entry_key] = entry
+
+        pod_list = []
+
+        if kind_matches(self.kind(), 'pod'):
+            pod_list.append(self)
+
+        elif kind_matches(self.kind(), ['ds', 'statefulset']):
+            pod_list.extend(self.get_owned('pod'))
+
+        elif kind_matches(self.kind(), 'deployment'):
+            for rs in self.get_owned('rs'):
+                pod_list.extend(rs.get_owned('pod'))
+
+        elif kind_matches(self.kind(), 'dc'):
+            for rc in self.get_owned('rc'):
+                pod_list.extend(rc.get_owned('pod'))
+
+        elif kind_matches(self.kind(), ['rs', 'rc']):
+            pod_list.extend(self.get_owned('pod'))
+
+        elif kind_matches(self.kind(), ['bc', 'build']):
+            action = oc_action(self.context, "logs", cmd_args=[self.qname()])
+            add_entry(log_aggregation, self.fqname(), action)
+
+        else:
+            if try_longshots:
+                # If the kind directly owns pods, we can find the logs for it
+                pod_list.extend(self.get_owned('pod'))
+                if not pod_list:
+                    # Just try to collect logs and see what happens
+                    action = oc_action(self.context, "logs", cmd_args=[self.qname()])
+                    add_entry(log_aggregation, self.fqname(), action)
+                else:
+                    # We don't recognize kind and we aren't taking longshots.
+                    return dict()
+
+        for pod in pod_list:
+            for container in pod.model.spec.containers:
+                action = oc_action(self.context, "logs", cmd_args=[self.qname(), '-c', container.name])
+                # Include self.fqname() to let reader know how we actually found this pod (e.g. from a dc).
+                key = '{}->{}({})'.format(self.fqname(), pod.qname(), container.name)
+                add_entry(log_aggregation, key, action)
+
+        return log_aggregation
+
+    def print_logs(self, stream=sys.stderr):
+        """
+        Pretty prints logs from selected objects to an output stream (see logs() method).
+        :param stream: Output stream to send pretty printed report (defaults to sys.stderr)..
+        :return: n/a
+        """
+        util.print_logs(stream, self.logs())
 
     def modify_and_apply(self, modifier_func, retries=0, cmd_args=[]):
         """
@@ -288,7 +413,7 @@ class APIObject:
         :return: Result
         """
 
-        result = self.selector().label(labels, overwrite, cmd_ags=cmd_args)
+        result = self.self_selector().label(labels, overwrite, cmd_ags=cmd_args)
         self.refresh()
         return result
 
@@ -300,7 +425,7 @@ class APIObject:
         :param cmd_args: Additional list of arguments to pass on the command line.
         :return: Result
         """
-        result = self.selector().annotate(annotations=annotations, overwrite=overwrite, cmd_args=cmd_args)
+        result = self.self_selector().annotate(annotations=annotations, overwrite=overwrite, cmd_args=cmd_args)
         self.refresh()
         return result
 
@@ -372,6 +497,32 @@ class APIObject:
 
         return False
 
+    def am_i_involved(self, apiobj):
+
+        # Does the object has any ownerReferences?
+        ref = apiobj.model.involvedObject
+
+        if ref is Missing:
+            return False
+
+        '''
+        Example:
+        kind: Event
+        ...
+        involvedObject:
+          apiVersion: apps.openshift.io/v1
+          kind: DeploymentConfig
+          name: crel-monitors-app-creation-test
+          namespace: openshift-monitoring
+          resourceVersion: "1196701489"
+          uid: 675a1b29-d862-11e8-8383-02d8407159d1
+        '''
+
+        if kind_matches(self.kind(), ref.kind) and self.name() == ref.name and self.namespace() == ref.namespace:
+            return True
+
+        return False
+
     def get_owned(self, find_kind):
 
         """
@@ -387,9 +538,30 @@ class APIObject:
             if self.do_i_own(apiobj):
                 owned.append(apiobj)
 
-        selector(find_kind).for_each(check_owned_by_me)
+        selector(find_kind, static_context=self.context).for_each(check_owned_by_me)
 
         return owned
+
+    def get_events(self):
+        """
+        Returns a list of apiobjects events which indicate this object as
+        their involvedObject.
+        :return: A (potentially empty) list of event APIObjects
+        """
+
+        # If this is a project, just return all events in the namespace.
+        if kind_matches(self.kind(), ['project', 'namespace']):
+            return selector('events').objects()
+
+        involved = []
+
+        def check_if_involved(apiobj):
+            if self.am_i_involved(apiobj):
+                involved.append(apiobj)
+
+        selector('events', static_context=self.context).for_each(check_if_involved)
+
+        return involved
 
     def related(self, find_kind):
         """
@@ -416,12 +588,14 @@ class APIObject:
             labels["deployment"] = name
         elif this_kind.startswith("buildconfig"):
             labels["openshift.io/build-config.name"] = name
+        elif this_kind.startswith("statefulset"):
+            labels["statefulset.kubernetes.io/pod-name"] = name
         elif this_kind.startswith("job"):
             labels["job-name"] = name
         else:
             raise OpenShiftPythonException("Unknown how to find resources to related to kind: " + this_kind)
 
-        return selector(find_kind, labels=labels)
+        return selector(find_kind, labels=labels, static_context=self.context)
 
     def execute(self, cmd_to_exec=[], stdin=None, container_name=None, auto_raise=True):
         """
@@ -441,11 +615,11 @@ class APIObject:
             oc_args.append('--container={}'.format(container_name))
 
         r = Result("exec")
-        r.add_action(oc_action(self.context, "exec", cmd_args=[oc_args, self.name(), "--", cmd_to_exec], stdin_str=stdin))
+        r.add_action(
+            oc_action(self.context, "exec", cmd_args=[oc_args, self.name(), "--", cmd_to_exec], stdin_str=stdin))
         if auto_raise:
             r.fail_if("Error running exec")
         return r
-
 
 
 from .context import cur_context

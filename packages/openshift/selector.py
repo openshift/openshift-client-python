@@ -3,9 +3,10 @@ from .naming import expand_kinds
 from .naming import normalize_kinds, normalize_kind
 from .model import *
 from .util import split_names, is_collection_type
+import util
 import json
 import time
-
+import sys
 
 def _normalize_object_list(ol):
     new_ol = []
@@ -195,7 +196,14 @@ class Selector(Result):
         :return: Returns a new static Selector with the set of objects currently selected by this receiver.
         This is useful if business logic needs the underlying objects being selected to not change between
         queries (i.e. qnames() will always return the same thing even if objects are deleted from the server).
+
+        If you try to freeze an all_namespaces selector, an exception will be raised. All namespace queries
+        cannot be static because oc does not support queries like: oc get --all-namespaces pod/xyz
         """
+
+        if self.all_namespaces:
+            raise ValueError('You cannot freeze all_namespaces selectors.')
+
         return Selector("freeze", object_list=self.qnames())
 
     def union(self, with_selector):
@@ -319,13 +327,81 @@ class Selector(Result):
         r.object_list = split_names(r.out())
         return r
 
-    def describe(self, send_to_stdout=True, cmd_args=[]):
+    def report(self):
+        """
+        Builds a dict of information about objects selected by this receiver. This structure is not intended for
+        programmatic use and keys/values may change over time. It is primarily be of use to grab a snapshot of
+        data for post-mortem situations. As such, every effort is made to automatically tolerate errors and deliver
+        as much information as is available.
+        :return: {
+                    <fqname>:{
+                        object: {},
+                        describe: "..."
+                        logs: "...",
+                    } ,
+                    <fqname>:{
+                    ...
+                    }
+                 }
+        """
+        d = {}
+        for obj in self.objects():
+            key = obj.fqname()
+            obj_dict = dict()
+            obj_dict['object'] = obj.as_dict()
+            obj_dict['describe'] = obj.describe(auto_fail=False)
+
+            # A report on something like a 'configmap' should not contain a logs
+            # entry. So don't try longshots and don't include an entry if it doesn't support logs.
+            logs_dict = obj.logs(try_longshots=False)
+            if logs_dict:
+                obj_dict['logs'] = logs_dict
+            d[key] = obj_dict
+
+        return d
+
+    def print_report(self, stream=sys.stderr):
+        """
+        Pretty prints a report to an output stream (see report() method).
+        :param stream: Output stream to send pretty printed report (defaults to sys.stderr)..
+        :return: n/a
+        """
+        util.print_report(stream, self.report())
+
+    def logs(self):
+        """
+        Builds a dict of logs for selected resources. Keys are fully qualified names for the source of the
+        logs (format of this fqn is subject to change). Each value is the log extracted from the resource.
+
+        :return: {
+                    <pod fqname for each container>: <log_string> ,
+                    <build fqname>: <log_string>,
+                    ...
+                 }
+        """
+        d = {}
+        for obj in self.objects():
+            # Don't try longshots here. Theory being that a broad selector might be collecting logs from a
+            # bunch of resources and only wanting logs from objects that support it.
+            d.update(obj.logs(try_longshots=False))
+
+        return d
+
+    def print_logs(self, stream=sys.stderr):
+        """
+        Pretty prints logs from selected objects to an output stream (see logs() method).
+        :param stream: Output stream to send pretty printed report (defaults to sys.stderr)..
+        :return: n/a
+        """
+        util.print_logs(stream, self.logs())
+
+    def describe(self, auto_fail=True, cmd_args=[]):
         r = Result("describe")
         r.add_action(oc_action(self.context, "describe", all_namespaces=self.all_namespaces,
                                cmd_args=[self._selection_args(), cmd_args]))
-        r.fail_if("Error describing objects")
-        if send_to_stdout:
-            print r.out()
+        if auto_fail:
+            r.fail_if('Error during describe')
+
         return r
 
     def delete(self, ignore_not_found=True, cmd_args=[]):

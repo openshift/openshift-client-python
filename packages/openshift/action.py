@@ -35,8 +35,8 @@ class Action(object):
         self.status = status
         self.verb = verb
         self.cmd = cmd_list
-        self.out = out
-        self.err = err
+        self.out = out or ''
+        self.err = err or ''
         self.stdin_str = stdin_str
         self.references = references
         self.timeout = timeout

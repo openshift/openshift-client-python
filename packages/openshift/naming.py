@@ -76,7 +76,30 @@ def normalize_kinds(kinds):
     return normalized
 
 
-def kind_matches(k1, k2):
+def kind_matches(k1, k2_or_list):
     k1 = normalize_kind(k1)
-    k2 = normalize_kind(k2)
-    return k1 == k2 or k1.startswith(k2 + '.') or k2.startswith(k1 + '.')
+
+    # If a single string is provided, turn it into a list
+    if isinstance(k2_or_list, basestring):
+        k2_or_list = [k2_or_list]
+
+    for k2e in k2_or_list:
+        k2e = normalize_kind(k2e)
+        if k1 == k2e or k1.startswith(k2e + '.') or k2e.startswith(k1 + '.'):
+            return True
+
+    return False
+
+
+def qualify_name(name_or_qname, to_kind):
+    """
+    Formats a name or qualified name (kind/name) into a qualified
+    name of the specified target kind.
+    :param name_or_qname: The name to transform
+    :param to_kind: The kind to apply
+    :return: A qualified name like: kind/name
+    """
+
+    if '/' in name_or_qname:
+        name_or_qname = name_or_qname.split('/')[-1]
+    return '{}/{}'.format(to_kind, name_or_qname)

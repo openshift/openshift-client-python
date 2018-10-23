@@ -48,7 +48,8 @@ class Context(object):
         self.ca_cert_path = None
         self.project_name = None
         self.loglevel_value = None
-        self.context_result = None
+        self.tracking_strategy = None
+        self.no_tracking = False
         self.timeout_datetime = None
         self.options = None
 
@@ -229,18 +230,34 @@ class Context(object):
 
         return min_secs
 
-    # Returns a master "Result" of all actions registered with this context.
-    # If no actions were performed, an empty list is returned.
     def get_result(self):
-        return self.context_result
+        """
+        :return: If this contextmanager was returned by `with tracking()`, returns
+        the Result object which has tracked all internal oc invocations. Otherwise,
+        returns None.
+        """
 
-    # Add an actions to any tracker
+        # Check instance type since this could also be a user's callable.
+        if isinstance(self.tracking_strategy, Result):
+            return self.tracking_strategy
+        else:
+            return None
+
+    # Add an actions to any tracking
     # contexts enclosing the current context.
+    # Adds will be terminated if a no_tracking context is encountered.
     def register_action(self, action):
         c = self
         while c is not None:
-            if c.context_result is not None:
-                c.context_result.add_action(action)
+            if c.no_tracking:
+                return
+
+            if c.tracking_strategy:
+                if isinstance(c.tracking_strategy, Result):
+                    c.tracking_strategy.add_action(action)
+                else:
+                    c.tracking_strategy(action)
+
             c = c.parent
 
     def set_timeout(self, seconds):
@@ -379,16 +396,43 @@ def project(name):
     return c
 
 
-def tracker():
+def tracking(action_handler=None):
     """
     Establishes a context in which all inner actions will
-    be tracked. Trackers can be nested -- all actions
-    performed within a tracker's context will be tracked.
-    :return: The tracker context. Call get_result to see
-    all tracked actions.
+    be tracked (unless a inner no_tracking context prevents
+    tracking). Trackers can be nested -- all actions
+    performed within a tracker's context will be tracked unless
+    there is a descendant no_tracking context which blocks tracking
+    from propagating to this ancestor.
+    :param action_handler: If specified, after each oc action is
+    performed, this method will be called with the Action object.
+    If not specified, all Actions will aggregate into a internally
+    managed Result object which can be accessed with get_result.
+    :return: The tracker contextmanager. If action_handler is not
+    specified, call get_result to receive a Result object with all
+    tracked Action objects.
     """
     c = Context()
-    c.context_result = Result("tracker")
+    if action_handler:
+        if not callable(action_handler):
+            raise ValueError('Expected action_handler to be callable')
+        c.tracking_strategy = action_handler
+    else:
+        c.tracking_strategy = Result('tracker')
+    return c
+
+
+def no_tracking():
+    """
+    Prevent outer tracker contexts from registering
+    oc actions in their tracker objects. This is useful
+    when a large amount of data is going to be transferred
+    via stdout/stderr OR when certain actions make carry
+    confidential data that should not appear in trackers.
+    :return: The context object. Can be safely ignored.
+    """
+    c = Context()
+    c.no_tracking = True
     return c
 
 

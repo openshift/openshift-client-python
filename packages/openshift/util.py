@@ -3,6 +3,8 @@ import sys
 import io
 import os
 import codecs
+import errno
+import json
 
 
 # Context manager that will swap stdout/stderr with buffers.
@@ -90,4 +92,56 @@ def split_names(output):
 
 
 def is_collection_type(obj):
-    return isinstance(obj, (list, tuple))
+    return isinstance(obj, (list, tuple, set))
+
+
+def indent_lines(text, padding='  '):
+    return ''.join(padding+line for line in text.splitlines(True))
+
+
+def print_logs(stream, logs_dict, initial_indent_count=0):
+    indent = ' ' * initial_indent_count
+    next_indent = ' ' * (initial_indent_count + 2)
+    for container_fqn, log in logs_dict.iteritems():
+        stream.write('{}[logs:begin]{}========\n'.format(indent, container_fqn))
+        value_string = log.strip().replace('\r\n', '\n')
+        stream.write('{}\n'.format(indent_lines(value_string, next_indent)))
+        stream.write('{}[logs:end]{}========\n'.format(indent, container_fqn))
+
+
+def print_report_entry(stream, d, initial_indent_count=0):
+    indent = ' ' * initial_indent_count
+    next_indent = ' ' * (initial_indent_count + 2)
+    for entry, value in d.iteritems():
+        stream.write('{}*{}:\n'.format(indent, entry))
+
+        if entry is 'logs':
+            print_logs(stream, value, initial_indent_count + 2)
+        else:
+            if isinstance(value, dict):  # for 'object'
+                value_string = json.dumps(value, indent=2)
+            elif isinstance(value, basestring):  # for 'describe'
+                value_string = value.strip().replace('\r\n', '\n')
+            else:
+                value_string = '{}'.format(value)
+
+            stream.write('{}\n'.format(indent_lines(value_string, next_indent)))
+
+
+def print_report(stream, report_dict, initial_indent_count=0):
+    indent = ' ' * initial_indent_count
+    for fqn, details in report_dict.iteritems():
+        stream.write('\n{}[report:begin]{}========\n'.format(indent, fqn))
+        print_report_entry(stream, details, initial_indent_count + 2)
+        stream.write('\n{}[report:end]{}========\n'.format(indent, fqn))
+
+
+def mkdir_p(path):
+    try:
+        os.makedirs(path)
+    except OSError as exc:  # Python >2.5
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else:
+            raise
+    return path

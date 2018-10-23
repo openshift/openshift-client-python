@@ -25,9 +25,10 @@ class Result(object):
     def out(self):
         s = ""
         for action in self.__actions:
-            s += action.out
-            if not s.endswith("\n"):
-                s += "\n"
+            if action.out:
+                s += action.out
+                if not s.endswith("\n"):
+                    s += "\n"
         return s
 
     def get_timeout(self):
@@ -44,9 +45,10 @@ class Result(object):
     def err(self):
         s = ""
         for action in self.__actions:
-            s += action.err
-            if not s.endswith("\n"):
-                s += "\n"
+            if action.err:
+                s += action.err
+                if not s.endswith("\n"):
+                    s += "\n"
         return s
 
     def as_dict(self, truncate_stdout=-1, redact_tokens=True, redact_references=True, redact_streams=True):
