@@ -66,6 +66,13 @@ class Selector(Result):
 
             # List of qualified names
             if is_collection_type(first):
+                first = list(first)
+
+                if len(first) == 0:
+                    # Just create an empty selector
+                    self.object_list = []
+                    return
+
                 if '/' in first[0]:  # collection of kind/name assumed
                     self.object_list = _normalize_object_list(first)
                 else:  # Assume collection of kinds
@@ -104,6 +111,8 @@ class Selector(Result):
             sel = "--selector="
             pairs = []
             for k, v in self.labels.iteritems():
+                if isinstance(v, bool):  # booleans in json/yaml need to be lowercase
+                    v = '{}'.format(v).lower()
                 pairs.append('{}={}'.format(k, v))
             sel += ','.join(pairs)
             args.append(sel)
@@ -327,7 +336,7 @@ class Selector(Result):
         r.object_list = split_names(r.out())
         return r
 
-    def report(self):
+    def report(self, timestamps=True, logs_since=None, try_longshots=False):
         """
         Builds a dict of information about objects selected by this receiver. This structure is not intended for
         programmatic use and keys/values may change over time. It is primarily be of use to grab a snapshot of
@@ -349,30 +358,32 @@ class Selector(Result):
             key = obj.fqname()
             obj_dict = dict()
             obj_dict['object'] = obj.as_dict()
-            obj_dict['describe'] = obj.describe(auto_fail=False)
+            obj_dict['describe'] = obj.describe(auto_raise=False)
 
             # A report on something like a 'configmap' should not contain a logs
             # entry. So don't try longshots and don't include an entry if it doesn't support logs.
-            logs_dict = obj.logs(try_longshots=False)
+            logs_dict = obj.logs(timestamps=timestamps, since=logs_since, try_longshots=try_longshots)
             if logs_dict:
                 obj_dict['logs'] = logs_dict
             d[key] = obj_dict
 
         return d
 
-    def print_report(self, stream=sys.stderr):
+    def print_report(self, stream=sys.stderr, timestamps=True, logs_since=None, try_longshots=False):
         """
         Pretty prints a report to an output stream (see report() method).
         :param stream: Output stream to send pretty printed report (defaults to sys.stderr)..
         :return: n/a
         """
-        util.print_report(stream, self.report())
+        util.print_report(stream, self.report(timestamps=timestamps, logs_since=logs_since, try_longshots=try_longshots))
 
-    def logs(self):
+    def logs(self, timestamps=False, previous=False, since=None, limit_bytes=None, tail=-1, cmd_args=[], try_longshots=False):
         """
         Builds a dict of logs for selected resources. Keys are fully qualified names for the source of the
         logs (format of this fqn is subject to change). Each value is the log extracted from the resource.
 
+        :param try_longshots: Defaults to False. This allows broad selectors that select things without logs to
+        not throw errors during this method.
         :return: {
                     <pod fqname for each container>: <log_string> ,
                     <build fqname>: <log_string>,
@@ -381,25 +392,23 @@ class Selector(Result):
         """
         d = {}
         for obj in self.objects():
-            # Don't try longshots here. Theory being that a broad selector might be collecting logs from a
-            # bunch of resources and only wanting logs from objects that support it.
-            d.update(obj.logs(try_longshots=False))
+            d.update(obj.logs(timestamps=timestamps, previous=previous, since=since, limit_bytes=limit_bytes, tail=tail, try_longshots=try_longshots, cmd_args=cmd_args))
 
         return d
 
-    def print_logs(self, stream=sys.stderr):
+    def print_logs(self, stream=sys.stderr, timestamps=False, previous=False, since=None, limit_bytes=None, tail=-1, try_longshots=False, cmd_args=[]):
         """
         Pretty prints logs from selected objects to an output stream (see logs() method).
-        :param stream: Output stream to send pretty printed report (defaults to sys.stderr)..
+        :param stream: Output stream to send pretty printed logs (defaults to sys.stderr)..
         :return: n/a
         """
-        util.print_logs(stream, self.logs())
+        util.print_logs(stream, self.logs(timestamps=timestamps, previous=previous, since=since, limit_bytes=limit_bytes, tail=tail, try_longshots=try_longshots, cmd_args=cmd_args))
 
-    def describe(self, auto_fail=True, cmd_args=[]):
+    def describe(self, auto_raise=True, cmd_args=[]):
         r = Result("describe")
         r.add_action(oc_action(self.context, "describe", all_namespaces=self.all_namespaces,
                                cmd_args=[self._selection_args(), cmd_args]))
-        if auto_fail:
+        if auto_raise:
             r.fail_if('Error during describe')
 
         return r

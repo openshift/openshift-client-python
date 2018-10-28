@@ -229,21 +229,21 @@ class APIObject:
 
         return action
 
-    def describe(self, auto_fail=True):
+    def describe(self, auto_raise=True):
         """
-        :param auto_fail: If True, returns empty string instead of throwing an exception
+        :param auto_raise: If True, returns empty string instead of throwing an exception
         if describe results in an error.
         :return: Returns a string with the oc describe output of an object.
         """
         r = Result('describe')
         r.add_action(oc_action(self.context, "describe", cmd_args=[self.qname()]))
 
-        if auto_fail:
+        if auto_raise:
             r.fail_if('Error describing object')
 
         return r.out()
 
-    def logs(self, try_longshots=True):
+    def logs(self, timestamps=False, previous=False, since=None, limit_bytes=None, tail=-1, cmd_args=[], try_longshots=True):
         """
         Attempts to collect logs from running pods associated with this resource. Supports
         daemonset, statefulset, deploymentconfig, deployment, replicationcontroller, replicationset,
@@ -272,6 +272,22 @@ class APIObject:
             entry = entry.strip().replace('\r\n', '\n')
             collection[entry_key] = entry
 
+        base_args = list(cmd_args)
+
+        if previous:
+            base_args.append('-p')
+
+        if since:
+            base_args.append('--since={}'.format(since))
+
+        if limit_bytes:
+            base_args.append('--limit-bytes={}'.format(limit_bytes))
+
+        if timestamps:
+            base_args.append('--timestamps')
+
+        base_args.append('--tail={}'.format(tail))
+
         pod_list = []
 
         if kind_matches(self.kind(), 'pod'):
@@ -292,7 +308,7 @@ class APIObject:
             pod_list.extend(self.get_owned('pod'))
 
         elif kind_matches(self.kind(), ['bc', 'build']):
-            action = oc_action(self.context, "logs", cmd_args=[self.qname()])
+            action = oc_action(self.context, "logs", cmd_args=[base_args, self.qname()])
             add_entry(log_aggregation, self.fqname(), action)
 
         else:
@@ -301,7 +317,7 @@ class APIObject:
                 pod_list.extend(self.get_owned('pod'))
                 if not pod_list:
                     # Just try to collect logs and see what happens
-                    action = oc_action(self.context, "logs", cmd_args=[self.qname()])
+                    action = oc_action(self.context, "logs", cmd_args=[base_args, self.qname()])
                     add_entry(log_aggregation, self.fqname(), action)
                 else:
                     # We don't recognize kind and we aren't taking longshots.
@@ -309,20 +325,20 @@ class APIObject:
 
         for pod in pod_list:
             for container in pod.model.spec.containers:
-                action = oc_action(self.context, "logs", cmd_args=[self.qname(), '-c', container.name])
+                action = oc_action(self.context, "logs", cmd_args=[base_args, self.qname(), '-c', container.name])
                 # Include self.fqname() to let reader know how we actually found this pod (e.g. from a dc).
                 key = '{}->{}({})'.format(self.fqname(), pod.qname(), container.name)
                 add_entry(log_aggregation, key, action)
 
         return log_aggregation
 
-    def print_logs(self, stream=sys.stderr):
+    def print_logs(self, stream=sys.stderr, timestamps=False, previous=False, since=None, limit_bytes=None, tail=-1, cmd_args=[], try_longshots=True):
         """
         Pretty prints logs from selected objects to an output stream (see logs() method).
         :param stream: Output stream to send pretty printed report (defaults to sys.stderr)..
         :return: n/a
         """
-        util.print_logs(stream, self.logs())
+        util.print_logs(stream, self.logs(timestamps=timestamps, previous=previous, since=since, limit_bytes=limit_bytes, tail=tail, try_longshots=try_longshots, cmd_args=cmd_args))
 
     def modify_and_apply(self, modifier_func, retries=0, cmd_args=[]):
         """
@@ -545,7 +561,8 @@ class APIObject:
     def get_events(self):
         """
         Returns a list of apiobjects events which indicate this object as
-        their involvedObject.
+        their involvedObject. This can be an expensive if there are a large
+        number of events to search.
         :return: A (potentially empty) list of event APIObjects
         """
 

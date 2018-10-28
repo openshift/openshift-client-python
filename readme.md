@@ -242,7 +242,7 @@ log will be a unique value in the dictionary returned.
 ```python
 # Print logs for all pods associated with all daemonsets & deployments in openshift-monitoring namespace.
 with oc.project('openshift-monitoring'):
-    for k, v in oc.selector(['daemonset', 'deployment']).logs().iteritems():
+    for k, v in oc.selector(['daemonset', 'deployment']).logs(tail=500).iteritems():
         print('Container: {}\n{}\n\n'.format(k, v))
 ```
 
@@ -255,7 +255,8 @@ time="2018-10-22T21:07:36Z" level=info msg=" - arp" source="node_exporter.go:97"
 ...
 ```
 
-Note that these logs are held in memory. This operation is not recommended for huge logs.
+Note that these logs are held in memory. Use tail or other available method parameters to ensure 
+predictable and efficient results.
 
 To simplify even further, you can ask the library to pretty-print the logs for you:
 ```python

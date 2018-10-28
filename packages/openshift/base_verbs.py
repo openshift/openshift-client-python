@@ -177,18 +177,18 @@ def create_raw(cmd_args=[]):
     return __new_objects_action_selector("create", cmd_args)
 
 
-def raw(verb, cmd_args=[], stdin_str=None, auto_fail=True):
+def raw(verb, cmd_args=[], stdin_str=None, auto_raise=True):
     """
     Invokes oc with the supplied arguments.
     :param verb: The verb to execute
     :param cmd_args: An array of arguments to pass along to oc
     :param stdin_str: The standard input to supply to the process
-    :param auto_fail: Raise an exception if the command returns a non-zero return code
+    :param auto_raise: Raise an exception if the command returns a non-zero return code
     :return: A Result object containing the executed Action(s) with the output captured.
     """
     r = Result('raw')
     r.add_action(oc_action(cur_context(), verb, cmd_args, stdin_str=stdin_str))
-    if auto_fail:
+    if auto_raise:
         r.fail_if("Non-zero return code from raw action")
     return r
 
@@ -288,7 +288,7 @@ def build_secret_dict(secret_name, dir_path=None, data_map={}, obj_labels={}):
     return d
 
 
-def dumpinfo_apiobject(dir, obj):
+def dumpinfo_apiobject(dir, obj, log_timestamps=True, logs_since=None, logs_tail=-1):
     util.mkdir_p(dir)
     prefix = os.path.join(dir, obj.name())
 
@@ -302,13 +302,17 @@ def dumpinfo_apiobject(dir, obj):
 
         if naming.kind_matches(obj.kind(), ['pod', 'build']):
             with open(prefix + '.logs', mode='w') as f:
-                obj.print_logs(f)
+                obj.print_logs(f, timestamps=log_timestamps, since=logs_since, tail=logs_tail)
 
 
 def dumpinfo_project(dir,
                      project_name,
-                     kinds=['ds', 'dc', 'build', 'statefulset', 'deployment', 'pod', 'rs', 'rc', 'configmap']):
+                     kinds=['ds', 'dc', 'build', 'statefulset', 'deployment', 'pod', 'rs', 'rc', 'configmap'],
+                     logs_since=None,
+                     logs_tail=-1):
     project_name = naming.qualify_name(project_name, 'project')
+
+    print('Collecting info for: {}'.format(project_name))
 
     util.mkdir_p(dir)
     with no_tracking():
@@ -321,20 +325,24 @@ def dumpinfo_project(dir,
 
         with project(project_name):
 
-            print('Collecting events for project: {}'.format(project_name))
-            with open(os.path.join(dir, 'events.describe'), mode='w') as f:
-                print('Collecting events for project: {}'.format(project_name))
-                f.write(selector('events').describe().out())
+            with open(os.path.join(dir, 'status'), mode='w') as f:
+                f.write(raw('status').out())
 
             for obj in selector(kinds).objects():
-                dumpinfo_apiobject(dir, obj)
+                print('Collecting information about: {}'.format(obj.fqname()))
+                obj_dir = os.path.join(dir, obj.kind())
+                dumpinfo_apiobject(obj_dir, obj, logs_since=logs_since, logs_tail=logs_tail)
 
 
 def dumpinfo_core(base_dir,
                   additional_nodes=[],
                   additional_projects=[],
                   additional_namespaced_kinds=[],
-                  include_crd_kinds=True):
+                  include_crd_kinds=True,
+                  num_combined_journal_entries=10000,
+                  num_critical_journal_entries=10000,
+                  logs_since=None,
+                  logs_tail=-1):
     util.mkdir_p(base_dir)
 
     kinds = set(['ds', 'dc', 'build', 'statefulset', 'deployment', 'pod', 'rs', 'rc', 'configmap'])
@@ -369,21 +377,23 @@ def dumpinfo_core(base_dir,
             node_fluentd_pod = next((pod for pod in fluentd_pods if pod.model.spec.nodeName == node.name()), None)
             if node_fluentd_pod:
 
-                with open(os.path.join(node_dir, 'all.journal.export'), mode='w') as f:
+                print('Collecting combined journal from: {}'.format(node.name()))
+                with open(os.path.join(node_dir, 'combined.journal.export'), mode='w') as f:
                     capture_action = node_fluentd_pod.execute(cmd_to_exec=['journalctl',
                                                                            '-D', '/var/log/journal',
                                                                            '-o', 'export',
-                                                                           '-n', '10000',
+                                                                           '-n', num_combined_journal_entries,
                                                                            ],
                                                               auto_raise=False)
                     f.write(capture_action.out())
 
                 # In case extraneous events are flooding, isolate important services as well
+                print('Collecting critical services journal from: {}'.format(node.name()))
                 with open(os.path.join(node_dir, 'critical.journal.export'), mode='w') as f:
                     capture_action = node_fluentd_pod.execute(cmd_to_exec=['journalctl',
                                                                            '-D', '/var/log/journal',  # Where fluentd mounts hosts journal
                                                                            '-o', 'export',  # This can be converted back into .journal with systemd-journal-remote
-                                                                           '-n', '10000',  # Number of recent events to gather critical services
+                                                                           '-n', num_critical_journal_entries,  # Number of recent events to gather critical services
                                                                            '-u', 'crio',
                                                                            '-u', 'atomic-openshift-node',
                                                                            '-u', 'docker',
@@ -397,7 +407,7 @@ def dumpinfo_core(base_dir,
         projects.update(additional_projects)
 
         for project_name in projects:
-            dumpinfo_project(os.path.join(base_dir, 'project', project_name))
+            dumpinfo_project(os.path.join(base_dir, 'project', project_name), project_name, kinds=kinds, logs_since=logs_since, logs_tail=logs_tail)
 
 
 def node_ssh_client(apiobj_node_name_or_qname,

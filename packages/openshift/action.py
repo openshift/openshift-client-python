@@ -108,7 +108,7 @@ class Action(object):
 
 def escape_arg(arg):
     # https://stackoverflow.com/questions/3163236/escape-arguments-for-paramiko-sshclient-exec-command
-    return "'%s'" % (arg.replace(r"'", r"'\''"),)
+    return "'%s'" % (str(arg).replace(r"'", r"'\''"),)
 
 
 def _flatten_list(l):
