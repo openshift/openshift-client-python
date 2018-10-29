@@ -15,7 +15,7 @@ def _redact_token_arg(arg):
 
 
 def _is_sensitive(content_str):
-    return 'kind: Secret' in content_str or 'kind: "Secret"' in content_str
+    return 'kind: Secret' in content_str.replace('"', '').replace("'", '')
 
 
 def _redaction_string():

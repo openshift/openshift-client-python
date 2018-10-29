@@ -264,7 +264,7 @@ def build_secret_dict(secret_name, dir_path=None, data_map={}, obj_labels={}):
     dm = dict()
 
     # base64 encode the incoming data_map values
-    for k, v in data_map:
+    for k, v in data_map.iteritems():
         dm[k] = base64.b64encode(v)
 
     if dir_path:
