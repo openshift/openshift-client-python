@@ -3,7 +3,7 @@ import time
 import socket
 import json
 import os
-from .util import TempFile
+from .util import TempFile, is_collection_type
 
 DEFAULT_TLS_CHECK = os.getenv("OPENSHIFT_PYTHON_DEFAULT_TLS_CHECK", "true").lower() in ("yes", "true", "t", "y", "1")
 
@@ -113,10 +113,14 @@ def escape_arg(arg):
 
 def _flatten_list(l):
     agg = []
-    if isinstance(l, list) or isinstance(l, tuple):
+    if is_collection_type(l):
         for e in l:
             agg.extend(_flatten_list(e))
     else:
+        if isinstance(l, bool):  # bools are lowercase for things like labels
+            l = '{}'.format(l).lower()
+        else:  # Make sure everything is a string
+            l = '{}'.format(l)
         agg.append(l)
 
     return agg
