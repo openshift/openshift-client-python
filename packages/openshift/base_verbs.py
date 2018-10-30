@@ -338,7 +338,7 @@ def dumpinfo_core(base_dir,
                   additional_nodes=[],
                   additional_projects=[],
                   additional_namespaced_kinds=[],
-                  include_crd_kinds=True,
+                  include_crd_kinds=False,
                   num_combined_journal_entries=10000,
                   num_critical_journal_entries=10000,
                   logs_since=None,
@@ -349,6 +349,10 @@ def dumpinfo_core(base_dir,
     kinds.update(additional_namespaced_kinds)
 
     if include_crd_kinds:
+        # At the time of this comment, you need to add specific privileges to read CRs. Eventually,
+        # master team should allow CRDs to express whether they contain sensitive information and
+        # remove this restriction. As such, turning this flag True is not recommended until
+        # master acts on this.
         for crd_obj in selector('crd').objects():
             if crd_obj.model.spec.scope == 'Namespaced':
                 kinds.add(crd_obj.name())

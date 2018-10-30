@@ -58,7 +58,9 @@ class TempFile(object):
 
     def read(self, max_size=-1, encoding="utf-8"):
         self.flush()
-        with codecs.open(self.path, mode="rb", encoding=encoding, buffering=1024) as cf:
+        # Ignore errors - with things like collected journals during dumpinfo, we can encounter binary
+        # data that we can't read with utf-8. Just ignore it. 
+        with codecs.open(self.path, mode="rb", encoding=encoding, errors='ignore', buffering=1024) as cf:
             return cf.read(size=max_size)
 
     def destroy(self):
