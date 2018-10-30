@@ -11,6 +11,7 @@ import util
 import naming
 import paramiko
 import base64
+import io
 
 
 def __new_objects_action_selector(verb, cmd_args=[], stdin_obj=None):
@@ -230,7 +231,7 @@ def build_configmap_dict(configmap_name, dir_path=None, data_map={}, obj_labels=
         for entry in os.listdir(dir_path):
             path = os.path.join(dir_path, entry)
             if os.path.isfile(path):
-                with open(path, 'r') as f:
+                with io.open(path, mode='r', encoding="utf-8") as f:
                     file_basename = os.path.basename(path)
                     dm[file_basename] = f.read()
 
@@ -271,7 +272,7 @@ def build_secret_dict(secret_name, dir_path=None, data_map={}, obj_labels={}):
         for entry in os.listdir(dir_path):
             path = os.path.join(dir_path, entry)
             if os.path.isfile(path):
-                with open(path, 'r') as f:
+                with io.open(path, mode='r', encoding="utf-8") as f:
                     file_basename = os.path.basename(path)
                     dm[file_basename] = base64.b64encode(f.read())
 
@@ -293,15 +294,15 @@ def dumpinfo_apiobject(dir, obj, log_timestamps=True, logs_since=None, logs_tail
     prefix = os.path.join(dir, obj.name())
 
     with no_tracking():
-        with open(prefix + '.describe', mode='w') as f:
-            f.write(obj.describe())
+        with io.open(prefix + '.describe', mode='w', encoding="utf-8") as f:
+            f.write(unicode(obj.describe()))
 
         if not naming.kind_matches(obj.kind(), 'secret'):
-            with open(prefix + '.json', mode='w') as f:
-                f.write(obj.as_json())
+            with io.open(prefix + '.json', mode='w', encoding="utf-8") as f:
+                f.write(unicode(obj.as_json()))
 
         if naming.kind_matches(obj.kind(), ['pod', 'build']):
-            with open(prefix + '.logs', mode='w') as f:
+            with io.open(prefix + '.logs', mode='w', encoding="utf-8") as f:
                 obj.print_logs(f, timestamps=log_timestamps, since=logs_since, tail=logs_tail)
 
 
@@ -319,14 +320,14 @@ def dumpinfo_project(dir,
 
         # if the project does not exist, just a leave a file saying we tried
         if selector(project_name).count_existing() == 0:
-            with open(os.path.join(dir, 'not-found'), mode='w') as f:
-                f.write('{} was not found'.format(project_name))
+            with io.open(os.path.join(dir, 'not-found'), mode='w', encoding="utf-8") as f:
+                f.write(u'{} was not found'.format(project_name))
             return
 
         with project(project_name):
 
-            with open(os.path.join(dir, 'status'), mode='w') as f:
-                f.write(raw('status').out())
+            with io.open(os.path.join(dir, 'status'), mode='w', encoding="utf-8") as f:
+                f.write(unicode(raw('status').out()))
 
             for obj in selector(kinds).objects():
                 print('Collecting information about: {}'.format(obj.fqname()))
@@ -382,7 +383,7 @@ def dumpinfo_core(base_dir,
             if node_fluentd_pod:
 
                 print('Collecting combined journal from: {}'.format(node.name()))
-                with open(os.path.join(node_dir, 'combined.journal.export'), mode='w') as f:
+                with io.open(os.path.join(node_dir, 'combined.journal.export'), mode='w', encoding="utf-8") as f:
                     capture_action = node_fluentd_pod.execute(cmd_to_exec=['journalctl',
                                                                            '-D', '/var/log/journal',
                                                                            '-o', 'export',
@@ -393,7 +394,7 @@ def dumpinfo_core(base_dir,
 
                 # In case extraneous events are flooding, isolate important services as well
                 print('Collecting critical services journal from: {}'.format(node.name()))
-                with open(os.path.join(node_dir, 'critical.journal.export'), mode='w') as f:
+                with io.open(os.path.join(node_dir, 'critical.journal.export'), mode='w', encoding="utf-8") as f:
                     capture_action = node_fluentd_pod.execute(cmd_to_exec=['journalctl',
                                                                            '-D', '/var/log/journal',  # Where fluentd mounts hosts journal
                                                                            '-o', 'export',  # This can be converted back into .journal with systemd-journal-remote
