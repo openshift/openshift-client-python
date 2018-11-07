@@ -198,7 +198,10 @@ class Context(object):
         """
         :return: Returns true if any surrounding timeout context is expired.
         """
-        c = self
+
+        # Unlike most context methods, timeout methods use cur_context instead of self.
+        # This allows selectors/apiobjects captured in one timeout block to be used in another.
+        c = cur_context()
         now = datetime.utcnow()
         while c is not None:
             if c.timeout_datetime is not None and now > c.timeout_datetime:
@@ -212,7 +215,10 @@ class Context(object):
         existing timeout contexts. A minimum of 1 second is always returned
         if a timeout context exists. If no timeout context exists, None is returned.
         """
-        c = self
+
+        # Unlike most context methods, timeout methods use cur_context instead of self.
+        # This allows selectors/apiobjects captured in one timeout block to be used in another.
+        c = cur_context()
         min_secs = None
         now = datetime.utcnow()
         while c is not None:

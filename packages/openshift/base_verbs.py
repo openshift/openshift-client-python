@@ -211,15 +211,17 @@ def apply(dict_or_model_or_apiobject_or_list_thereof, cmd_args=[]):
     return __new_objects_action_selector("apply", cmd_args=["-f", "-", cmd_args], stdin_obj=m)
 
 
-def build_configmap_dict(configmap_name, dir_path=None, dir_ext_include=None, data_map={}, obj_labels={}):
+def build_configmap_dict(configmap_name, dir_path_or_paths=None, dir_ext_include=None, data_map={}, obj_labels={}):
     """
     Creates a python dict structure for a configmap (if remains to the caller to send
     the yaml to the server with create()). This method does not use/require oc to be resident
     on the python host.
     :param configmap_name: The metadata.name to include
-    :param dir_path: All files within the specified directory will be included in the configmap. Note
-    that the directory must be relative to the python application (it cannot be on an ssh client host).
-    :param dir_ext_include: List of file extensions should should be included (e.g. ['.py', '.ini'])
+    :param dir_path_or_paths: All files within the specified directory (or list of directories) will be included
+    in the configmap. Note that the directory must be relative to the python application
+    (it cannot be on an ssh client host).
+    :param dir_ext_include: List of file extensions should should be included (e.g. ['.py', '.ini']). If None,
+    all extensions are allowed.
     :param data_map: A set of key value pairs to include in the configmap (will be combined with dir_path
     entries if both are specified.
     :param obj_labels: Additional labels to include in the resulting configmap metadata.
@@ -228,19 +230,26 @@ def build_configmap_dict(configmap_name, dir_path=None, dir_ext_include=None, da
 
     dm = dict(data_map)
 
-    if dir_path:
-        for entry in os.listdir(dir_path):
-            path = os.path.join(dir_path, entry)
-            if os.path.isfile(path):
+    if dir_path_or_paths:
 
-                if dir_ext_include:
-                    filename, file_extension = os.path.splitext(path)
-                    if file_extension.lower() not in dir_ext_include:
-                        continue
+        # If we received a string, turn it into a list
+        if isinstance(dir_path_or_paths, basestring):
+            dir_path_or_paths = [dir_path_or_paths]
 
-                with io.open(path, mode='r', encoding="utf-8") as f:
-                    file_basename = os.path.basename(path)
-                    dm[file_basename] = f.read()
+        for dir_path in dir_path_or_paths:
+
+            for entry in os.listdir(dir_path):
+                path = os.path.join(dir_path, entry)
+
+                if os.path.isfile(path):
+                    if dir_ext_include:
+                        filename, file_extension = os.path.splitext(path)
+                        if file_extension.lower() not in dir_ext_include:
+                            continue
+
+                    with io.open(path, mode='r', encoding="utf-8") as f:
+                        file_basename = os.path.basename(path)
+                        dm[file_basename] = f.read()
 
     d = {
         'kind': 'ConfigMap',
@@ -255,14 +264,15 @@ def build_configmap_dict(configmap_name, dir_path=None, dir_ext_include=None, da
     return d
 
 
-def build_secret_dict(secret_name, dir_path=None, dir_ext_include=None, data_map={}, obj_labels={}):
+def build_secret_dict(secret_name, dir_path_or_paths=None, dir_ext_include=None, data_map={}, obj_labels={}):
     """
     Creates a python dict structure for a secret (if remains to the caller to send
     the yaml to the server with create()). This method does not use/require oc to be resident
     on the python host.
     :param secret_name: The metadata.name to include
-    :param dir_path: All files within the specified directory will be included in the secret. Note
-    that the directory must be relative to the python application (it cannot be on an ssh client host).
+    :param dir_path_or_paths: All files within the specified directory (or list of directories) will be included
+    in the configmap. Note that the directory must be relative to the python application
+    (it cannot be on an ssh client host).
     :param dir_ext_include: List of file extensions should should be included (e.g. ['.py', '.ini'])
     :param data_map: A set of key value pairs to include in the secret (will be combined with dir_path
     entries if both are specified. The values will be b64encoded automatically.
@@ -276,19 +286,26 @@ def build_secret_dict(secret_name, dir_path=None, dir_ext_include=None, data_map
     for k, v in data_map.iteritems():
         dm[k] = base64.b64encode(v)
 
-    if dir_path:
-        for entry in os.listdir(dir_path):
-            path = os.path.join(dir_path, entry)
+    if dir_path_or_paths:
 
-            if dir_ext_include:
-                filename, file_extension = os.path.splitext(path)
-                if file_extension.lower() not in dir_ext_include:
-                    continue
+        # If we received a string, turn it into a list
+        if isinstance(dir_path_or_paths, basestring):
+            dir_path_or_paths = [dir_path_or_paths]
 
-            if os.path.isfile(path):
-                with io.open(path, mode='r', encoding="utf-8") as f:
-                    file_basename = os.path.basename(path)
-                    dm[file_basename] = base64.b64encode(f.read())
+        for dir_path in dir_path_or_paths:
+
+            for entry in os.listdir(dir_path):
+                path = os.path.join(dir_path, entry)
+
+                if dir_ext_include:
+                    filename, file_extension = os.path.splitext(path)
+                    if file_extension.lower() not in dir_ext_include:
+                        continue
+
+                if os.path.isfile(path):
+                    with io.open(path, mode='r', encoding="utf-8") as f:
+                        file_basename = os.path.basename(path)
+                        dm[file_basename] = base64.b64encode(f.read())
 
     d = {
         'kind': 'Secret',
