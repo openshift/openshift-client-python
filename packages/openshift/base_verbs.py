@@ -6,7 +6,7 @@ from .action import oc_action
 from .context import cur_context, project, no_tracking
 from .result import Result
 from .apiobject import APIObject
-from .model import Model, Missing
+from .model import Model, Missing, OpenShiftPythonException
 import util
 import naming
 import paramiko
@@ -44,9 +44,13 @@ def start_build(cmd_args=[]):
 
 def get_project_name(cmd_args=[]):
     """
-    :param cmd_args: Additional arguments to pass to 'oc project'
-    :return: The name of the current project
+    :return: Returns the name of the project selected by the current project. If no project
+    context has been established, returns KUBECONFIG project using `oc project`.
     """
+
+    context_project = cur_context().get_project()
+    if context_project:
+        return context_project
 
     r = Result("project-name")
     r.add_action(oc_action(cur_context(), "project", cmd_args=["-q", cmd_args]))
@@ -168,7 +172,7 @@ def delete(dict_or_model_or_apiobject_or_list_thereof, ignore_not_found=False, c
     return r.out().strip().split()
 
 
-def create_raw(cmd_args=[]):
+def invoke_create(cmd_args=[]):
     """
     Relies on caller to provide sensible command line arguments. -o=name will
     be added to the arguments automatically.
@@ -178,7 +182,7 @@ def create_raw(cmd_args=[]):
     return __new_objects_action_selector("create", cmd_args)
 
 
-def raw(verb, cmd_args=[], stdin_str=None, auto_raise=True):
+def invoke(verb, cmd_args=[], stdin_str=None, auto_raise=True):
     """
     Invokes oc with the supplied arguments.
     :param verb: The verb to execute
@@ -187,11 +191,41 @@ def raw(verb, cmd_args=[], stdin_str=None, auto_raise=True):
     :param auto_raise: Raise an exception if the command returns a non-zero return code
     :return: A Result object containing the executed Action(s) with the output captured.
     """
-    r = Result('raw')
-    r.add_action(oc_action(cur_context(), verb, cmd_args, stdin_str=stdin_str))
+    r = Result('invoke')
+    r.add_action(oc_action(cur_context(), verb=verb, cmd_args=cmd_args, stdin_str=stdin_str))
     if auto_raise:
-        r.fail_if("Non-zero return code from raw action")
+        r.fail_if("Non-zero return code from invoke action")
     return r
+
+
+def get_client_version():
+    """
+    :return: Returns the version of the oc binary being used (e.g. 'v3.11.28')
+    """
+
+    r = Result('version')
+    r.add_action(oc_action(cur_context(), verb='version'))
+    r.fail_if('Unable to determine version')
+    for line in r.out().splitlines():
+        if line.startswith('oc '):
+            return line.split()[1]
+
+    raise OpenShiftPythonException('Unable find version string in output')
+
+
+def get_server_version():
+    """
+    :return: Returns the version of the oc server being accessed
+    """
+
+    r = Result('version')
+    r.add_action(oc_action(cur_context(), verb='version'))
+    r.fail_if('Unable to determine version')
+    for line in reversed(r.out().splitlines()):
+        if line.startswith('openshift '):
+            return line.split()[1]
+
+    raise OpenShiftPythonException('Unable find version string in output')
 
 
 def apply(dict_or_model_or_apiobject_or_list_thereof, cmd_args=[]):
@@ -358,7 +392,7 @@ def dumpinfo_project(dir,
         with project(project_name):
 
             with io.open(os.path.join(dir, 'status'), mode='w', encoding="utf-8") as f:
-                f.write(unicode(raw('status').out()))
+                f.write(unicode(invoke('status').out()))
 
             for obj in selector(kinds).objects():
                 print('Collecting information about: {}'.format(obj.fqname()))

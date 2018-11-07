@@ -423,7 +423,7 @@ class APIObject:
 
     def label(self, labels, overwrite=True, cmd_args=[]):
         """"
-        Applies the specified labels to the api object.
+        Sends a request to the server to label this API object.
         :param labels: A dictionary of labels to apply to the object. If value is None, label will be removed.
         :param overwrite: Whether to pass the --overwrite argument.
         :return: Result
@@ -435,7 +435,7 @@ class APIObject:
 
     def annotate(self, annotations, overwrite=True, cmd_args=[]):
         """"
-        Applies the specified labels to the api object.
+        Sends a request to the server to annotate this API object
         :param annotations: A dictionary of annotations to apply to the object. If value is None, annotation will be removed.
         :param overwrite: Whether to pass the --overwrite argument.
         :param cmd_args: Additional list of arguments to pass on the command line.
