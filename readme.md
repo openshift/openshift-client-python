@@ -9,9 +9,9 @@
 - [Reader Prerequisites](#reader-prerequisites)
 - [Setup](#setup)
 - [Usage](#usage)
-  - [Boilerplate](#boilerplate)
+  - [Basics](#basics)
   - [Introduction to Selectors](#introduction-to-selectors)
-  - [Gathering Reports Logs with Selectors](#gathering-reports-logs-with-selectors)
+  - [Gathering Reports and Logs with Selectors](#gathering-reports-and-logs-with-selectors)
   - [Accessing API Objects as Python Objects](#accessing-api-objects-as-python-objects)
   - [Making changes to APIObjects](#making-changes-to-apiobjects)
   - [Other examples:](#other-examples)
@@ -29,18 +29,16 @@ line tool (oc) to achieve the interactions. This approach comes with important b
 to other client libraries.
 
 Pros:
-- No additional software needs to be installed on the cluster. If oc is available on a box you can ssh to, you are ready to use
-this API.
-- Virtually always up-to-date. The version of oc installed on a cluster is always compatible with the version that cluster
-is running. We say "virtually" here because it is possible that oc may deprecate or dramatically change aspects of the
-command-line interface. Thankfully, such changes are extremely rare.
-- No special cases for dynamic / custom resources. Every resource is treated as dynamic.
-- Low learning curve. If you can use oc, you can understand this library quickly.
+- No additional software needs to be installed on the cluster. If a system with python support can (1) invoke `oc`
+locally OR (2) ssh to a host and invoke `oc`, you can use the library.
+- Portable. If you have python and `oc` working, you don't need to worry about OpenShift versions or machine architectures.
+- Custom resources are supported and treated just like any other resource. There is no need to generate code to support them.
+- Quick to learn. If you understand the `oc` command line interface, you can use this library.
 
 Cons:
-- This API is not intended to implement something as complex as a controller. For example, we haven't even implemented
-watch functionality. This library is intended to dramatically simplify CLI interactions. If can't imagine accomplishing
-the CLI for your use case, this API is probably not for you.
+- This API is not intended to implement something as complex as a controller. For example, it does not implement
+watch functionality. If you can't imagine accomplishing your use case through CLI interactions, this API is probably 
+not the right starting point for it. 
 - If you care about whether a REST API returns a particular error code, this API is probably not for you. Since it
 is based on the CLI, high level return codes are used to determine success or failure.
 
@@ -51,7 +49,7 @@ binary and, in many cases, passes method arguments directly on to the command li
 provide a complete description of all possible OpenShift interactions -- the user may need to reference
 the CLI documentation to find the pass-through arguments a given interaction requires.
 
-* A familiarity with Python is recommended.
+* A familiarity with Python is assumed.
 
 ## Setup
 1. Git clone https://github.com/jupierce/openshift-python.git (or your fork).
@@ -59,13 +57,9 @@ the CLI documentation to find the pass-through arguments a given interaction req
 
 ## Usage
 
-### Boilerplate
+### Basics
 Any standard Python application should be able to use the API if it imports the openshift package. The simplest
 possible way to begin using the API is login to your target cluster before running your first application.
-
-For example:
-1. oc cluster up
-2. oc login -u system:admin
 
 Can you run `oc get project` successfully from the command line? Then write your app!
 
@@ -76,12 +70,12 @@ import openshift as oc
 print('Current project: {}'.format(oc.get_project_name()))
 ```
 
-This approach also works if you are using the library within a Pod container -- the `oc` binary automatically
-detects it is running in a container and the injected serviceaccount token/cacert.
+It is simple to use the API within a Pod. The `oc` binary automatically
+detects it is running within a container and automatically uses the Pod's serviceaccount token/cacert.
 
 It is good practice to setup at least one tracking context within your application so that
-you will be able to easily analyze what 'oc' invocations where made on your behalf and the result
-of those operations. *Note that details about all 'oc' invocations performed within the context will
+you will be able to easily analyze what `oc` invocations where made on your behalf and the result
+of those operations. *Note that details about all `oc` invocations performed within the context will
 be stored within the tracker. Therefore, do not use a single tracker for a continuously running
 process -- it will consume memory for every oc invocation.*
 
@@ -97,11 +91,11 @@ with oc.tracking() as tracker:
     print tracker.get_result()
 ```
 
-In this case, the tracker output would look something like:
+In this case, the tracking output would look something like:
 ```json
 {
     "status": 0, 
-    "operation": "tracker", 
+    "operation": "tracking", 
     "actions": [
         {
             "status": 0, 
@@ -140,7 +134,7 @@ In this case, the tracker output would look something like:
 }
 ```
 
-Alternatively, you could record actions yourself by specifying an action_handler to the tracking 
+Alternatively, you can record actions yourself by passing an action_handler to the tracking 
 contextmanager. Your action handler will be invoked each time an `oc` invocation completes.
 
 ```python
@@ -187,7 +181,7 @@ occur on the remote host.
 ### Introduction to Selectors
 Selectors are a central concept used by the API to interact with collections
 of OpenShift resources. As the name implies, a "selector" selects zero or
-more resources on a server which satisfy a user specified criteria. An apt
+more resources on a server which satisfy user specified criteria. An apt
 metaphor for a selector might be a prepared SQL statement which can be
 used again and again to select rows from a database.
 
@@ -196,7 +190,7 @@ used again and again to select rows from a database.
 project_selector = oc.selector("projects")
 
 # Print the qualified name (i.e. "kind/name") of each resource selected.
-print "Project names: " + str(project_selector.names())
+print "Project names: " + str(project_selector.qnames())
 
 # Count the number of projects on the server.
 print "Number of projects: " + str(project_selector.count_existing())
@@ -226,7 +220,7 @@ Number of projects: 8
 Found labeled serviceaccounts: [u'serviceaccounts/builder', u'serviceaccounts/deployer']
 ```
 
-### Gathering Reports Logs with Selectors
+### Gathering Reports and Logs with Selectors
 
 Various objects within OpenShift have logs associated with them:
 - pods

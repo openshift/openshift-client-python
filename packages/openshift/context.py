@@ -424,7 +424,7 @@ def tracking(action_handler=None):
             raise ValueError('Expected action_handler to be callable')
         c.tracking_strategy = action_handler
     else:
-        c.tracking_strategy = Result('tracker')
+        c.tracking_strategy = Result('tracking')
     return c
 
 
