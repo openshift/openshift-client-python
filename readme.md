@@ -90,13 +90,16 @@ with oc.project('openshift-infra'):
         # If you need access to the underlying resource definition, get a Model instance for the resource
         pod_model = pod_obj.model
         
-        # Model objects enable dot annotation and allow you to navigate through resources
-        # to an arbitrary depth without checking if any ancestor fields exist.
+        # Model objects enable dot notation and allow you to navigate through resources
+        # to an arbitrary depth without checking if any ancestor elements exist.
         # In the following example, there is no need for boilerplate like:
         #    `if .... 'ownerReferences' in pod_model['metadata'] ....`
-        if pod_model.metadata.ownerReferences.kind is not oc.Missing:
-            # e.g. pod was created by a StatefulSet
-            print '  pod was created by a {}'.format(pod_model.metadata.ownerReferences.kind)
+        # Fields that do not resolve will always return oc.Missing which 
+        # is a singleton and can also be treated as an empty dict.
+        for owner in pod_model.metadata.ownerReferences:  # ownerReferences == oc.Missing if not present in resource
+            # elements of a Model are also instances of Model or ListModel
+            if owner.kind is not oc.Missing:  # Compare as singleton
+                print '  pod owned by a {}'.format(owner.kind)  # e.g. pod was created by a StatefulSet
 
 ```
 
