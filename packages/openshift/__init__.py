@@ -5,7 +5,8 @@ from .model import Missing
 from .model import Model, Missing
 from .selector import *
 from .apiobject import *
-null = None # Allow scripts to specify null in object definitions
+import naming
+null = None  # Allow scripts to specify null in object definitions
 
 
 # Allows modules to trigger errors

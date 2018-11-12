@@ -103,3 +103,28 @@ def qualify_name(name_or_qname, to_kind):
     if '/' in name_or_qname:
         name_or_qname = name_or_qname.split('/')[-1]
     return '{}/{}'.format(to_kind, name_or_qname)
+
+
+def split_fqn(fqn, default_name=None, default_kind=None, default_namespace=None):
+    """
+    Splits a fully qualified name ('namespace:kind/name') into its components.
+    :return: ns, kind, name . If a component is missing, the associated default argument value will be returned instead.
+    """
+    remainder = fqn
+    ns = default_namespace
+    if ':' in remainder:
+        ns_test, remainder = remainder.split(':', 1)
+        if ns_test:
+            ns = ns_test
+
+    kind = default_kind
+    if '/' in remainder:
+        kind_test, remainder = remainder.split('/', 1)
+        if kind_test:
+            kind = kind_test
+
+    name = default_name
+    if remainder:
+        name = remainder
+
+    return ns, kind, name
