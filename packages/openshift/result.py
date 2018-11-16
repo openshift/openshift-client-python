@@ -10,7 +10,7 @@ class Result(object):
 
     def actions(self):
         my_list = [a for a in self.__actions if not a.internal]
-        return self.__actions
+        return my_list
 
     # Returns a bitwise OR of all underlying action statuses (if 0, all actions returned 0)
     def status(self):

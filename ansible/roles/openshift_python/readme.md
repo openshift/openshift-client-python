@@ -1,7 +1,8 @@
 Role Name
 =========
 
-A brief description of the role goes here.
+This role exposes the openshift-python module allows you to use python leveraging 
+the openshift-python library directly within ansible playbooks.
 
 Requirements
 ------------
@@ -23,9 +24,33 @@ Example Playbook
 
 Including an example of how to use your role (for instance, with variables passed in as parameters) is always nice for users too:
 
-    - hosts: servers
-      roles:
-         - { role: username.rolename, x: 42 }
+```snakeyaml
+- hosts: servers
+  roles:
+  - openshift
+  
+  tasks:
+  - name: Run helloworld
+    openshift-pthon:
+      project: 'default'
+
+      vars:
+        some_var_name: 'abc'
+        another: 5
+
+      script: |
+        print('You can use an arg: {} and {}'.format(vars['some_var_name'], vars['another']))
+
+        # This example shows use of existing ansible facts (op_types) and storing a new one (pods).
+        new_facts.pods = oc.selector("{{op_types}}").qnames()
+
+    register: result
+      
+  - name: Show new_facts
+    debug:
+      msg: "{{pods}}"
+```
+     
 
 License
 -------
