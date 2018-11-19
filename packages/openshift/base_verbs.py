@@ -9,10 +9,8 @@ from .apiobject import APIObject
 from .model import Model, Missing, OpenShiftPythonException
 import util
 import naming
-import paramiko
 import base64
 import io
-
 
 def __new_objects_action_selector(verb, cmd_args=[], stdin_obj=None):
     """
@@ -504,6 +502,10 @@ def node_ssh_client(apiobj_node_name_or_qname,
             the order specified.
     :return: ssh_client which can be used as a context manager
     """
+
+    # Just-in-time import to avoid hard dependency. Allows
+    # you to use local 'oc' without having paramiko installed.
+    import paramiko
 
     if isinstance(apiobj_node_name_or_qname, APIObject):
         apiobj = apiobj_node_name_or_qname

@@ -1,7 +1,7 @@
 from datetime import datetime
 from datetime import timedelta
 from threading import local
-import paramiko
+
 import os
 
 from .result import Result
@@ -69,6 +69,11 @@ class Context(object):
         context.stack.append(self)
 
         if self.ssh_hostname:
+
+            # Just-in-time import to avoid hard dependency. Allows
+            # you to use local 'oc' without having paramiko installed.
+            import paramiko
+
             self.ssh_client = paramiko.SSHClient()
             self.ssh_client.load_system_host_keys()
 
