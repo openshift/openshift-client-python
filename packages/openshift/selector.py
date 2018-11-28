@@ -132,6 +132,18 @@ class Selector(Result):
 
         return self._query_names()
 
+    def names(self):
+        """
+        :return: Returns the unqualified object names (i.e. no [kind]/ prefix) selected by this selector.
+                List may be empty.
+        """
+
+        names = []
+        for name in self.qnames():
+            names.append(name.split('/')[-1])
+
+        return names
+
     def qname(self):
 
         """
@@ -381,6 +393,9 @@ class Selector(Result):
         """
         Builds a dict of logs for selected resources. Keys are fully qualified names for the source of the
         logs (format of this fqn is subject to change). Each value is the log extracted from the resource.
+
+        If an object like a deployment or daemonset is included, all pods related to that object will be included in the
+        log gathering operation.
 
         :param try_longshots: Defaults to False. This allows broad selectors that select things without logs to
         not throw errors during this method.

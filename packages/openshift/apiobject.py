@@ -11,32 +11,17 @@ import copy
 _DEFAULT = object()
 
 
-# Turns an object definition string into a list of APIObjects.
-# Accepts any of the following:
-# - YAML or JSON text string describing a single OpenShift object
-# - YAML or JSON text string describing multiple OpenShift objects within a kind=List
-# - A python dict modeling a single OpenShift object
-# - A python dict modeling multiple OpenShift objects as a kind=List
-# - A python list which is a flat list of python dicts - each entry modeling a single OpenShift object or a kind=List
-# The method will return a flat list of python dicts - each modeling a single OpenShift object
-def _objdef_to_pylist(objdef):
-    objdef = objdef.strip()
-
-    if objdef.startswith("{"):
-        d = json.loads(objdef)
-    elif "\n" in objdef:  # Assume yaml
-        d = yaml.load(objdef)
-    else:  # Assume URL
-        raise ValueError("Unable to detect object mark (not yaml or json)")
-
-    return APIObject(d).elements()
-
-
-# Converts objects into their python
-# primitive form.
-# APIObject, Model -> dict
-# list<APIObject|Model> -> list<dict>
 def _obj_to_primitive(obj):
+
+    """
+    Converts objects into their python primitive form. e.g.
+      - APIObject or Model -> dict
+      - list<APIObject|Model> -> list<dict>
+      If the object is already a primitive, it will be returned without error.
+    :param obj: The object to transform into its primitive form
+    :return: The primitive form of the object
+    """
+
     if isinstance(obj, APIObject):
         return _obj_to_primitive(obj.model._primitive())
 
@@ -71,7 +56,6 @@ def _as_model(obj):
 
 
 def _access_field(val, err_msg, if_missing=_DEFAULT, lowercase=False):
-
     # (or val == '') included since it has been observed that namespace can be
     # returned from certain API queries as an empty string.
 
@@ -88,7 +72,18 @@ def _access_field(val, err_msg, if_missing=_DEFAULT, lowercase=False):
 
 class APIObject:
 
-    def __init__(self, dict_to_model=None, context=None):
+    def __init__(self, dict_to_model=None, string_to_model=None, context=None):
+
+        if string_to_model:
+            string_to_model = string_to_model.strip()
+
+            if string_to_model.startswith("{"):
+                dict_to_model = json.loads(string_to_model)
+            elif "\n" in string_to_model:  # Assume yaml
+                dict_to_model = yaml.load(string_to_model)
+            else:  # Assume URL
+                raise ValueError("Unable to detect markup format (not yaml or json)")
+
         # Create a Model representation of the object.
         self.model = Model(dict_to_model)
 
@@ -112,15 +107,16 @@ class APIObject:
         """
         return json.dumps(self.model._primitive(), indent=indent).strip()
 
-    def kind(self, if_missing=_DEFAULT):
+    def kind(self, lowercase=True, if_missing=_DEFAULT):
         """
         Return the API object's kind if it possesses one.
         If it does not, returns if_missing. When if_missing not specified, throws a ModelError.
         :param if_missing: Value to return if kind is not present in Model.
+        :param lowercase: Whether kind should be returned in lowercase.
         :return: The kind or if_missing.
         """
         return _access_field(self.model.kind,
-                             "Object model does not contain .kind", if_missing=if_missing, lowercase=True)
+                             "Object model does not contain .kind", if_missing=if_missing, lowercase=lowercase)
 
     def name(self, if_missing=_DEFAULT):
         """
@@ -243,11 +239,17 @@ class APIObject:
 
         return r.out()
 
-    def logs(self, timestamps=False, previous=False, since=None, limit_bytes=None, tail=-1, cmd_args=[], try_longshots=True):
+    def logs(self, timestamps=False, previous=False, since=None, limit_bytes=None, tail=-1, cmd_args=[],
+             try_longshots=True):
         """
         Attempts to collect logs from running pods associated with this resource. Supports
         daemonset, statefulset, deploymentconfig, deployment, replicationcontroller, replicationset,
         buildconfig, build, pod.
+
+        If a resource is associated with many pods, all pods owned by that resource will be individually
+        scraped for logs. For example, if a daemonset is specified, an invocation of `oc logs ...` will be
+        made for each pod associated with that daemonset -- this is different from the output of
+        `oc logs ds/name`.
 
         If try_longshots==True, logs can also be collected to for any object which directly
         owns pods or responds successfully with "oc logs kind/name".
@@ -325,20 +327,26 @@ class APIObject:
 
         for pod in pod_list:
             for container in pod.model.spec.containers:
-                action = oc_action(self.context, "logs", cmd_args=[base_args, self.qname(), '-c', container.name])
+                action = oc_action(self.context, "logs", cmd_args=[base_args, pod.qname(), '-c', container.name,
+                                                                   '--namespace={}'.format(pod.namepace())],
+                                   no_namespace=True  # Namespace is included in cmd_args, do not use context
+                                   )
                 # Include self.fqname() to let reader know how we actually found this pod (e.g. from a dc).
                 key = '{}->{}({})'.format(self.fqname(), pod.qname(), container.name)
                 add_entry(log_aggregation, key, action)
 
         return log_aggregation
 
-    def print_logs(self, stream=sys.stderr, timestamps=False, previous=False, since=None, limit_bytes=None, tail=-1, cmd_args=[], try_longshots=True):
+    def print_logs(self, stream=sys.stderr, timestamps=False, previous=False, since=None, limit_bytes=None, tail=-1,
+                   cmd_args=[], try_longshots=True):
         """
         Pretty prints logs from selected objects to an output stream (see logs() method).
         :param stream: Output stream to send pretty printed report (defaults to sys.stderr)..
         :return: n/a
         """
-        util.print_logs(stream, self.logs(timestamps=timestamps, previous=previous, since=since, limit_bytes=limit_bytes, tail=tail, try_longshots=try_longshots, cmd_args=cmd_args))
+        util.print_logs(stream,
+                        self.logs(timestamps=timestamps, previous=previous, since=since, limit_bytes=limit_bytes,
+                                  tail=tail, try_longshots=try_longshots, cmd_args=cmd_args))
 
     def modify_and_apply(self, modifier_func, retries=0, cmd_args=[]):
         """
@@ -465,16 +473,33 @@ class APIObject:
         :return: Returns a python list of APIObjects. If receiver is an OpenShift 'List', each element will be
         added to the returned list. If the receiver is not of kind List, the [self] will be returned.
         """
-        if self.kind() != "list":
-            return [self]
+        self_kind = self.kind(lowercase=False)
+        if self_kind.endswith('List'):  # e.g. "List", "PodList", "NodeList"
+            item_kind = self_kind[:-4]  # strip 'List' off the end. This may leave '' or the kind of elements in the list
 
         l = []
         for e in self.model['items']:
-            l.append(APIObject(e._primitive()))
+            d = e._primitive()
+
+            # If not an empty string, set the kind in the underlying object. This is because of the odd
+            # way `oc adm manage-node --list-pods <node> -o=yaml` returns yaml for each pod, but without
+            # a 'kind' in the object markup. So, if we get a 'PodList', set the kind before making into apiobjects.
+            if item_kind:
+                d['kind'] = item_kind
+
+            l.append(APIObject(d))
 
         return l
 
     def process(self, parameters={}, cmd_args=[]):
+
+        """
+        Assumes this APIObject is a template and runs oc process against it.
+        :param parameters: An optional dict of parameters to supply the process command
+        :param cmd_args: An optional list of additional arguments to supply
+        :return: A list of apiobjects resulting from processing this template.
+        """
+
         template = self.model._primitive()
         cmd_args = list(cmd_args)
         cmd_args.append("-o=json")
@@ -484,11 +509,10 @@ class APIObject:
             cmd_args.append(k + "=" + v)
 
         # Convert python object into a json string
-        content = json.dumps(template, indent=4).strip()
         r = Result("process")
-        r.add_action(oc_action(self.context, "process", cmd_args=["-f", "-", cmd_args], stdin_obj=content))
+        r.add_action(oc_action(self.context, "process", cmd_args=["-f", "-", cmd_args], stdin_obj=template))
         r.fail_if("Error processing template")
-        return _objdef_to_pylist(r.out())
+        return APIObject(r.out()).elements()
 
     def do_i_own(self, apiobj):
 
@@ -610,7 +634,7 @@ class APIObject:
         elif this_kind.startswith("job"):
             labels["job-name"] = name
         else:
-            raise OpenShiftPythonException("Unknown how to find resources to related to kind: " + this_kind)
+            raise OpenShiftPythonException("Unknown how to find {} resources to related to kind: {}".format(find_kind, this_kind))
 
         return selector(find_kind, labels=labels, static_context=self.context)
 

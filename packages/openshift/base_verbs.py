@@ -12,6 +12,7 @@ import naming
 import base64
 import io
 
+
 def __new_objects_action_selector(verb, cmd_args=[], stdin_obj=None):
     """
     Performs and oc action and records objects output from the verb
@@ -194,6 +195,31 @@ def invoke(verb, cmd_args=[], stdin_str=None, auto_raise=True):
     if auto_raise:
         r.fail_if("Non-zero return code from invoke action")
     return r
+
+
+def get_pods_by_node(node_name, auto_raise=True):
+    """
+    Returns a list<APIObject> where each APIObject is a pod running on the specified node.
+    :param node_name: The name of the node ("xyz" or "node/xyz")
+    :param auto_raise: Whether a failure should result in an exception. If false and oc returns an error, an empty
+     list will result.
+    :return: A list of apiobjects. List may be empty.
+    """
+    # permit node/xyz and strip it off
+    _, _, node_name = naming.split_fqn(node_name)
+
+    r = Result('get_pods_by_node')
+    r.add_action(oc_action(cur_context(), verb='adm', cmd_args=['manage-node', node_name, '--list-pods', '-o=json']))
+
+    if auto_raise:
+        r.fail_if('Error retrieving pods for node: {}'.format(node_name))
+
+    pod_list = []
+
+    if r.status() == 0:
+        pod_list = APIObject(string_to_model=r.out()).elements()
+
+    return pod_list
 
 
 def get_client_version():

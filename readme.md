@@ -405,6 +405,27 @@ Running oc exec on a pod.
     print(result.out())
 ```
 
+Finding all pods running on a node:
+```python
+with oc.client_host():
+    for node_name in oc.selector('nodes').qnames():
+        print('Pods running on node: {}'.format(node_name))
+            for pod_obj in oc.get_pods_by_node(node_name):
+                print('  {}'.format(pod_obj.fqname()))
+```
+
+Example output:
+```
+...
+Pods running on node: node/ip-172-31-18-183.ca-central-1.compute.internal
+  72-sus:pod/sus-1-vgnmx
+  ameen-blog:pod/ameen-blog-2-t68qn
+  appejemplo:pod/ejemplo-1-txdt7
+  axxx:pod/mysql-5-lx2bc
+...
+```
+
+
 ## Environment Variables
 To allow openshift-python applications to be portable between environments without needing to be modified, 
 you can specify many default contexts in the environment. 
