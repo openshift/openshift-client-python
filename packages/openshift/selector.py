@@ -20,7 +20,8 @@ def _normalize_object_list(ol):
 class Selector(Result):
 
     def __init__(self, high_level_operation,
-                 kind_or_kinds_or_qname_or_qnames=None, labels=None,
+                 kind_or_kinds_or_qname_or_qnames=None,
+                 labels=None,
                  object_list=None,
                  object_action=None,
                  filter_func=None,

@@ -3,7 +3,6 @@ from model import OpenShiftPythonException
 
 
 class Result(object):
-
     def __init__(self, high_level_operation):
         self.high_level_operation = high_level_operation
         self.__actions = []
@@ -23,12 +22,12 @@ class Result(object):
 
     # Returns aggregate stdout from all underlying actions
     def out(self):
-        s = ""
+        s = u''
         for action in self.__actions:
             if action.out:
                 s += action.out
                 if not s.endswith("\n"):
-                    s += "\n"
+                    s += u'\n'
         return s
 
     def get_timeout(self):
@@ -43,12 +42,12 @@ class Result(object):
 
     # Returns aggregate stderr from all underlying actions
     def err(self):
-        s = ""
+        s = u''
         for action in self.__actions:
             if action.err:
                 s += action.err
                 if not s.endswith("\n"):
-                    s += "\n"
+                    s += u'\n'
         return s
 
     def as_dict(self, truncate_stdout=-1, redact_tokens=True, redact_references=True, redact_streams=True):

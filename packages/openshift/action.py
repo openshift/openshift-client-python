@@ -3,6 +3,7 @@ import time
 import socket
 import json
 import os
+import sys
 from .util import TempFile, is_collection_type
 
 DEFAULT_TLS_CHECK = os.getenv("OPENSHIFT_PYTHON_DEFAULT_TLS_CHECK", "true").lower() in ("yes", "true", "t", "y", "1")
@@ -10,7 +11,7 @@ DEFAULT_TLS_CHECK = os.getenv("OPENSHIFT_PYTHON_DEFAULT_TLS_CHECK", "true").lowe
 
 def _redact_token_arg(arg):
     if "--token" in arg.lower():
-        return "--token=**REDACTED**"
+        return u'--token=**REDACTED**'
     return arg
 
 
@@ -19,7 +20,7 @@ def _is_sensitive(content_str):
 
 
 def _redaction_string():
-    return "**REDACTED**"
+    return u'**REDACTED**'
 
 
 def _redact_content(content_str):
@@ -227,14 +228,23 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
                 # This timeout applies to individual read / write channel operations which follow.
                 # If paramiko fails to timeout, consider using polling: https://stackoverflow.com/a/45844203
                 ssh_stdin, ssh_stdout, ssh_stderr = context.get_ssh_client().exec_command(command=command_string,
-                                                                                          timeout=context.get_min_remaining_seconds())
+                                                                                          timeout=context.get_min_remaining_seconds(),
+                                                                                          environment={
+                                                                                              'LC_ALL': 'en_US.UTF-8',
+                                                                                          }
+                                                                                          )
                 if stdin_str:
                     ssh_stdin.write(stdin_str)
                     ssh_stdin.flush()
                     ssh_stdin.channel.shutdown_write()
 
-                stdout = ssh_stdout.read()
-                stderr = ssh_stderr.read()
+                # In python2, read() returns type:str. In python3, I believe it will return type:bytes.
+                # By decoding, we are making the assumption that openshift-python will be
+                # useful for text based interactions (e.g. we don't support oc exec with
+                # binary output). By converting into a real unicode string type, hopefully we prevent
+                # a raft of incompatibilities between 2 and 3.
+                stdout = ssh_stdout.read().decode('utf-8', errors='ignore')
+                stderr = ssh_stderr.read().decode('utf-8', errors='ignore')
                 return_code = ssh_stdout.channel.recv_exit_status()
 
             except socket.timeout as error:
@@ -247,6 +257,8 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
                 with TempFile() as out:
                     with TempFile() as err:
                         # When only python3 is supported, change to using standard timeout
+                        env = os.environ.copy()
+                        env['LC_ALL'] = 'en_US.UTF-8'
                         process = subprocess.Popen(cmds, stdin=stdin_file.file, stdout=out.file, stderr=err.file)
 
                         while process.poll() is None:
@@ -260,8 +272,9 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
                             time.sleep(period)
                             period = min(1, period + period)  # Poll fast at first, but slow down to 1/sec over time
 
-                        stdout = out.read()
-                        stderr = err.read()
+                        # See not in paramiko flow on decoding
+                        stdout = out.read().decode('utf-8', errors='ignore')
+                        stderr = err.read().decode('utf-8', errors='ignore')
 
             return_code = process.returncode
             if timeout:

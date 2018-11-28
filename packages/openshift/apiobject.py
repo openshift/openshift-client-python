@@ -270,7 +270,7 @@ class APIObject:
         def add_entry(collection, entry_key, action):
             entry = action.out
             if action.status != 0:
-                entry += '\n>>>>Error during log collection rc={}<<<<\n{}\n'.format(action.status, action.err)
+                entry += u'\n>>>>Error during log collection rc={}<<<<\n{}\n'.format(action.status, action.err)
             entry = entry.strip().replace('\r\n', '\n')
             collection[entry_key] = entry
 
@@ -328,7 +328,7 @@ class APIObject:
         for pod in pod_list:
             for container in pod.model.spec.containers:
                 action = oc_action(self.context, "logs", cmd_args=[base_args, pod.qname(), '-c', container.name,
-                                                                   '--namespace={}'.format(pod.namepace())],
+                                                                   '--namespace={}'.format(pod.namespace())],
                                    no_namespace=True  # Namespace is included in cmd_args, do not use context
                                    )
                 # Include self.fqname() to let reader know how we actually found this pod (e.g. from a dc).
@@ -476,6 +476,8 @@ class APIObject:
         self_kind = self.kind(lowercase=False)
         if self_kind.endswith('List'):  # e.g. "List", "PodList", "NodeList"
             item_kind = self_kind[:-4]  # strip 'List' off the end. This may leave '' or the kind of elements in the list
+        else:
+            return [self]
 
         l = []
         for e in self.model['items']:
@@ -659,7 +661,7 @@ class APIObject:
         r.add_action(
             oc_action(self.context, "exec", cmd_args=[oc_args, self.name(), "--", cmd_to_exec], stdin_str=stdin))
         if auto_raise:
-            r.fail_if("Error running exec")
+            r.fail_if("Error running {} exec on {} [rc={}]: {}".format(self.qname(), cmd_to_exec[0], r.status(), r.err()))
         return r
 
 

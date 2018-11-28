@@ -101,24 +101,24 @@ def indent_lines(text, padding='  '):
     return ''.join(padding+line for line in text.splitlines(True))
 
 
-def print_logs(stream, logs_dict, initial_indent_count=0):
+def print_logs(stream, logs_dict, initial_indent_count=0, encoding='utf-8'):
     indent = ' ' * initial_indent_count
     next_indent = ' ' * (initial_indent_count + 2)
     for container_fqn, log in logs_dict.iteritems():
-        stream.write(u'{}[logs:begin]{}========\n'.format(indent, container_fqn))
+        stream.write(u'{}[logs:begin]{}========\n'.format(indent, container_fqn).encode(encoding=encoding))
         value_string = log.strip().replace('\r\n', '\n')
-        stream.write(u'{}\n'.format(indent_lines(value_string, next_indent)))
-        stream.write(u'{}[logs:end]{}========\n'.format(indent, container_fqn))
+        stream.write(u'{}\n'.format(indent_lines(value_string, next_indent)).encode(encoding=encoding))
+        stream.write(u'{}[logs:end]{}========\n'.format(indent, container_fqn).encode(encoding=encoding))
 
 
-def print_report_entry(stream, d, initial_indent_count=0):
+def print_report_entry(stream, d, initial_indent_count=0, encoding='utf-8'):
     indent = ' ' * initial_indent_count
     next_indent = ' ' * (initial_indent_count + 2)
     for entry, value in d.iteritems():
-        stream.write(u'{}*{}:\n'.format(indent, entry))
+        stream.write(u'{}*{}:\n'.format(indent, entry).encode(encoding=encoding))
 
         if entry is 'logs':
-            print_logs(stream, value, initial_indent_count + 2)
+            print_logs(stream, value, initial_indent_count + 2, encoding=encoding)
         else:
             if isinstance(value, dict):  # for 'object'
                 value_string = json.dumps(value, indent=2)
@@ -127,14 +127,14 @@ def print_report_entry(stream, d, initial_indent_count=0):
             else:
                 value_string = u'{}'.format(value)
 
-            stream.write(u'{}\n'.format(indent_lines(value_string, next_indent)))
+            stream.write(u'{}\n'.format(indent_lines(value_string, next_indent)).encode(encoding=encoding))
 
 
-def print_report(stream, report_dict, initial_indent_count=0):
+def print_report(stream, report_dict, initial_indent_count=0, encoding='utf-8'):
     indent = ' ' * initial_indent_count
     for fqn, details in report_dict.iteritems():
         stream.write(u'\n{}[report:begin]{}========\n'.format(indent, fqn))
-        print_report_entry(stream, details, initial_indent_count + 2)
+        print_report_entry(stream, details, initial_indent_count + 2, encoding=encoding)
         stream.write(u'\n{}[report:end]{}========\n'.format(indent, fqn))
 
 
