@@ -452,7 +452,8 @@ def dumpinfo_node(output_dir,
                                    log_timestamps=log_timestamps,
                                    logs_since=logs_since,
                                    logs_limit_bytes=logs_limit_bytes,
-                                   logs_tail=logs_tail
+                                   logs_tail=logs_tail,
+                                   debug_printer=debug_printer
                                    )
 
             # If possible, find a fluentd pod that is scheduled on the node. The fluentd pod mounts in the
@@ -528,7 +529,8 @@ def dumpinfo_project(dir,
                                    logs_since=logs_since,
                                    logs_tail=logs_tail,
                                    logs_limit_bytes=logs_limit_bytes,
-                                   log_timestamps=log_timestamps)
+                                   log_timestamps=log_timestamps,
+                                   debug_printer=debug_printer)
 
 
 def dumpinfo_system(base_dir,
@@ -569,6 +571,7 @@ def dumpinfo_system(base_dir,
             with project('openshift-sdn'):
                 # Find all pods created by the sdn daemonset.
                 sdn_pods = selector('ds/sdn').object().get_owned('pod')
+                debug_printer(u'Found {} sdn pods on cluster'.format(len(sdn_pods)))
         except Exception as sdn_err:
             debug_printer(u'Unable to get openshift-sdn pods: {}'.format(sdn_err))
 
@@ -601,7 +604,8 @@ def dumpinfo_system(base_dir,
                           log_timestamps=log_timestamps,
                           logs_since=logs_since,
                           logs_tail=logs_tail,
-                          logs_limit_bytes=logs_limit_bytes
+                          logs_limit_bytes=logs_limit_bytes,
+                          debug_printer=debug_printer,
                           )
 
         projects = set(['kube-system', 'openshift-config', 'openshift-node'])
@@ -614,7 +618,9 @@ def dumpinfo_system(base_dir,
                              log_timestamps=log_timestamps,
                              logs_since=logs_since,
                              logs_tail=logs_tail,
-                             logs_limit_bytes=logs_limit_bytes)
+                             logs_limit_bytes=logs_limit_bytes,
+                             debug_printer=debug_printer,
+                             )
 
 
 def node_ssh_client(apiobj_node_name_or_qname,
