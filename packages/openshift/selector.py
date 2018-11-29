@@ -325,15 +325,16 @@ class Selector(Result):
 
         return objs[0]
 
-    def objects(self, exportable=False):
+    def objects(self, exportable=False, ignore_not_found=True):
         """
         Returns a python list of APIObject objects that represent the selected resources. An
         empty is returned if nothing is selected.
         :param exportable: Whether export should be used instead of get.
+        :param ignore_not_found: If true, missing named resources will not raise an exception.
         :return: A list of Model objects representing the receiver's selected resources.
         """
 
-        obj = json.loads(self.object_json(exportable, ignore_not_found=True))
+        obj = json.loads(self.object_json(exportable, ignore_not_found=ignore_not_found))
         return APIObject(obj).elements()
 
     def start_build(self, cmd_args=[]):

@@ -12,6 +12,7 @@ import naming
 import base64
 import io
 import sys
+import traceback
 
 
 def eprint(*args, **kwargs):
@@ -383,24 +384,112 @@ def build_secret_dict(secret_name, dir_path_or_paths=None, dir_ext_include=None,
     return d
 
 
-def dumpinfo_apiobject(dir, obj, log_timestamps=True, logs_since=None, logs_limit_bytes=None, logs_tail=-1):
-    util.mkdir_p(dir)
-    prefix = os.path.join(dir, obj.name())
+def dumpinfo_apiobject(output_dir,
+                       obj,
+                       log_timestamps=True,
+                       logs_since=None,
+                       logs_limit_bytes=None,
+                       logs_tail=-1,
+                       debug_printer=eprint):
+    name = obj.name()
+    util.mkdir_p(output_dir)
+    prefix = os.path.join(output_dir, name)
+
+    if not debug_printer:
+        debug_printer = lambda: None
+
+    debug_printer('Gathering information for {}'.format(obj.fqname()))
 
     with no_tracking():
-        with open(prefix + '.describe', mode='wb') as f:
-            f.write(obj.describe())
+        with io.open(prefix + '.describe.txt', mode='w', encoding="utf-8") as f:
+            f.write(obj.describe(auto_raise=False))
 
         if not naming.kind_matches(obj.kind(), 'secret'):
-            with open(prefix + '.json', mode='wb') as f:
+            with io.open(prefix + '.json', mode='w', encoding="utf-8") as f:
                 f.write(obj.as_json())
 
         if naming.kind_matches(obj.kind(), ['pod', 'build']):
-            with open(prefix + '.logs', mode='wb') as f:
-                obj.print_logs(f, timestamps=log_timestamps,
+            with io.open(prefix + '.logs.txt', mode='w', encoding="utf-8") as f:
+                obj.print_logs(f,
+                               timestamps=log_timestamps,
                                since=logs_since,
                                tail=logs_tail,
                                limit_bytes=logs_limit_bytes)
+
+
+def dumpinfo_node(output_dir,
+                  node,
+                  sdn_pods=[],
+                  fluentd_pods=[],
+                  num_combined_journal_entries=10000,
+                  num_critical_journal_entries=10000,
+                  log_timestamps=True,
+                  logs_since=None,
+                  logs_limit_bytes=None,
+                  logs_tail=-1,
+                  debug_printer=eprint):
+    node_dir = util.mkdir_p(output_dir)
+
+    try:
+
+        with no_tracking():
+            dumpinfo_apiobject(node_dir, node)
+
+            node_sdn_pod = next((pod for pod in sdn_pods if pod.model.spec.nodeName == node.name()), None)
+            if node_sdn_pod:
+                node_sdn_dir = util.mkdir_p(os.path.join(node_dir, 'sdn'))
+                capture_action = node_sdn_pod.execute(cmd_to_exec=['iptables-save'],
+                                                      container_name='sdn',
+                                                      auto_raise=False)
+
+                with io.open(os.path.join(node_sdn_dir, 'iptables'), mode='w', encoding='utf-8') as f:
+                    f.write(capture_action.out())
+                    f.write(capture_action.err())
+
+                # dump sdn logs for included nodes
+                dumpinfo_apiobject(node_sdn_dir,
+                                   node_sdn_pod,
+                                   log_timestamps=log_timestamps,
+                                   logs_since=logs_since,
+                                   logs_limit_bytes=logs_limit_bytes,
+                                   logs_tail=logs_tail
+                                   )
+
+            # If possible, find a fluentd pod that is scheduled on the node. The fluentd pod mounts in the
+            # host's journal directories -- so we capture information for debug.
+            node_fluentd_pod = next((pod for pod in fluentd_pods if pod.model.spec.nodeName == node.name()), None)
+            if node_fluentd_pod:
+
+                debug_printer('Collecting combined journal from: {}'.format(node.name()))
+                with io.open(os.path.join(node_dir, 'combined.journal.export'), mode='w', encoding="utf-8") as f:
+                    capture_action = node_fluentd_pod.execute(cmd_to_exec=[
+                        'journalctl',
+                        '-D', '/var/log/journal',
+                        '-o', 'export',
+                        '-n', num_combined_journal_entries,
+                    ],
+                        auto_raise=False)
+                    f.write(capture_action.out())
+
+                # In case extraneous events are flooding, isolate important services as well
+                debug_printer('Collecting critical services journal from: {}'.format(node.name()))
+                with io.open(os.path.join(node_dir, 'critical.journal.export'), mode='w', encoding="utf-8") as f:
+                    capture_action = node_fluentd_pod.execute(cmd_to_exec=[
+                        'journalctl',
+                        '-D', '/var/log/journal',  # Where fluentd mounts hosts journal
+                        '-o', 'export',  # This can be converted back into .journal with systemd-journal-remote
+                        '-n', num_critical_journal_entries,  # Number of recent events to gather critical services
+                        '-u', 'crio',
+                        '-u', 'atomic-openshift-node',
+                        '-u', 'docker',
+                    ],
+                        auto_raise=False)
+                    f.write(capture_action.out())
+            else:
+                debug_printer('Unable to find a fluentd pod in the cluster for node {}'.format(node.name()))
+
+    except Exception as e:
+        debug_printer('Error collecting node information: {}\n{}'.format(node.name(), traceback.format_exc()))
 
 
 def dumpinfo_project(dir,
@@ -409,10 +498,14 @@ def dumpinfo_project(dir,
                      log_timestamps=True,
                      logs_since=None,
                      logs_tail=-1,
-                     logs_limit_bytes=None):
+                     logs_limit_bytes=None,
+                     debug_printer=eprint):
     project_name = naming.qualify_name(project_name, 'project')
 
-    eprint('Collecting info for: {}'.format(project_name))
+    if not debug_printer:
+        debug_printer = lambda: None
+
+    debug_printer(u'Collecting info for project: {}'.format(project_name))
 
     util.mkdir_p(dir)
     with no_tracking():
@@ -428,7 +521,7 @@ def dumpinfo_project(dir,
             with io.open(os.path.join(dir, 'status'), mode='w', encoding="utf-8") as f:
                 f.write(unicode(invoke('status').out()))
 
-            for obj in selector(kinds).objects():
+            for obj in selector(kinds).objects(ignore_not_found=True):
                 eprint('Collecting information about: {}'.format(obj.fqname()))
                 obj_dir = os.path.join(dir, obj.kind())
                 dumpinfo_apiobject(obj_dir, obj,
@@ -448,30 +541,46 @@ def dumpinfo_system(base_dir,
                     log_timestamps=True,
                     logs_since=None,
                     logs_tail=-1,
-                    logs_limit_bytes=None):
+                    logs_limit_bytes=None,
+                    debug_printer=eprint):
     util.mkdir_p(base_dir)
+
+    if not debug_printer:
+        debug_printer = lambda: None
 
     kinds = set(['ds', 'dc', 'build', 'statefulset', 'deployment', 'pod', 'rs', 'rc', 'configmap'])
     kinds.update(additional_namespaced_kinds)
-
-    if include_crd_kinds:
-        # At the time of this comment, you need to add specific privileges to read CRs. Eventually,
-        # master team should allow CRDs to express whether they contain sensitive information and
-        # remove this restriction. As such, turning this flag True is not recommended until
-        # master acts on this.
-        for crd_obj in selector('crd').objects():
-            if crd_obj.model.spec.scope == 'Namespaced':
-                kinds.add(crd_obj.name())
 
     # A large amount of stdout is going to be generated by streaming logs from pods --
     # don't burden memory by trying to store it in trackers.
     with no_tracking():
 
+        if include_crd_kinds:
+            # At the time of this comment, you need to add specific privileges to read CRs. Eventually,
+            # master team should allow CRDs to express whether they contain sensitive information and
+            # remove this restriction. As such, turning this flag True is not recommended until
+            # master acts on this.
+            for crd_obj in selector('crd').objects():
+                if crd_obj.model.spec.scope == 'Namespaced':
+                    kinds.add(crd_obj.name())
+
+        sdn_pods = []  # Prevent errors by using empty list if we can't find sdn pods
+        try:
+            with project('openshift-sdn'):
+                # Find all pods created by the sdn daemonset.
+                sdn_pods = selector('ds/sdn').object().get_owned('pod')
+        except Exception as sdn_err:
+            debug_printer(u'Unable to get openshift-sdn pods: {}'.format(sdn_err))
+
+        # Use all_namespaces because logging components could be in 'logging' (older) or 'openshift-logging' (newer)
+        fluentd_pods = selector('pod', labels={'component': 'fluentd'}, all_namespaces=True).objects()
+        debug_printer(u'Found {} fluentd pods on cluster'.format(len(fluentd_pods)))
+
         overview_dir = util.mkdir_p(os.path.join(base_dir, 'overview'))
-        with io.open(os.path.join(overview_dir, 'nodes.json'), mode='w') as f:
+        with io.open(os.path.join(overview_dir, 'nodes.json'), mode='w', encoding='utf-8') as f:
             f.write(selector('nodes').object_json())
 
-        with io.open(os.path.join(overview_dir, 'versions'), mode='w') as f:
+        with io.open(os.path.join(overview_dir, 'versions'), mode='w', encoding='utf-8') as f:
             f.write(u'Sever version: {}\n'.format(get_server_version()))
             f.write(u'Client version: {}\n'.format(get_client_version()))
 
@@ -481,75 +590,19 @@ def dumpinfo_system(base_dir,
             node_name = naming.qualify_name(node_name.lower(), 'node')  # make sure we have node/xyz
             node_qnames.add(node_name)
 
+        debug_printer(u'Attempting to gather on nodes: {}\n'.format(node_qnames))
         node_sel = selector(node_qnames)
 
-        sdn_pods = []  # Prevent errors by using empty list if we can't find sdn pods
-        try:
-            with project('openshift-sdn'):
-                # Find all pods created by the sdn daemonset.
-                sdn_pods = selector('ds/sdn').object().get_owned('pod')
-        except Exception as sdn_err:
-            eprint('Unable to get openshift-sdn pods: {}'.format(sdn_err))
-
-        # Use all_namespaces because logging components could be in 'logging' (older) or 'openshift-logging' (newer)
-        fluentd_pods = selector('pod', labels={'component': 'fluentd'}, all_namespaces=True).objects()
-        eprint('Found {} fluentd pods on cluster'.format(len(fluentd_pods)))
-
         for node in node_sel.objects():
-            node_dir = util.mkdir_p(os.path.join(base_dir, 'node', node.name()))
-            dumpinfo_apiobject(node_dir, node)
-
-            node_sdn_pod = next((pod for pod in sdn_pods if pod.model.spec.nodeName == node.name()), None)
-            if node_sdn_pod:
-                node_sdn_dir = util.mkdir_p(os.path.join(node_dir, 'sdn'))
-                capture_action = node_sdn_pod.execute(cmd_to_exec=['iptables-save'],
-                                                      container_name='sdn',
-                                                      auto_raise=False)
-                with io.open(os.path.join(node_sdn_dir, 'iptables'), mode='w', encoding='utf-8') as f:
-                    f.write(capture_action.out())
-                    f.write(capture_action.err())
-
-                # dump sdn logs for included nodes
-                dumpinfo_apiobject(node_sdn_dir,
-                                   node_sdn_pod,
-                                   log_timestamps=log_timestamps,
-                                   logs_since=logs_since,
-                                   logs_limit_bytes=logs_limit_bytes,
-                                   logs_tail=logs_tail
-                                   )
-
-            # If possible, find a fluentd pod that is scheduled on the node. The fluentd pod mounts in the
-            # host's journal directories -- so we capture information for debug.
-            node_fluentd_pod = next((pod for pod in fluentd_pods if pod.model.spec.nodeName == node.name()), None)
-            if node_fluentd_pod:
-
-                eprint('Collecting combined journal from: {}'.format(node.name()))
-                with io.open(os.path.join(node_dir, 'combined.journal.export'), mode='w', encoding="utf-8") as f:
-                    capture_action = node_fluentd_pod.execute(cmd_to_exec=[
-                        'journalctl',
-                        '-D', '/var/log/journal',
-                        '-o', 'export',
-                        '-n', num_combined_journal_entries,
-                    ],
-                        auto_raise=False)
-                    f.write(capture_action.out())
-
-                # In case extraneous events are flooding, isolate important services as well
-                eprint('Collecting critical services journal from: {}'.format(node.name()))
-                with io.open(os.path.join(node_dir, 'critical.journal.export'), mode='w', encoding="utf-8") as f:
-                    capture_action = node_fluentd_pod.execute(cmd_to_exec=[
-                        'journalctl',
-                        '-D', '/var/log/journal',  # Where fluentd mounts hosts journal
-                        '-o', 'export',  # This can be converted back into .journal with systemd-journal-remote
-                        '-n', num_critical_journal_entries,  # Number of recent events to gather critical services
-                        '-u', 'crio',
-                        '-u', 'atomic-openshift-node',
-                        '-u', 'docker',
-                    ],
-                        auto_raise=False)
-                    f.write(capture_action.out())
-            else:
-                eprint('Unable to find a fluentd pod in the cluster for node {}'.format(node.name()))
+            dumpinfo_node(os.path.join(base_dir, 'node', node.name()),
+                          node, sdn_pods=sdn_pods, fluentd_pods=fluentd_pods,
+                          num_critical_journal_entries=num_critical_journal_entries,
+                          num_combined_journal_entries=num_combined_journal_entries,
+                          log_timestamps=log_timestamps,
+                          logs_since=logs_since,
+                          logs_tail=logs_tail,
+                          logs_limit_bytes=logs_limit_bytes
+                          )
 
         projects = set(['kube-system', 'openshift-config', 'openshift-node'])
         projects.update(additional_projects)
