@@ -118,6 +118,9 @@ class APIObject:
         return _access_field(self.model.kind,
                              "Object model does not contain .kind", if_missing=if_missing, lowercase=lowercase)
 
+    def is_kind(self, test_kind_or_kind_list):
+        return kind_matches(self.kind(), test_kind_or_kind_list)
+
     def name(self, if_missing=_DEFAULT):
         """
         Return the API object's name if it possesses one.
@@ -237,7 +240,7 @@ class APIObject:
         if auto_raise:
             r.fail_if('Error describing object')
 
-        return r.out()
+        return (r.out() + '\n' + r.err()).strip()
 
     def logs(self, timestamps=False, previous=False, since=None, limit_bytes=None, tail=-1, cmd_args=[],
              try_longshots=True):

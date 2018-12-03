@@ -410,19 +410,20 @@ def build_secret_dict(secret_name, dir_path_or_paths=None, dir_ext_include=None,
 
 def dumpinfo_apiobject(output_dir,
                        obj,
+                       limit_daemonsets_to_nodes=None,
                        log_timestamps=True,
                        logs_since=None,
                        logs_limit_bytes=None,
                        logs_tail=-1,
-                       debug_printer=eprint):
+                       status_printer=eprint):
     name = obj.name()
     util.mkdir_p(output_dir)
     prefix = os.path.join(output_dir, name)
 
-    if not debug_printer:
-        debug_printer = lambda: None
+    if not status_printer:
+        status_printer = lambda: None
 
-    debug_printer('Gathering information for {}'.format(obj.fqname()))
+    status_printer('Gathering information for {}'.format(obj.fqname()))
 
     with no_tracking():
         with io.open(prefix + '.describe.txt', mode='w', encoding="utf-8") as f:
@@ -432,26 +433,45 @@ def dumpinfo_apiobject(output_dir,
             with io.open(prefix + '.json', mode='w', encoding="utf-8") as f:
                 f.write(obj.as_json())
 
-        if naming.kind_matches(obj.kind(), ['pod', 'build']):
-            with io.open(prefix + '.logs.txt', mode='w', encoding="utf-8") as f:
-                obj.print_logs(f,
-                               timestamps=log_timestamps,
-                               since=logs_since,
-                               tail=logs_tail,
-                               limit_bytes=logs_limit_bytes)
+        if obj.is_kind(['pod', 'build']):
+
+            skip_logs = False
+
+            if limit_daemonsets_to_nodes is not None:
+                # if this is a pod and a member of a daemonset, only output logs
+                # if the pod is running on a node listed in limit_daemonsets_to_nodes
+
+                ldn = []
+                for node_name in limit_daemonsets_to_nodes:
+                    ldn.append(naming.qualify_name(node_name, 'node'))
+
+                if obj.is_kind('pod') and obj.model.metadata.ownerReferences.can_match({
+                    'kind': 'DaemonSet'
+                }):
+                    running_on_node = naming.qualify_name(obj.model.spec.nodeName, 'node')
+                    if running_on_node not in ldn:
+                        skip_logs = True
+
+            if skip_logs:
+                status_printer(
+                    'Skipping log collection for daemonset pod on non-collected node: {}'.format(obj.fqname()))
+            else:
+                with io.open(prefix + '.logs.txt', mode='w', encoding="utf-8") as f:
+                    obj.print_logs(f,
+                                   timestamps=log_timestamps,
+                                   since=logs_since,
+                                   tail=logs_tail,
+                                   limit_bytes=logs_limit_bytes)
 
 
 def dumpinfo_node(output_dir,
                   node,
+                  critical_journal_units=['atomic-openshift-node', 'crio', 'docker'],
                   sdn_pods=[],
                   fluentd_pods=[],
                   num_combined_journal_entries=10000,
                   num_critical_journal_entries=10000,
-                  log_timestamps=True,
-                  logs_since=None,
-                  logs_limit_bytes=None,
-                  logs_tail=-1,
-                  debug_printer=eprint):
+                  status_printer=eprint):
     node_dir = util.mkdir_p(output_dir)
 
     try:
@@ -461,31 +481,20 @@ def dumpinfo_node(output_dir,
 
             node_sdn_pod = next((pod for pod in sdn_pods if pod.model.spec.nodeName == node.name()), None)
             if node_sdn_pod:
-                node_sdn_dir = util.mkdir_p(os.path.join(node_dir, 'sdn'))
                 capture_action = node_sdn_pod.execute(cmd_to_exec=['iptables-save'],
                                                       container_name='sdn',
                                                       auto_raise=False)
 
-                with io.open(os.path.join(node_sdn_dir, 'iptables'), mode='w', encoding='utf-8') as f:
+                with io.open(os.path.join(node_dir, 'iptables.txt'), mode='w', encoding='utf-8') as f:
                     f.write(capture_action.out())
                     f.write(capture_action.err())
-
-                # dump sdn logs for included nodes
-                dumpinfo_apiobject(node_sdn_dir,
-                                   node_sdn_pod,
-                                   log_timestamps=log_timestamps,
-                                   logs_since=logs_since,
-                                   logs_limit_bytes=logs_limit_bytes,
-                                   logs_tail=logs_tail,
-                                   debug_printer=debug_printer
-                                   )
 
             # If possible, find a fluentd pod that is scheduled on the node. The fluentd pod mounts in the
             # host's journal directories -- so we capture information for debug.
             node_fluentd_pod = next((pod for pod in fluentd_pods if pod.model.spec.nodeName == node.name()), None)
             if node_fluentd_pod:
 
-                debug_printer('Collecting combined journal from: {}'.format(node.name()))
+                status_printer('Collecting combined journal from: {}'.format(node.name()))
                 with io.open(os.path.join(node_dir, 'combined.journal.export'), mode='w', encoding="utf-8") as f:
                     capture_action = node_fluentd_pod.execute(cmd_to_exec=[
                         'journalctl',
@@ -497,40 +506,62 @@ def dumpinfo_node(output_dir,
                     f.write(capture_action.out())
 
                 # In case extraneous events are flooding, isolate important services as well
-                debug_printer('Collecting critical services journal from: {}'.format(node.name()))
-                with io.open(os.path.join(node_dir, 'critical.journal.export'), mode='w', encoding="utf-8") as f:
-                    capture_action = node_fluentd_pod.execute(cmd_to_exec=[
-                        'journalctl',
-                        '-D', '/var/log/journal',  # Where fluentd mounts hosts journal
-                        '-o', 'export',  # This can be converted back into .journal with systemd-journal-remote
-                        '-n', num_critical_journal_entries,  # Number of recent events to gather critical services
-                        '-u', 'crio',
-                        '-u', 'atomic-openshift-node',
-                        '-u', 'docker',
-                    ],
-                        auto_raise=False)
-                    f.write(capture_action.out())
+                if critical_journal_units:
+                    status_printer('Collecting critical services journal from: {}'.format(node.name()))
+                    with io.open(os.path.join(node_dir, 'critical.journal.export'), mode='w', encoding="utf-8") as f:
+                        cmd_to_exec = [
+                            'journalctl',
+                            '-D', '/var/log/journal',  # Where fluentd mounts hosts journal
+                            '-o', 'export',  # This can be converted back into .journal with systemd-journal-remote
+                            '-n', num_critical_journal_entries,  # Number of recent events to gather critical services
+                        ]
+
+                        # include all the units the dump operation should focus on
+                        for unit in critical_journal_units:
+                            cmd_to_exec.extend(['-u', unit])
+
+                        capture_action = node_fluentd_pod.execute(cmd_to_exec=cmd_to_exec,
+                                                                  auto_raise=False)
+                        f.write(capture_action.out())
             else:
-                debug_printer('Unable to find a fluentd pod in the cluster for node {}'.format(node.name()))
+                status_printer('Unable to find a fluentd pod in the cluster for node {}'.format(node.name()))
 
     except Exception as e:
-        debug_printer('Error collecting node information: {}\n{}'.format(node.name(), traceback.format_exc()))
+        status_printer('Error collecting node information: {}\n{}'.format(node.name(), traceback.format_exc()))
 
 
 def dumpinfo_project(dir,
                      project_name,
                      kinds=['ds', 'dc', 'build', 'statefulset', 'deployment', 'pod', 'rs', 'rc', 'configmap'],
+                     limit_daemonsets_to_nodes=None,
                      log_timestamps=True,
                      logs_since=None,
                      logs_tail=-1,
                      logs_limit_bytes=None,
-                     debug_printer=eprint):
+                     status_printer=eprint):
+    """
+    Populates a specified directory with a significant amount of data for a given project.
+    :param dir: The output directory
+    :param project_name: The name or qualified name of the project
+    :param kinds: A list of kinds to collect data on within the project (defaults to generally import kinds like
+    deployments, pods, configmaps, etc.)
+    :param limit_daemonsets_to_nodes: A list of names or qualified names. If specified, pod logs for daemonsets
+    will only be collected for nodes named in this list. If None, all pods for daemonsets will be collected.
+    :param log_timestamps: Whether to include timestamps in pod logs
+    :param logs_since: --since for oc logs on pods
+    :param logs_tail: --tail for oc logs on pods
+    :param logs_limit_bytes: --limit-bytes for oc logs on pods
+    :param status_printer: Method which takes a single string parameter. Will be called with status strings as collection
+    proceeds. Defaults to method which prints to stderr.
+    :return:
+    """
+
     project_name = naming.qualify_name(project_name, 'project')
 
-    if not debug_printer:
-        debug_printer = lambda: None
+    if not status_printer:
+        status_printer = lambda: None
 
-    debug_printer(u'Collecting info for project: {}'.format(project_name))
+    status_printer(u'Collecting info for project: {}'.format(project_name))
 
     util.mkdir_p(dir)
     with no_tracking():
@@ -543,21 +574,23 @@ def dumpinfo_project(dir,
 
         with project(project_name):
 
-            with io.open(os.path.join(dir, 'status'), mode='w', encoding="utf-8") as f:
+            with io.open(os.path.join(dir, 'status.txt'), mode='w', encoding="utf-8") as f:
                 f.write(unicode(invoke('status').out()))
 
             for obj in selector(kinds).objects(ignore_not_found=True):
-                eprint('Collecting information about: {}'.format(obj.fqname()))
                 obj_dir = os.path.join(dir, obj.kind())
                 dumpinfo_apiobject(obj_dir, obj,
+                                   limit_daemonsets_to_nodes=limit_daemonsets_to_nodes,
                                    logs_since=logs_since,
                                    logs_tail=logs_tail,
                                    logs_limit_bytes=logs_limit_bytes,
                                    log_timestamps=log_timestamps,
-                                   debug_printer=debug_printer)
+                                   status_printer=status_printer)
 
 
 def dumpinfo_system(base_dir,
+                    dump_core_projects=True,
+                    dump_restricted_projects=False,
                     additional_nodes=[],
                     additional_projects=[],
                     additional_namespaced_kinds=[],
@@ -568,11 +601,36 @@ def dumpinfo_system(base_dir,
                     logs_since=None,
                     logs_tail=-1,
                     logs_limit_bytes=None,
-                    debug_printer=eprint):
+                    status_printer=eprint):
+    """
+    Dumps object definitions, pod logs, node journals, etc. to a directory structure.
+    :param base_dir: The directory in which to create the dump structure
+    :param dump_core_projects: Whether to collect information from objects in kube-system, openshift-node, etc.
+    :param dump_restricted_projects: Whether to collect information from objects in all kube-*, openshift_* in addition
+    to core.
+    :param additional_nodes: master nodes are collected by default. Specify additional nodes to collect. Expects
+    a list of names or qnames.
+    :param additional_projects: restricted projects are collected by default. Specify additional projects to collect
+     data from. Expects list of names or qnames.
+    :param additional_namespaced_kinds: Well known kinds are collected automatically (dc, pod, configmap, etc) but
+    you can specify additional kinds to include as a list of names.
+    :param include_crd_kinds: Whether to gather CRD instances as part of collection. Not recommended unless you
+    are running as system:admin, otherwise RBAC is a nightmare.
+    :param num_combined_journal_entries: How many entries from the full journal (all units combined).
+    :param num_critical_journal_entries: How many entries from critical units to pull (docker+crio+atomic-openshift-node).
+    :param log_timestamps: Include timetamps in pod log collection?
+    :param logs_since: --since parameter for pod log collection (e.g. '5h')
+    :param logs_tail: --tail parameter for pod log collection.
+    :param logs_limit_bytes: --limit-bytes
+    :param status_printer: Method which takes a single string parameter. Will be called with status strings as collection
+    proceeds. Defaults to stderr printing.
+    :return: N/A
+    """
+
     util.mkdir_p(base_dir)
 
-    if not debug_printer:
-        debug_printer = lambda: None
+    if not status_printer:
+        status_printer = lambda: None
 
     kinds = set(['ds', 'dc', 'build', 'statefulset', 'deployment', 'pod', 'rs', 'rc', 'configmap'])
     kinds.update(additional_namespaced_kinds)
@@ -595,13 +653,13 @@ def dumpinfo_system(base_dir,
             with project('openshift-sdn'):
                 # Find all pods created by the sdn daemonset.
                 sdn_pods = selector('ds/sdn').object().get_owned('pod')
-                debug_printer(u'Found {} sdn pods on cluster'.format(len(sdn_pods)))
+                status_printer(u'Found {} sdn pods on cluster'.format(len(sdn_pods)))
         except Exception as sdn_err:
-            debug_printer(u'Unable to get openshift-sdn pods: {}'.format(sdn_err))
+            status_printer(u'Unable to get openshift-sdn pods: {}'.format(sdn_err))
 
         # Use all_namespaces because logging components could be in 'logging' (older) or 'openshift-logging' (newer)
         fluentd_pods = selector('pod', labels={'component': 'fluentd'}, all_namespaces=True).objects()
-        debug_printer(u'Found {} fluentd pods on cluster'.format(len(fluentd_pods)))
+        status_printer(u'Found {} fluentd pods on cluster'.format(len(fluentd_pods)))
 
         overview_dir = util.mkdir_p(os.path.join(base_dir, 'overview'))
         with io.open(os.path.join(overview_dir, 'nodes.json'), mode='w', encoding='utf-8') as f:
@@ -617,7 +675,7 @@ def dumpinfo_system(base_dir,
             node_name = naming.qualify_name(node_name.lower(), 'node')  # make sure we have node/xyz
             node_qnames.add(node_name)
 
-        debug_printer(u'Attempting to gather on nodes: {}\n'.format(node_qnames))
+        status_printer(u'Attempting to gather on nodes: {}\n'.format(node_qnames))
         node_sel = selector(node_qnames)
 
         for node in node_sel.objects():
@@ -625,25 +683,39 @@ def dumpinfo_system(base_dir,
                           node, sdn_pods=sdn_pods, fluentd_pods=fluentd_pods,
                           num_critical_journal_entries=num_critical_journal_entries,
                           num_combined_journal_entries=num_combined_journal_entries,
-                          log_timestamps=log_timestamps,
-                          logs_since=logs_since,
-                          logs_tail=logs_tail,
-                          logs_limit_bytes=logs_limit_bytes,
-                          debug_printer=debug_printer,
+                          status_printer=status_printer,
                           )
 
-        projects = set(['kube-system', 'openshift-config', 'openshift-node'])
+        projects = set()
+        if dump_core_projects or dump_restricted_projects:
+            projects.update(['default',
+                             'openshift',
+                             'openshift-sdn',
+                             'kube-system',
+                             'openshift-config',
+                             'openshift-node',
+                             'openshift-console',
+                             'openshift-infra',
+                             ])
+
+        # if dumping restricted projects, add to core projects those which start with openshift-*, kube-*
+        if dump_restricted_projects:
+            projects.update([proj.name() for proj in selector('projects').objects() if
+                             proj.name().startswith(('openshift-', 'kube-'))])
+
+        # dump projects named by caller
         projects.update(additional_projects)
 
         for project_name in projects:
             dumpinfo_project(os.path.join(base_dir, 'project', project_name),
                              project_name,
                              kinds=kinds,
+                             limit_daemonsets_to_nodes=node_qnames,
                              log_timestamps=log_timestamps,
                              logs_since=logs_since,
                              logs_tail=logs_tail,
                              logs_limit_bytes=logs_limit_bytes,
-                             debug_printer=debug_printer,
+                             status_printer=status_printer,
                              )
 
 

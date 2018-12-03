@@ -422,13 +422,20 @@ class Selector(Result):
         util.print_logs(stream, self.logs(timestamps=timestamps, previous=previous, since=since, limit_bytes=limit_bytes, tail=tail, try_longshots=try_longshots, cmd_args=cmd_args))
 
     def describe(self, auto_raise=True, cmd_args=[]):
+        """
+        Runs oc describe against the selected objects and returns the string which results.
+        :param auto_raise: If True, an exception will be raised if an error occurs. If False,
+        the returned string will contain stderr.
+        :param cmd_args: Additional arguments to supply to oc describe.
+        :return: A string containing the oc describe output.
+        """
         r = Result("describe")
         r.add_action(oc_action(self.context, "describe", all_namespaces=self.all_namespaces,
                                cmd_args=[self._selection_args(), cmd_args]))
         if auto_raise:
             r.fail_if('Error during describe')
 
-        return r
+        return (r.out() + "\n" + r.err()).strip()
 
     def delete(self, ignore_not_found=True, cmd_args=[]):
         names = self.qnames()
