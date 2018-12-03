@@ -203,6 +203,30 @@ def invoke(verb, cmd_args=[], stdin_str=None, auto_raise=True):
     return r
 
 
+def get_pod_metrics(pod_obj, auto_raise=True):
+    """
+    Returns a 'PodMetrics' APIObject object for the specified pod.
+    e.g.
+    {"kind":"PodMetrics","apiVersion":"metrics.k8s.io/v1beta1","metadata":{"name":"sync-zv8ck","namespace":"openshift-node","selfLink":"/apis/metrics.k8s.io/v1beta1/namespaces/openshift-node/pods/sync-zv8ck","creationTimestamp":"2018-11-29T19:55:04Z"},"timestamp":"2018-11-29T19:54:30Z","window":"1m0s","containers":[{"name":"sync","usage":{"cpu":"0","memory":"35664Ki"}}]}
+    :param pod_obj: A Pod APIObject
+    :param auto_raise: If True, raise an exception if the command fails. Else return Missing.
+    :return: A 'PodMetrics' APIObject
+    """
+    r = Result('raw-metrics')
+    cmd_args = [
+        '--raw',
+        '/apis/metrics.k8s.io/v1beta1/namespaces/{}/pods/{}'.format(pod_obj.namespace(), pod_obj.name())
+    ]
+    r.add_action(oc_action(cur_context(), verb='get', cmd_args=cmd_args, no_namespace=True))
+
+    if auto_raise:
+        r.fail_if("Non-zero return code from get --raw to metrics.k8s.io")
+    elif r.status() != 0:
+        return Missing
+
+    return APIObject(string_to_model=r.out())
+
+
 def get_pods_by_node(node_name, auto_raise=True):
     """
     Returns a list<APIObject> where each APIObject is a pod running on the specified node.

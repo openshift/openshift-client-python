@@ -127,7 +127,7 @@ def _flatten_list(l):
     return agg
 
 
-def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=False,
+def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=False, namespace=None,
               references=None, stdin_obj=None, stdin_str=None, last_attempt=True,
               **kwargs):
     """
@@ -137,6 +137,7 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
     :param cmd_args: A list of strings|array<string> which will be flattened into oc arguments
     :param all_namespaces: If true, --all-namespaces will be included in the invocation
     :param no_namespace: If true, namespace will not be included in invocation
+    :param namespace: Namespace which will override context namespace if specified
     :param references: A dict of values to include in the tracking information for this action
     :param stdin_obj: A json serializable object to supply to stdin for the oc invocation
     :param stdin_str: If stdin is not a json serializable object. Cannot be specified in conjunction with stdin_obj.
@@ -171,6 +172,8 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
 
     if all_namespaces:
         cmds.append("--all-namespaces")
+    elif namespace:
+        cmds.append("--namespace=%s" % namespace)
     elif context.get_project() is not None and not no_namespace:
         cmds.append("--namespace=%s" % context.get_project())
 

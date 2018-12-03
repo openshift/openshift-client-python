@@ -69,6 +69,18 @@ class MissingModel(dict):
     def __repr__(self):
         return "(MissingModelBranch)"
 
+    def __div__(self, other):
+        return self
+
+    def __add__(self, other):
+        return self
+
+    def __sub__(self, other):
+        return self
+
+    def __mul__(self, other):
+        return self
+
     def can_match(self, *vals):
         return False
 

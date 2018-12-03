@@ -74,6 +74,10 @@ class Context(object):
             # you to use local 'oc' without having paramiko installed.
             import paramiko
 
+            # https://github.com/paramiko/paramiko/issues/175#issuecomment-24125451
+            paramiko.packet.Packetizer.REKEY_BYTES = pow(2, 40)
+            paramiko.packet.Packetizer.REKEY_PACKETS = pow(2, 40)
+
             self.ssh_client = paramiko.SSHClient()
             self.ssh_client.load_system_host_keys()
 
