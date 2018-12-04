@@ -1,5 +1,4 @@
 from .result import Result
-from .naming import expand_kinds
 from .naming import normalize_kinds, normalize_kind
 from .model import *
 from .util import split_names, is_collection_type
@@ -7,6 +6,7 @@ import util
 import json
 import time
 import sys
+
 
 def _normalize_object_list(ol):
     new_ol = []
@@ -50,7 +50,7 @@ class Selector(Result):
             # You can't query using labels without specifying a kind. Use 'all'.
             if kind_or_kinds_or_qname_or_qnames is None:
                 kind_or_kinds_or_qname_or_qnames = "all"
-            self.kinds = expand_kinds(kind_or_kinds_or_qname_or_qnames)
+            self.kinds = normalize_kinds(kind_or_kinds_or_qname_or_qnames)
 
         else:
 
