@@ -45,12 +45,13 @@ def normalize_kind(kind):
 
     # if the kind is in the dict, we are done
     if kind in _api_resource_lookup:
-        return kind
+        # Lookup the entry and return the real kind name
+        return _api_resource_lookup[kind].kind.lower()
 
     if kind.endswith("s"):
         singular_kind = kind[:-1]
         if singular_kind in _api_resource_lookup:
-            return singular_kind
+            return _api_resource_lookup[singular_kind].kind.lower()
 
     # if we kind find it, just assume the user knows what they are doing
     return kind

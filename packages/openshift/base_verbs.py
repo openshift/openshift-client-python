@@ -719,7 +719,7 @@ def dumpinfo_system(base_dir,
                              )
 
 
-def node_ssh_client(apiobj_node_name_or_qname,
+def node_ssh_client(apiobj_node_name_or_qname=None,
                     port=22,
                     username=None,
                     password=None,
@@ -730,7 +730,8 @@ def node_ssh_client(apiobj_node_name_or_qname,
                     ):
     """
     Returns a paramiko ssh client connected to the named cluster node. If a
-    :param node_name: The name of the node (e.g. oc get node THE_NAME)
+    :param apiobj_node_name_or_qname: The name of the node or the apiobject representing the node to ssh to. If None,
+    tries to return the ssh_client associated with current client_host context, if any.
     :param port: The ssh port
     :param username: The username to use
     :param password: The username's password
@@ -747,6 +748,9 @@ def node_ssh_client(apiobj_node_name_or_qname,
     # Just-in-time import to avoid hard dependency. Allows
     # you to use local 'oc' without having paramiko installed.
     import paramiko
+
+    if not apiobj_node_name_or_qname:
+        return cur_context().get_ssh_client()
 
     if isinstance(apiobj_node_name_or_qname, APIObject):
         apiobj = apiobj_node_name_or_qname

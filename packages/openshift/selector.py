@@ -309,16 +309,19 @@ class Selector(Result):
 
         return r.out()
 
-    def object(self, exportable=False):
+    def object(self, exportable=False, ignore_not_found=False):
         """
         Returns a single APIObject that represents the selected resource. If multiple
         resources are being selected an exception will be thrown (use objects() when
         there is a possibility of selecting multiple objects).
         :param exportable: Whether export should be used instead of get.
+        :param ignore_not_found: If True and no object exists, None will be returned instead of an exception.
         :return: A Model of the selected resource.
         """
         objs = self.objects(exportable)
         if len(objs) == 0:
+            if ignore_not_found:
+                return None
             raise OpenShiftPythonException("Expected a single object, but selected 0")
         elif len(objs) > 1:
             raise OpenShiftPythonException("Expected a single object, but selected more than one")
