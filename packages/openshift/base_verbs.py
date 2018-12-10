@@ -279,6 +279,16 @@ def get_server_version():
         if line.startswith('openshift '):
             return line.split()[1]
 
+    # If not found, this is a 4.0 cluster where this output line was removed. The best
+    # alternative is the version returned by the API.
+    r = Result('version')
+    r.add_action(oc_action(cur_context(), 'get', cmd_args=['--raw', '/apis/config.openshift.io/v1/clusterversions/version']))
+    r.fail_if('Error contacting clusterversions/version endpoint')
+
+    version_obj = APIObject(string_to_model=r.out())
+    if version_obj.model.status.current.version is not Missing:
+        return version_obj.model.status.current.version
+
     raise OpenShiftPythonException('Unable find version string in output')
 
 
@@ -670,7 +680,7 @@ def dumpinfo_system(base_dir,
             f.write(u'Client version: {}\n'.format(get_client_version()))
 
         # Start with a base set of master nodes and append additional nodes.
-        node_qnames = set(selector('node', labels={'node-role.kubernetes.io/master': True}).qnames())
+        node_qnames = set(selector('node', labels={'node-role.kubernetes.io/master': None}).qnames())
         for node_name in additional_nodes:
             node_name = naming.qualify_name(node_name.lower(), 'node')  # make sure we have node/xyz
             node_qnames.add(node_name)

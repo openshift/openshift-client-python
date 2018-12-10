@@ -114,7 +114,11 @@ class Selector(Result):
             for k, v in self.labels.iteritems():
                 if isinstance(v, bool):  # booleans in json/yaml need to be lowercase
                     v = '{}'.format(v).lower()
-                pairs.append('{}={}'.format(k, v))
+                if v is not None:
+                    pairs.append('{}={}'.format(k, v))
+                else:
+                    # In this case, just search for existence
+                    pairs.append('{}'.format(k))
             sel += ','.join(pairs)
             args.append(sel)
         elif needs_all:
@@ -617,7 +621,7 @@ def selector(kind_or_kinds_or_qname_or_qnames=None, labels=None, all_namespaces=
     :param kind_or_kinds_or_qname_or_qnames: A kind ('pod'), qualified name ('pod/some_name') or
         a list of qualified names ['pod/abc', 'pod/def'].
     :param labels: labels to require for the specified kind (AND logic is applied). Do not use in conjunction with
-        qnames.
+        qnames. If dict value of label is None, this will translate to -l labelname  (without equal sign).
     :param all_namespaces: Whether the selector should select from all namespaces.
     :param static_context: Usually, a selector will select from its current context. For example,
         openshift.selector('pods') will select pods from the openshift.project(..) in which it resides. Selectors
