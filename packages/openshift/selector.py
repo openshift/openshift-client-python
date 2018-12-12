@@ -445,12 +445,17 @@ class Selector(Result):
         return (r.out() + "\n" + r.err()).strip()
 
     def delete(self, ignore_not_found=True, cmd_args=[]):
+        """
+        :param ignore_not_found: If True, named resources which are not present will not raise an error.
+        :param cmd_args: Additional delete arguments
+        :return: Returns a list of qualified object names which were deleted.
+        """
         names = self.qnames()
 
         r = Result("delete")
 
         if len(names) == 0:
-            return r
+            return []
 
         cmd_args = list(cmd_args)
         if ignore_not_found:
@@ -461,8 +466,7 @@ class Selector(Result):
                                cmd_args=[self._selection_args(needs_all=True), cmd_args]))
 
         r.fail_if("Error deleting objects")
-        r.object_list = split_names(r.out())
-        return r
+        return split_names(r.out())
 
     def label(self, labels, overwrite=True, cmd_ags=[]):
 
