@@ -326,13 +326,13 @@ def blank():
     return c
 
 
-def client_host(hostname=DEFAULT_SSH_HOSTNAME, port=DEFAULT_SSH_PORT, username=DEFAULT_SSH_USERNAME, password=None, auto_add_host=DEFAULT_SSH_AUTO_ADD, connect_timeout=600):
+def client_host(hostname=None, port=DEFAULT_SSH_PORT, username=DEFAULT_SSH_USERNAME, password=None, auto_add_host=DEFAULT_SSH_AUTO_ADD, connect_timeout=600):
     """
     Will ssh to the specified host to in order to run oc commands. If hostname is not specified,
     the environment variable OPENSHIFT_PYTHON_DEFAULT_SSH_HOSTNAME will be used. If the environment variable is
     not defined, this context will have no effect and the current host will be assumed to be the
     host on which oc will be run.
-    :param hostname: The hostname or IP address. Defaults to environment variable OPENSHIFT_PYTHON_DEFAULT_SSH_HOSTNAME then None.
+    :param hostname: The hostname or IP address. Defaults to environment variable OPENSHIFT_PYTHON_DEFAULT_SSH_HOSTNAME if None.
     :param port: The ssh port. Defaults to OPENSHIFT_PYTHON_DEFAULT_SSH_PORT, then None.
     :param username: The username to use. Defaults to OPENSHIFT_PYTHON_DEFAULT_USERNAME, then None.
     :param password: The username's password
@@ -341,6 +341,9 @@ def client_host(hostname=DEFAULT_SSH_HOSTNAME, port=DEFAULT_SSH_PORT, username=D
     :return:
     """
     c = Context()
+
+    if hostname is None:
+        hostname = DEFAULT_SSH_HOSTNAME
 
     c.ssh_hostname = hostname
     c.ssh_port = port

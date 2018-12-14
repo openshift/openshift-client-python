@@ -25,7 +25,7 @@ with oc.tracking() as t:
                     'cr_annotation_test': None,
                 })
 
-                oc.selector('node/ip-172-31-79-85.us-east-2.compute.internal').object().patch({
+                oc.selector('node/pod_ip-172-31-79-85.us-east-2.compute.internal').object().patch({
                     'metadata': {
                         'annotations': {
                             'cr_patch': 'yes'
