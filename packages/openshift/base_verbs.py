@@ -13,7 +13,7 @@ import base64
 import io
 import sys
 import traceback
-
+import time
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -113,7 +113,7 @@ def _to_dict_list(dict_or_model_or_apiobject_or_list_thereof):
 
     for i in dict_or_model_or_apiobject_or_list_thereof:
         if isinstance(i, APIObject):
-            i = i.model()
+            i = i.model
 
         if isinstance(i, Model):
             i = i._primitive()
@@ -124,6 +124,34 @@ def _to_dict_list(dict_or_model_or_apiobject_or_list_thereof):
         l.append(i)
 
     return l
+
+
+def drain_node(node_name, ignore_daemonsets=True, delete_local_data=True, force=False, timeout_seconds=None,
+               grace_period_seconds=None, cmd_args=[], auto_raise=True):
+    r = Result('drain')
+    args = list(cmd_args)
+
+    if ignore_daemonsets:
+        args.append('--ignore-daemonsets')
+
+    if delete_local_data:
+        args.append('--delete-local-data')
+
+    if force:
+        args.append('--force')
+
+    if timeout_seconds is not None and timeout_seconds > 0:
+        args.append('--timeout={}s'.format(timeout_seconds))
+
+    if grace_period_seconds is not None and grace_period_seconds > -1:
+        args.append('--grace-period={}'.format(grace_period_seconds))
+
+    r.add_action(oc_action(cur_context(), 'adm', cmd_args=['drain', node_name, args], no_namespace=True))
+
+    if auto_raise:
+        r.fail_if('Error during drain of node: {}'.format(node_name))
+
+    return r
 
 
 def create(dict_or_model_or_apiobject_or_list_thereof, cmd_args=[]):
@@ -282,7 +310,8 @@ def get_server_version():
     # If not found, this is a 4.0 cluster where this output line was removed. The best
     # alternative is the version returned by the API.
     r = Result('version')
-    r.add_action(oc_action(cur_context(), 'get', cmd_args=['--raw', '/apis/config.openshift.io/v1/clusterversions/version']))
+    r.add_action(
+        oc_action(cur_context(), 'get', cmd_args=['--raw', '/apis/config.openshift.io/v1/clusterversions/version']))
     r.fail_if('Error contacting clusterversions/version endpoint')
 
     version_obj = APIObject(string_to_model=r.out())
@@ -739,7 +768,8 @@ def node_ssh_client(apiobj_node_name_or_qname=None,
                     address_type_pref="ExternalDNS,ExternalIP,Hostname"
                     ):
     """
-    Returns a paramiko ssh client connected to the named cluster node. If a
+    Returns a paramiko ssh client connected to the named cluster node. The caller is responsible for closing the
+    connection -- use as a contextmanager is recommended.
     :param apiobj_node_name_or_qname: The name of the node or the apiobject representing the node to ssh to. If None,
     tries to return the ssh_client associated with current client_host context, if any.
     :param port: The ssh port
@@ -773,8 +803,7 @@ def node_ssh_client(apiobj_node_name_or_qname=None,
 
         apiobj = selector(qname).object()
 
-    eprint("Checking node: {}".format(apiobj.qname()))
-    address_entries = apiobj.model().status.addresses
+    address_entries = apiobj.model.status.addresses
 
     if address_entries is Missing:
         raise IOError("Error finding addresses associated with: {}".format(apiobj.qname()))
@@ -807,7 +836,6 @@ def node_ssh_client(apiobj_node_name_or_qname=None,
                 if not password:
                     password = cur_context().get_ssh_password()
 
-            eprint("Trying: {}".format(address))
             ssh_client.connect(hostname=address, port=port, username=username,
                                password=password, timeout=connect_timeout,
                                sock=host_sock)
@@ -818,3 +846,101 @@ def node_ssh_client(apiobj_node_name_or_qname=None,
             return ssh_client
 
     raise IOError("Unable to find any address with type ({}) for: {}".format(address_type_pref, apiobj.qname()))
+
+
+def node_ssh_await(apiobj_node_name_or_qname=None,
+                   timeout_seconds=600,
+                   port=22,
+                   username=None,
+                   password=None,
+                   auto_add_host=True,
+                   through_client_host=True,
+                   address_type_pref="ExternalDNS,ExternalIP,Hostname"):
+
+    """
+    Periodically attempts to connect to a node's ssh server.
+    :param apiobj_node_name_or_qname:
+    :param timeout_seconds:
+    :param port:
+    :param username:
+    :param password:
+    :param auto_add_host:
+    :param connect_timeout:
+    :param through_client_host:
+    :param address_type_pref:
+    :return: N/A, but throws the last exception received if timeout occurs.
+    """
+
+    timeout_seconds = int(timeout_seconds)
+    timeout_start = time.time()
+
+    while time.time() < timeout_start + timeout_seconds:
+        try:
+            with node_ssh_client(apiobj_node_name_or_qname=apiobj_node_name_or_qname,
+                                 port=port,
+                                 username=username,
+                                 password=password,
+                                 auto_add_host=auto_add_host,
+                                 connect_timeout=25,
+                                 through_client_host=through_client_host,
+                                 address_type_pref=address_type_pref) as ssh_client:
+                return
+
+        except Exception as e:
+            last_e = e
+            time.sleep(10)
+
+    raise last_e
+
+
+def node_ssh_client_exec(apiobj_node_name_or_qname=None,
+                         cmd_str=None,
+                         stdin_str=None,
+                         port=22,
+                         username=None,
+                         password=None,
+                         auto_add_host=True,
+                         connect_timeout=600,
+                         through_client_host=True,
+                         address_type_pref="ExternalDNS,ExternalIP,Hostname"
+                         ):
+    """
+    Executes a single command on the remote host via ssh and returns rc, stdout, stderr. Closes the connection
+    afterwards.
+    :param apiobj_node_name_or_qname: The name of the node or the apiobject representing the node to ssh to. If None,
+    tries to return the ssh_client associated with current client_host context, if any.
+    :param cmd_str: The command to execute on the remote host
+    :param stdin_str: String to supply to stdin (or None if none)
+    :param port: The ssh port
+    :param username: The username to use
+    :param password: The username's password
+    :param auto_add_host: Whether to auto accept host certificates
+    :param connect_timeout: Connection timeout
+    :param through_client_host: If True, and client_host is being used, ssh will be initiated
+    through the client_host ssh connection. Username/password used for client_host will propagate
+    unless overridden.
+    :param address_type_pref: Comma delimited list of node address types. Types will be tried in
+            the order specified.
+    :return: rc, stdout, stderr
+    """
+
+    with node_ssh_client(apiobj_node_name_or_qname=apiobj_node_name_or_qname,
+                         port=port,
+                         username=username,
+                         password=password,
+                         auto_add_host=auto_add_host,
+                         connect_timeout=connect_timeout,
+                         through_client_host=through_client_host,
+                         address_type_pref=address_type_pref) as ssh_client:
+        ssh_stdin, ssh_stdout, ssh_stderr = ssh_client.exec_command(cmd_str)
+
+        if stdin_str:
+            ssh_stdin.write(stdin_str)
+            ssh_stdin.flush()
+            ssh_stdin.channel.shutdown_write()
+
+        stdout = ssh_stdout.read().decode('utf-8', errors='ignore')
+        stderr = ssh_stderr.read().decode('utf-8', errors='ignore')
+        return_code = ssh_stdout.channel.recv_exit_status()
+
+        return return_code, stdout, stderr

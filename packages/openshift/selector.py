@@ -112,13 +112,27 @@ class Selector(Result):
             sel = "--selector="
             pairs = []
             for k, v in self.labels.iteritems():
+
+                negate = False
+                if k.startswith('!'):
+                    # Strip the '!'
+                    k = k[1:]
+                    negate = True
+
                 if isinstance(v, bool):  # booleans in json/yaml need to be lowercase
                     v = '{}'.format(v).lower()
-                if v is not None:
-                    pairs.append('{}={}'.format(k, v))
+
+                if util.is_collection_type(v):  # if a list or tuple was supplied as the value, use in/notin
+                    # e.g. 'region in (us-east-1, us-east-2)'
+                    pairs.append('{} {} ({})'.format(k, 'notin' if negate else 'in', ','.join(v)))
+                elif v is not None:
+                    pairs.append('{}{}{}'.format(k, '!=' if negate else '=', v))
                 else:
-                    # In this case, just search for existence
-                    pairs.append('{}'.format(k))
+                    # In this case, just search for existence. Logic seems reversed, but isn't.
+                    #  { '!labelname' : None }    should check for existence; read as 'not labelname == None'
+                    #  { 'labelname' : None }    should check for absence; read as 'labelname == None'
+                    pairs.append('{}{}'.format('' if negate else '!', k))
+
             sel += ','.join(pairs)
             args.append(sel)
         elif needs_all:
@@ -625,7 +639,11 @@ def selector(kind_or_kinds_or_qname_or_qnames=None, labels=None, all_namespaces=
     :param kind_or_kinds_or_qname_or_qnames: A kind ('pod'), qualified name ('pod/some_name') or
         a list of qualified names ['pod/abc', 'pod/def'].
     :param labels: labels to require for the specified kind (AND logic is applied). Do not use in conjunction with
-        qnames. If dict value of label is None, this will translate to -l labelname  (without equal sign).
+        qnames.
+        - If label name starts with '!', not-equal logic will be applied (label!=value).
+        - If dict value is a list/set, evaluates to 'in' or 'notin' selector expression.
+        - {'labelname': None}  (read as labelname is None)  performs '-l !labelname' search
+        - {'!labelname': None} (read as labelname is not None) performs '-l labelname'
     :param all_namespaces: Whether the selector should select from all namespaces.
     :param static_context: Usually, a selector will select from its current context. For example,
         openshift.selector('pods') will select pods from the openshift.project(..) in which it resides. Selectors

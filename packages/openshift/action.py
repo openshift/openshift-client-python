@@ -224,8 +224,6 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
 
                 command_string += c
 
-            # print "Running: {}".format(command_string)
-
             try:
 
                 # This timeout applies to individual read / write channel operations which follow.

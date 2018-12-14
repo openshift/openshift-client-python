@@ -432,28 +432,34 @@ class APIObject:
         r.fail_if("Error refreshing object content")
         return self
 
-    def label(self, labels, overwrite=True, cmd_args=[]):
+    def label(self, labels, overwrite=True, cmd_args=[], refresh_model=True):
         """"
         Sends a request to the server to label this API object.
         :param labels: A dictionary of labels to apply to the object. If value is None, label will be removed.
         :param overwrite: Whether to pass the --overwrite argument.
+        :param refresh_model: Whether to refresh apiobject model after label is applied.
         :return: Result
         """
 
         result = self.self_selector().label(labels, overwrite, cmd_ags=cmd_args)
-        self.refresh()
+        if refresh_model:
+            self.refresh()
         return result
 
-    def annotate(self, annotations, overwrite=True, cmd_args=[]):
+    def annotate(self, annotations, overwrite=True, cmd_args=[], refresh_model=True):
         """"
         Sends a request to the server to annotate this API object
         :param annotations: A dictionary of annotations to apply to the object. If value is None, annotation will be removed.
         :param overwrite: Whether to pass the --overwrite argument.
         :param cmd_args: Additional list of arguments to pass on the command line.
+        :param refresh_model: Whether to refresh apiobject model after label is applied.
         :return: Result
         """
         result = self.self_selector().annotate(annotations=annotations, overwrite=overwrite, cmd_args=cmd_args)
-        self.refresh()
+
+        if refresh_model:
+            self.refresh()
+
         return result
 
     def patch(self, patch_dict, strategy="strategic", cmd_args=[]):
