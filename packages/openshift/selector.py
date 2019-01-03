@@ -246,26 +246,33 @@ class Selector(Result):
 
         return Selector("freeze", object_list=self.qnames())
 
-    def union(self, with_selector):
+    def union(self, *args):
         """
-        :param with_selector: A selector with which to union
-        :return: Returns a static selector which will select the object names associated with the receiver AND
-            the argument.
+        :param args: One or more selectors to union with.
+        :return: Returns a static selector which will select the objects selected by the receiver and any of the
+            selectors passed in as arguments.
         """
-        s1 = set(self.qnames())
-        s2 = set(with_selector.qnames())
-        qnames = list(s1.union(s2))
+
+        collector = set(self.qnames())
+        for sel in args:
+            s2 = set(sel.qnames())
+            collector = collector.union(s2)
+
+        qnames = list(collector)
         return Selector("union", object_list=qnames)
 
-    def intersect(self, with_selector):
+    def intersect(self, *args):
         """
-        :param with_selector: A selector with which to intersect
-        :return: Returns a static selector which will select the object names associated with the receiver intersected
-            with the argument.
+        :param args: One or more selectors to intersect with.
+        :return: Returns a static selector which will select the object names selected by the
+            receiver AND ALL arguments.
         """
-        s1 = set(self.qnames())
-        s2 = set(with_selector.qnames())
-        qnames = list(s1.intersection(s2))
+        collector = set(self.qnames())
+        for sel in args:
+            s2 = set(sel.qnames())
+            collector = collector.intersection(s2)
+
+        qnames = list(collector)
         return Selector("intersect", object_list=qnames)
 
     def subtract(self, with_selector):
@@ -462,6 +469,7 @@ class Selector(Result):
         """
         :param ignore_not_found: If True, named resources which are not present will not raise an error.
         :param cmd_args: Additional delete arguments
+        :param wait_for: Include an `oc wait --for=delete ...` for each resource deleted
         :return: Returns a list of qualified object names which were deleted.
         """
         names = self.qnames()
