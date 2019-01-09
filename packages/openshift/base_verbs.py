@@ -709,7 +709,7 @@ def dumpinfo_system(base_dir,
             f.write(u'Client version: {}\n'.format(get_client_version()))
 
         # Start with a base set of master nodes and append additional nodes.
-        node_qnames = set(selector('node', labels={'node-role.kubernetes.io/master': None}).qnames())
+        node_qnames = set(selector('node', labels={'!node-role.kubernetes.io/master': None}).qnames())
         for node_name in additional_nodes:
             node_name = naming.qualify_name(node_name.lower(), 'node')  # make sure we have node/xyz
             node_qnames.add(node_name)
