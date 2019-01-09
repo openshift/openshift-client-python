@@ -465,19 +465,11 @@ def dumpinfo_apiobject(output_dir,
     status_printer('Gathering information for {}'.format(obj.fqname()))
 
     with no_tracking():
-        with io.open(prefix + '.describe.txt', mode='w', encoding="utf-8") as f:
-            f.write(obj.describe(auto_raise=False))
-
-        if not naming.kind_matches(obj.kind(), 'secret'):
-            with io.open(prefix + '.json', mode='w', encoding="utf-8") as f:
-                f.write(obj.as_json())
 
         if obj.is_kind(['pod', 'build']):
 
-            skip_logs = False
-
             if limit_daemonsets_to_nodes is not None:
-                # if this is a pod and a member of a daemonset, only output logs
+                # if this is a pod and a member of a daemonset, only output information
                 # if the pod is running on a node listed in limit_daemonsets_to_nodes
 
                 ldn = []
@@ -489,18 +481,24 @@ def dumpinfo_apiobject(output_dir,
                 }):
                     running_on_node = naming.qualify_name(obj.model.spec.nodeName, 'node')
                     if running_on_node not in ldn:
-                        skip_logs = True
+                        status_printer(
+                            'Skipping information collection for daemonset pod on non-collected node: {}'.format(obj.fqname()))
+                        return
 
-            if skip_logs:
-                status_printer(
-                    'Skipping log collection for daemonset pod on non-collected node: {}'.format(obj.fqname()))
-            else:
-                with io.open(prefix + '.logs.txt', mode='w', encoding="utf-8") as f:
-                    obj.print_logs(f,
-                                   timestamps=log_timestamps,
-                                   since=logs_since,
-                                   tail=logs_tail,
-                                   limit_bytes=logs_limit_bytes)
+            with io.open(prefix + '.logs.txt', mode='w', encoding="utf-8") as f:
+                obj.print_logs(f,
+                               timestamps=log_timestamps,
+                               since=logs_since,
+                               tail=logs_tail,
+                               limit_bytes=logs_limit_bytes)
+
+        with io.open(prefix + '.describe.txt', mode='w', encoding="utf-8") as f:
+            f.write(obj.describe(auto_raise=False))
+
+        if not naming.kind_matches(obj.kind(), 'secret'):
+            with io.open(prefix + '.json', mode='w', encoding="utf-8") as f:
+                f.write(obj.as_json())
+
 
 
 def dumpinfo_node(output_dir,
@@ -584,7 +582,7 @@ def dumpinfo_project(dir,
     :param project_name: The name or qualified name of the project
     :param kinds: A list of kinds to collect data on within the project (defaults to generally import kinds like
     deployments, pods, configmaps, etc.)
-    :param limit_daemonsets_to_nodes: A list of names or qualified names. If specified, pod logs for daemonsets
+    :param limit_daemonsets_to_nodes: A list of names or qualified names. If specified, pod information for daemonsets
     will only be collected for nodes named in this list. If None, all pods for daemonsets will be collected.
     :param log_timestamps: Whether to include timestamps in pod logs
     :param logs_since: --since for oc logs on pods
