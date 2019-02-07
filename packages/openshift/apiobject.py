@@ -579,7 +579,7 @@ class APIObject:
         """
         Returns a list of apiobjects which are declare an object of this kind/name
         as their owner.
-        :param find_kind: The kind to check for ownerReferenes
+        :param find_kind: The kind to check for ownerReferences
         :return: A (potentially empty) list of APIObjects owned by this object
         """
 

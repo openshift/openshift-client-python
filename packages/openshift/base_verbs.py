@@ -265,7 +265,6 @@ def get_pods_by_node(node_name, auto_raise=True):
     """
     # permit node/xyz and strip it off
     _, _, node_name = naming.split_fqn(node_name)
-
     r = Result('get_pods_by_node')
     r.add_action(oc_action(cur_context(), verb='adm', cmd_args=['manage-node', node_name, '--list-pods', '-o=json']))
 
