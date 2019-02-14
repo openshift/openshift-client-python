@@ -98,6 +98,62 @@ def to_model_or_val(v):
         return v
 
 
+def _element_can_match( master, test):
+    if master is Missing:
+        return False
+
+    if master is None or test is None:
+        return master is test
+
+    if isinstance(master, str):
+        master = unicode(master)  # Turn str into unicode
+
+    if isinstance(test, str):
+        test = unicode(test)  # Turn str into unicode
+
+    for prim in [bool, int, unicode, float]:
+        if isinstance(master, prim):
+            return master == test or str(master) == str(test)
+
+    if isinstance(master, dict):
+        if isinstance(test, dict):
+            return _dict_is_subset(master, test)
+        else:
+            return False
+
+    if isinstance(master, list):
+        if isinstance(test, list):
+            return _list_is_subset(master, test)
+        else:
+            return False
+
+    raise ModelError("Don't know how to compare %s and %s" % (str(type(master)), str(type(test))))
+
+
+def _element_in_list(master, e):
+    for m in master:
+        if _element_can_match(m, e):
+            return True
+    return False
+
+
+def _list_is_subset(master, test):
+
+    for e in test:
+        if not _element_in_list(master, e):
+            return False
+    return True
+
+
+def _dict_is_subset(master, subset):
+    for k, v in subset.items():
+        m = master.get(k, Missing)
+        if not _element_can_match(m, v):
+            return False
+
+    return True
+
+
 class ListModel(list):
 
     def __init__(self, list_to_model):
@@ -137,60 +193,16 @@ class ListModel(list):
             l.append(e)
         return l
 
-    def _element_can_match(self, master, test):
-        if master is Missing:
-            return False
-
-        if master is None or test is None:
-            return master is test
-
-        if isinstance(master, str):
-            master = unicode(master)  # Turn str into unicode
-
-        if isinstance(test, str):
-            test = unicode(test)  # Turn str into unicode
-
-        for prim in [bool, int, unicode, float]:
-            if isinstance(master, prim):
-                return master == test or str(master) == str(test)
-
-        if isinstance(master, dict):
-            if isinstance(test, dict):
-                return self._dict_is_subset(master, test)
-            else:
-                return False
-
-        if isinstance(master, list):
-            if isinstance(test, list):
-                return self._list_is_subset(master, test)
-            else:
-                return False
-
-        raise ModelError("Don't know how to compare %s and %s" % (str(type(master)), str(type(test))))
-
-    def _element_in_list(self, master, e):
-        for m in master:
-            if self._element_can_match(m, e):
-                return True
-        return False
-
-    def _list_is_subset(self, master, test):
-
-        for e in test:
-            if not self._element_in_list(master, e):
-                return False
-        return True
-
-    def _dict_is_subset(self, master, subset):
-        for k, v in subset.items():
-            m = master.get(k, Missing)
-            if not self._element_can_match(m, v):
-                return False
-
-        return True
-
     def can_match(self, *vals):
-        return self._list_is_subset(self, vals)
+        """
+        Answers whether this list contains values / objects which match those in the arguments. The arguments
+        are considered a list that must be a subset of this list.
+        Elements of the subset can be primitives, lists, or dicts. In the case of non-primitives, the list or
+         dicts must ultimately be subsets of at least one element in the receiver list.
+        :param vals: One or more elements that must 'match' elements in this list.
+        :return: Returns true if all of the elements specify can match (i.e. are subsets of) elements of this list.
+        """
+        return _list_is_subset(self, vals)
 
 
 class Model(dict):
@@ -235,3 +247,11 @@ class Model(dict):
                 v = v._primitive()
             d[k] = v
         return d
+
+    def can_match(self, val):
+        """
+        Answers whether this Model matches all elements of the argument.
+        :param val: A dict or Model with elements set that must be found within this model.
+        :return: Returns true if all of the elements can match (i.e. are subsets of) elements of this list.
+        """
+        return _dict_is_subset(self, val)

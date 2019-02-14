@@ -94,7 +94,37 @@ class TestStringMethods(unittest.TestCase):
         self.assertEqual(m.d, False)
         self.assertEqual(m.e, None)
 
-    def test_match(self):
+    def test_dict_match(self):
+
+        d = Model({
+            'a': 1,
+            'b': 2,
+            'c': {
+                'x': 1,
+                'y': 2,
+                'z': ['z1', 'z2', 'z3']
+            }
+        })
+
+        self.assertTrue(d.can_match({'a': 1}))
+        self.assertFalse(d.can_match({'a': 3}))
+
+        self.assertTrue(d.can_match({'a': 1, 'b': 2}))
+        self.assertFalse(d.can_match({'a': 1, 'b': 4}))
+        self.assertFalse(d.can_match({'a': 1, 'r': 4}))
+
+        self.assertTrue(d.can_match({'a': 1, 'b': 2, 'c': {}}))
+        self.assertTrue(d.can_match({'a': 1, 'b': 2, 'c': {'x': 1}}))
+        self.assertFalse(d.can_match({'a': 1, 'b': 2, 'c': {'x': 2}}))
+        self.assertTrue(d.can_match({'a': 1, 'b': 2, 'c': {'x': 1, 'y': 2}}))
+        self.assertFalse(d.can_match({'a': 1, 'b': 2, 'c': {'x': 1, 'y': 3}}))
+
+        self.assertTrue(d.can_match({'a': 1, 'b': 2, 'c': {'x': 1, 'y': 2, 'z': []}}))
+        self.assertTrue(d.can_match({'a': 1, 'b': 2, 'c': {'x': 1, 'y': 2, 'z': ['z1']}}))
+        self.assertTrue(d.can_match({'a': 1, 'b': 2, 'c': {'x': 1, 'y': 2, 'z': ['z1', 'z2']}}))
+        self.assertFalse(d.can_match({'a': 1, 'b': 2, 'c': {'x': 1, 'y': 2, 'z': ['z1', 'z5']}}))
+
+    def test_list_match(self):
 
         l1 = ListModel(["a", "b", "c"])
         self.assertTrue(l1.can_match("b", "c"))
