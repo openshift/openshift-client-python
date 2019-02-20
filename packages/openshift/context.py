@@ -28,6 +28,7 @@ DEFAULT_SSH_HOSTNAME = os.getenv("OPENSHIFT_PYTHON_DEFAULT_SSH_HOSTNAME", None)
 DEFAULT_SSH_USERNAME = os.getenv("OPENSHIFT_PYTHON_DEFAULT_SSH_USERNAME", None)
 DEFAULT_SSH_PORT = int(os.getenv("OPENSHIFT_PYTHON_DEFAULT_SSH_PORT", "22"))
 DEFAULT_SSH_AUTO_ADD = os.getenv("OPENSHIFT_PYTHON_DEFAULT_SSH_AUTO_ADD", "false").lower() in ("yes", "true", "t", "y", "1")
+DEFAULT_LOAD_SYSTEM_HOST_KEYS = os.getenv("OPENSHIFT_PYTHON_DEFAULT_LOAD_SYSTEM_HOST_KEYS", "true").lower() in ("yes", "true", "t", "y", "1")
 
 # Environment variable can specify generally how long openshift operations can execute before an exception
 MASTER_TIMEOUT = int(os.getenv("OPENSHIFT_PYTHON_MASTER_TIMEOUT", -1))
@@ -62,6 +63,7 @@ class Context(object):
         self.ssh_password = None
         self.ssh_timeout = 600
         self.ssh_auto_add_host = False
+        self.ssh_load_system_host_keys = True
 
     def __enter__(self):
         if len(context.stack) > 0:
@@ -79,8 +81,12 @@ class Context(object):
             paramiko.packet.Packetizer.REKEY_PACKETS = pow(2, 40)
 
             self.ssh_client = paramiko.SSHClient()
-            self.ssh_client.load_system_host_keys()
 
+            # Should we load known_hosts?
+            if self.ssh_load_system_host_keys:
+                self.ssh_client.load_system_host_keys()
+
+            # Should we trust an unknown host?
             if self.ssh_auto_add_host:
                 self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
@@ -326,17 +332,22 @@ def blank():
     return c
 
 
-def client_host(hostname=None, port=DEFAULT_SSH_PORT, username=DEFAULT_SSH_USERNAME, password=None, auto_add_host=DEFAULT_SSH_AUTO_ADD, connect_timeout=600):
+def client_host(hostname=None, port=DEFAULT_SSH_PORT, username=DEFAULT_SSH_USERNAME, password=None,
+                auto_add_host=DEFAULT_SSH_AUTO_ADD, load_system_host_keys=DEFAULT_LOAD_SYSTEM_HOST_KEYS,
+                connect_timeout=600):
     """
     Will ssh to the specified host to in order to run oc commands. If hostname is not specified,
     the environment variable OPENSHIFT_PYTHON_DEFAULT_SSH_HOSTNAME will be used. If the environment variable is
     not defined, this context will have no effect and the current host will be assumed to be the
     host on which oc will be run.
     :param hostname: The hostname or IP address. Defaults to environment variable OPENSHIFT_PYTHON_DEFAULT_SSH_HOSTNAME if None.
+            If the hostname is of the form 'user@host', the string will be split and the user will take precedence over
+            any argument / environment variable supplied.
     :param port: The ssh port. Defaults to OPENSHIFT_PYTHON_DEFAULT_SSH_PORT, then None.
     :param username: The username to use. Defaults to OPENSHIFT_PYTHON_DEFAULT_USERNAME, then None.
     :param password: The username's password
-    :param auto_add_host: Whether to auto accept host certificates. Defaults to OPENSHIFT_PYTHON_DEFAULT_SSH_AUTO_ADD, then None.
+    :param auto_add_host: Whether to auto accept host certificates. Defaults to OPENSHIFT_PYTHON_DEFAULT_SSH_AUTO_ADD, then false.
+    :param load_system_host_keys: Whether load known_hosts. Defaults to DEFAULT_LOAD_SYSTEM_HOST_KEYS, then true.
     :param connect_timeout: Connection timeout
     :return:
     """
@@ -345,12 +356,17 @@ def client_host(hostname=None, port=DEFAULT_SSH_PORT, username=DEFAULT_SSH_USERN
     if hostname is None:
         hostname = DEFAULT_SSH_HOSTNAME
 
-    c.ssh_hostname = hostname
+    if '@' in hostname:
+        c.ssh_username, c.ssh_hostname = hostname.split('@', 1)
+    else:
+        c.ssh_hostname = hostname
+        c.ssh_username = username
+
     c.ssh_port = port
-    c.ssh_username = username
     c.ssh_password = password
     c.ssh_timeout = connect_timeout
     c.ssh_auto_add_host = auto_add_host
+    c.ssh_load_system_host_keys = load_system_host_keys
 
     return c
 

@@ -226,9 +226,11 @@ def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=Fal
 
             try:
 
+                pathed_command = 'PATH=$PATH:$HOME/bin {}'.format(command_string)
+
                 # This timeout applies to individual read / write channel operations which follow.
                 # If paramiko fails to timeout, consider using polling: https://stackoverflow.com/a/45844203
-                ssh_stdin, ssh_stdout, ssh_stderr = context.get_ssh_client().exec_command(command=command_string,
+                ssh_stdin, ssh_stdout, ssh_stderr = context.get_ssh_client().exec_command(command=pathed_command,
                                                                                           timeout=context.get_min_remaining_seconds(),
                                                                                           environment={
                                                                                               'LC_ALL': 'en_US.UTF-8',
