@@ -356,7 +356,7 @@ def client_host(hostname=None, port=DEFAULT_SSH_PORT, username=DEFAULT_SSH_USERN
     if hostname is None:
         hostname = DEFAULT_SSH_HOSTNAME
 
-    if '@' in hostname:
+    if hostname and '@' in hostname:
         c.ssh_username, c.ssh_hostname = hostname.split('@', 1)
     else:
         c.ssh_hostname = hostname
