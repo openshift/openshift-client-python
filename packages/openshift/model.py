@@ -97,16 +97,16 @@ class MissingModel(dict):
 Missing = MissingModel()
 
 
-def to_model_or_val(v):
+def to_model_or_val(v, case_insensitive=False):
     if isinstance(v, list):
-        return ListModel(v)
+        return ListModel(v, case_insensitive=case_insensitive)
     elif isinstance(v, dict):
-        return Model(v)
+        return Model(v, case_insensitive=case_insensitive)
     else:
         return v
 
 
-def _element_can_match( master, test):
+def _element_can_match( master, test, case_insensitive=False):
     if master is Missing:
         return False
 
@@ -115,9 +115,13 @@ def _element_can_match( master, test):
 
     if isinstance(master, str):
         master = unicode(master)  # Turn str into unicode
+        if case_insensitive:
+            master = master.lower()
 
     if isinstance(test, str):
         test = unicode(test)  # Turn str into unicode
+        if case_insensitive:
+            test = test.lower()
 
     for prim in [bool, int, unicode, float]:
         if isinstance(master, prim):
@@ -125,38 +129,39 @@ def _element_can_match( master, test):
 
     if isinstance(master, dict):
         if isinstance(test, dict):
-            return _dict_is_subset(master, test)
+            return _dict_is_subset(master, test, case_insensitive=case_insensitive)
         else:
             return False
 
     if isinstance(master, list):
         if isinstance(test, list):
-            return _list_is_subset(master, test)
+            return _list_is_subset(master, test, case_insensitive=case_insensitive)
         else:
             return False
 
     raise ModelError("Don't know how to compare %s and %s" % (str(type(master)), str(type(test))))
 
 
-def _element_in_list(master, e):
+def _element_in_list(master, e, case_insensitive=False):
     for m in master:
-        if _element_can_match(m, e):
+        if _element_can_match(m, e, case_insensitive=case_insensitive):
             return True
     return False
 
 
-def _list_is_subset(master, test):
-
+def _list_is_subset(master, test, case_insensitive=False):
     for e in test:
-        if not _element_in_list(master, e):
+        if not _element_in_list(master, e, case_insensitive=case_insensitive):
             return False
     return True
 
 
-def _dict_is_subset(master, subset):
+def _dict_is_subset(master, subset, case_insensitive=False):
     for k, v in subset.items():
+        if case_insensitive:
+            k = k.lower()
         m = master.get(k, Missing)
-        if not _element_can_match(m, v):
+        if not _element_can_match(m, v, case_insensitive=case_insensitive):
             return False
 
     return True
@@ -164,8 +169,9 @@ def _dict_is_subset(master, subset):
 
 class ListModel(list):
 
-    def __init__(self, list_to_model):
-        super(self.__class__, self).__init__()
+    def __init__(self, list_to_model, case_insensitive=False):
+        super(ListModel, self).__init__()
+        self.__case_insensitive = case_insensitive
         if list_to_model is not None:
             self.extend(list_to_model)
 
@@ -180,7 +186,7 @@ class ListModel(list):
             v = super(self.__class__, self).__getitem__(index)
             if isinstance(v, Model):
                 return v
-            v = to_model_or_val(v)
+            v = to_model_or_val(v, case_insensitive=self.__case_insensitive)
             self.__setitem__(index, v)
             return v
 
@@ -210,29 +216,47 @@ class ListModel(list):
         :param vals: One or more elements that must 'match' elements in this list.
         :return: Returns true if all of the elements specify can match (i.e. are subsets of) elements of this list.
         """
-        return _list_is_subset(self, vals)
+        return _list_is_subset(self, vals, case_insensitive=self.__case_insensitive)
 
 
 class Model(dict):
 
-    def __init__(self, dict_to_model=None):
+    def __init__(self, dict_to_model=None, case_insensitive=False):
         super(Model, self).__init__()
+
+        self.__case_insensitive = case_insensitive
+
         if dict_to_model is not None:
             for k, v in dict_to_model.items():
+                if self.__case_insensitive:
+                    k = k.lower()
                 self[k] = v
 
     def __getattr__(self, attr):
+
+        if attr.startswith('_Model__'):  # e.g. _Model__case_insensitive
+            raise AttributeError
+
+        if self.__case_insensitive:
+            attr = attr.lower()
+
         if super(Model, self).__contains__(attr):
             v = super(self.__class__, self).get(attr)
             if isinstance(v, Model):
                 return v
-            v = to_model_or_val(v)
+            v = to_model_or_val(v, self.__case_insensitive)
             self.__setattr__(attr, v)
             return v
         else:
             return Missing
 
     def __setattr__(self, key, value):
+        if key.startswith('_Model__'):  # e.g. _Model__case_insensitive
+            return super(Model, self).__setattr__(key, value)
+
+        if self.__case_insensitive:
+            key = key.lower()
+
         self.__setitem__(key, value)
 
     def __getitem__(self, key):
@@ -242,6 +266,8 @@ class Model(dict):
         super(Model, self).__setitem__(key, value)
 
     def __delitem__(self, key):
+        if self.__is_case_sensitive__():
+            key = key.lower()
         super(Model, self).__delitem__(key)
 
     def _primitive(self):
@@ -262,4 +288,4 @@ class Model(dict):
         :param val: A dict or Model with elements set that must be found within this model.
         :return: Returns true if all of the elements can match (i.e. are subsets of) elements of this list.
         """
-        return _dict_is_subset(self, val)
+        return _dict_is_subset(self, val, case_insensitive=self.__case_insensitive)

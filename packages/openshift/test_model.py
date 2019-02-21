@@ -50,6 +50,8 @@ class TestStringMethods(unittest.TestCase):
 
         self.assertIsNot(m.metadata, Missing)
         self.assertIsNot(m.metadata.a, Missing)
+        self.assertIs(m.metadata.A, Missing)
+        self.assertIs(m.metadata.B, Missing)
         self.assertEqual(m.metadata.b, 2)
 
         self.assertIsNot(m.metadata.map1, Missing)
@@ -101,6 +103,112 @@ class TestStringMethods(unittest.TestCase):
         self.assertEqual(m.c, True)
         self.assertEqual(m.d, False)
         self.assertEqual(m.e, None)
+
+    def test_access_case_insensitive(self):
+        m = Model(case_insensitive=True)
+        m.metadata = {
+            "A": 1,
+            "b": 2,
+            "mAp1": {
+                "c": 3,
+                "D": 4
+            },
+            "lIst1": [
+                5,
+                6,
+                7,
+            ],
+            "lisT2": [
+                {
+                    "e": 5,
+                    "F": 6
+                },
+                {
+                    "g": 5,
+                    "h": 6
+                },
+            ],
+            "aNull": None,
+            "aString": "thevalue"
+        }
+
+        self.assertIsNot(m.metadata, Missing)
+        self.assertIsNot(m.metadata.a, Missing)
+        self.assertEqual(m.metadata.b, 2)
+        self.assertIsNot(m.metadata.A, Missing)
+        self.assertEqual(m.metadata.B, 2)
+
+        self.assertIsNot(m.metadata.map1, Missing)
+        self.assertIsNot(m.metadata["map1"], Missing)
+        self.assertIsNot(m.metadata.MAP1, Missing)
+
+        self.assertIs(m.metadata["map_notthere"], Missing)
+        self.assertIs(m.metadata.map_notthere, Missing)
+
+        self.assertEqual(m.metadata.map1.c, 3)
+        self.assertEqual(m.metadata.map1.d, 4)
+        self.assertIs(m.metadata.map1.e, Missing)
+
+        self.assertEqual(m.metadata.MAP1.C, 3)
+        self.assertEqual(m.metadata.MAP1.D, 4)
+        self.assertIs(m.metadata.MAP1.E, Missing)
+
+        self.assertEqual(len(m.metadata.list1), 3)
+        self.assertEqual(len(m.metadata["list1"]), 3)
+        self.assertEqual(m.metadata.list1[0], 5)
+        self.assertEqual(m.metadata.list1, [5,6,7])
+        self.assertEqual(m.metadata["list1"], [5,6,7])
+
+        self.assertEqual(len(m.METADATA.LIST1), 3)
+        self.assertEqual(len(m.METADATA["LIST1"]), 3)
+        self.assertEqual(m.METADATA.LIST1[0], 5)
+        self.assertEqual(m.METADATA.LIST1, [5,6,7])
+        self.assertEqual(m.METADATA["LIST1"], [5,6,7])
+
+        try:
+            m.metadata.list1[3]
+            self.fail("Did not receive expected IndexError")
+        except IndexError:
+            pass
+
+        self.assertIsNot(m.metadata.list2, Missing)
+        self.assertIsNot(m.metadata.list2[0], Missing)
+        self.assertIsNot(m.metadata.list2[1], Missing)
+        self.assertIsNot(m.metadata.list2[1].g, Missing)
+        self.assertIsNot(m.metadata.list2[1].h, Missing)
+        self.assertIs(m.metadata.list2[1].notthere, Missing)
+        self.assertIsNone(m.metadata.anull)
+
+        self.assertIsNot(m.METADATA.LIST2, Missing)
+        self.assertIsNot(m.METADATA.LIST2[0], Missing)
+        self.assertIsNot(m.METADATA.LIST2[1], Missing)
+        self.assertIsNot(m.METADATA.LIST2[1].G, Missing)
+        self.assertIsNot(m.METADATA.LIST2[1].H, Missing)
+        self.assertIs(m.METADATA.LIST2[1].notthere, Missing)
+        self.assertIsNone(m.METADATA.anull)
+
+
+        self.assertEqual(m.metadata.astring, "thevalue")
+        self.assertEqual(m.metadata["astring"], "thevalue")
+
+        m.list3 = ['a', 'b']
+        self.assertIsNot(m.list3, Missing)
+        self.assertIsNot(m["list3"], Missing)
+        self.assertEqual(m["list3"][0], "a")
+
+        m.a = 5
+        m.b = "hello"
+        m.c = True
+        m.d = False
+        m.e = None
+
+        self.assertEqual(m.a, 5)
+        self.assertEqual(m.b, "hello")
+        self.assertEqual(m.c, True)
+        self.assertEqual(m.d, False)
+        self.assertEqual(m.e, None)
+
+
 
     def test_dict_match(self):
 
