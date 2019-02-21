@@ -2,7 +2,6 @@ from .model import *
 import unittest
 
 
-
 class TestStringMethods(unittest.TestCase):
 
     def test_empty(self):
@@ -11,6 +10,15 @@ class TestStringMethods(unittest.TestCase):
         self.assertIs(empty["metadata"], Missing)
         self.assertIs(empty.metadata.a, Missing)
         self.assertIs(empty.metadata["a"], Missing)
+
+    def test_falsey(self):
+        miss = Model().something.missing
+        self.assertTrue(miss is Missing)
+        if miss:
+            self.fail("Expected falsey value")
+
+        if len(miss) != 0:
+            self.fail("Expected zero length")
 
     def test_access(self):
         m = Model()
