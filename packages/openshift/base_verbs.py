@@ -65,7 +65,7 @@ def get_project_name(cmd_args=[]):
 
 def whoami(cmd_args=[]):
     """
-    :param cmd_args: Additional arguments to pass to 'oc project'
+    :param cmd_args: Additional arguments to pass to 'oc whoami'
     :return: The current user
     """
 
@@ -73,6 +73,62 @@ def whoami(cmd_args=[]):
     r.add_action(oc_action(cur_context(), "whoami", cmd_args=cmd_args))
     r.fail_if("Unable to determine current user")
     return r.out().strip()
+
+
+def get_auth_token(cmd_args=[]):
+    """
+    :param cmd_args: Additional arguments to pass to 'oc whoami -t'
+    :return: The current user
+    """
+
+    r = Result("whoami")
+    r.add_action(oc_action(cur_context(), "whoami", cmd_args=['-t', cmd_args]))
+    r.fail_if("Unable to determine current token")
+    return r.out().strip()
+
+
+def get_config_context(cmd_args=[]):
+    """
+    Returns the result of 'oc config current-context' . If no context currently
+    exists, None is returned.
+    """
+    r = Result("current-context")
+    r.add_action(oc_action(cur_context(), "config", cmd_args=['current-context']))
+    if r.status() != 0:
+        return None
+
+    return r.out()
+
+
+def use_config_context(context, cmd_args=[]):
+    """
+    Sets the current context to use.
+    :param context: The context name to pass into use-context. If None, no action is taken.
+    exists, None is returned.
+    """
+    if not context:
+        return
+
+    r = Result("use-context")
+    r.add_action(oc_action(cur_context(), "config", cmd_args=['use-context', context, cmd_args]))
+    r.fail_if('Error when trying to use to use-context: {}'.format(context))
+
+    return True
+
+
+def login(username, password, cmd_args=[]):
+    """
+    Executes a login operation with the specified username and password. You usually want to invoke
+    this inside of an api_server() context.
+    :param username: The username to supply to the login
+    :param password: The password to supply to the login
+    :param cmd_args: Additional arguments to pass in
+    :return:
+    """
+    r = Result("login")
+    r.add_action(oc_action(cur_context(), "login", cmd_args=['-u', username, '-p', password, cmd_args]))
+    r.fail_if('Error when trying to login')
+    return True
 
 
 def new_project(name, ok_if_exists=False, cmd_args=[]):
@@ -392,7 +448,7 @@ def build_configmap_dict(configmap_name, dir_path_or_paths=None, dir_ext_include
 
 def build_secret_dict(secret_name, dir_path_or_paths=None, dir_ext_include=None, data_map={}, obj_labels={}):
     """
-    Creates a python dict structure for a secret (if remains to the caller to send
+    Creates a python dict structure for a secret (it remains to the caller to send
     the yaml to the server with create()). This method does not use/require oc to be resident
     on the python host.
     :param secret_name: The metadata.name to include
@@ -441,6 +497,130 @@ def build_secret_dict(secret_name, dir_path_or_paths=None, dir_ext_include=None,
             'labels': obj_labels,
         },
         'data': dm
+    }
+
+    return d
+
+
+class ImageRegistryAuthInfo(object):
+
+    """
+    Simple struct to pass around information about image registry authentication information.
+    """
+
+    def __init__(self, registry_url, username, password, email=None):
+        self.registry_url = registry_url
+        self.username = username
+        self.password = password
+        if not email:
+            email = '{}@example.org'.format(username)
+        self.email = email
+
+
+def build_secret_dockerconfigjson(secret_name, image_registry_auth_infos, obj_labels={}):
+    """
+    Creates a python dict structure for a 'kubernetes.io/dockerconfigjson' secret (it remains to the caller to send
+    the yaml to the server with create()). This method does not use/require oc to be resident
+    on the python host.
+    :param secret_name: The metadata.name to include
+    :paran image_registry_auth_infos: An iterable collection of ImageRegistryAuthInfo
+    :param obj_labels: Additional labels to include in the resulting secret metadata.
+    :return: A python dict of a secret resource.
+    """
+
+    auths = {}  # A map of registry urls to a map with a single element called 'auth'
+
+    for ira in image_registry_auth_infos:
+        b64_username_password = base64.b64encode('{}:{}'.format(ira.username, ira.password))
+        auths[ira.registry_url] = {
+            'auth': b64_username_password
+        }
+
+    # this is the content you would see if you cat your dockerconfig json file
+    dockerconfig = {
+        'auths': auths
+    }
+
+    # Lazy load to avoid dragging unnecessary dependencies
+    import json
+
+    # Next, base64 encode the entire file.
+    b64_dockerconfigjson = base64.b64encode(json.dumps(dockerconfig, indent=4))
+
+    # And stick it into the secret's data
+    data = {
+        '.dockerconfigjson': b64_dockerconfigjson,
+    }
+
+    d = {
+        'kind': 'Secret',
+        'apiVersion': 'v1',
+        'metadata': {
+            'name': secret_name,
+            'labels': obj_labels,
+        },
+        'type': 'kubernetes.io/dockerconfigjson',
+        'data': data
+    }
+
+    return d
+
+
+def build_secret_dockerconfig(secret_name, image_registry_auth_infos, obj_labels={}):
+    """
+    Creates a python dict structure for a kubernetes.io/dockercfg secret (it remains to the caller to send
+    the yaml to the server with create()). This method does not use/require oc to be resident
+    on the python host.
+    :param secret_name: The metadata.name to include
+    :paran image_registry_auth_infos: An iterable collection of ImageRegistryAuthInfo
+    :param obj_labels: Additional labels to include in the resulting secret metadata.
+    :return: A python dict of a secret resource.
+    """
+
+    # the data elements of this secret points to a base64 encoded blob which decoded looks like:
+    # {
+    #     "172.30.208.107:5000": {
+    #         "username": "serviceaccount",
+    #         "password": "<base64 password>,
+    #         "email": "serviceaccount@example.org",
+    #         "auth": "<base64 username:password>"
+    #     },
+    #     "docker-registry.default.svc.cluster.local:5000": {
+    #         "username": "serviceaccount",
+    #         ...more entries
+
+    auths = {}  # A map of registry urls to entries like those above
+
+    for ira in image_registry_auth_infos:
+        b64_password = base64.b64encode(ira.password)
+        b64_username_password = base64.b64encode('{}:{}'.format(ira.username, ira.password))
+        auths[ira.registry_url] = {
+            'username': ira.username,
+            'password': b64_password,
+            'email': ira.email,
+            'auth': b64_username_password
+        }
+
+    # Lazy load to avoid dragging unnecessary dependencies
+    import json
+
+    # Next, base64 encode the entries
+    b64_auths = base64.b64encode(json.dumps(auths, indent=4))
+
+    # And stick it into the secret's data
+    data = {
+        '.dockercfg': b64_auths,
+    }
+
+    d = {
+        'kind': 'Secret',
+        'apiVersion': 'v1',
+        'metadata': {
+            'name': secret_name,
+            'labels': obj_labels,
+        },
+        'type': 'kubernetes.io/dockercfg',
+        'data': data
     }
 
     return d
