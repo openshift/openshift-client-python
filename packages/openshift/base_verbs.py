@@ -171,13 +171,21 @@ def _to_dict_list(dict_or_model_or_apiobject_or_list_thereof):
         if isinstance(i, APIObject):
             i = i.model
 
-        if isinstance(i, Model):
-            i = i._primitive()
-
         if not isinstance(i, dict):
-            raise ValueError('Unable to convert type into json: {}'.format(type(i)))
+            raise ValueError('Unable to convert type into list items dict: {}'.format(type(i)))
 
-        l.append(i)
+        if not isinstance(i, Model):
+            i = Model(dict_to_model=i)
+
+        # At this point, we should have a Model to make analyzing the structure easier
+
+        # If we received a List, extract the underlying items. This should include unwrapping things like
+        # kind: ImageStreamList.
+        if i.kind.endswith("List") and i.items is not Missing:
+            # can't use .items here since that is interpreted as a method reference
+            l.extend(i['items']._primitive())
+        else:
+            l.append(i._primitive())
 
     return l
 

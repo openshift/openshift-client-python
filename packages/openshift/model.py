@@ -98,6 +98,8 @@ Missing = MissingModel()
 
 
 def to_model_or_val(v, case_insensitive=False):
+    if isinstance(v, ListModel) or isinstance(v, Model):
+        return v
     if isinstance(v, list):
         return ListModel(v, case_insensitive=case_insensitive)
     elif isinstance(v, dict):
@@ -230,19 +232,20 @@ class Model(dict):
             for k, v in dict_to_model.items():
                 if self.__case_insensitive:
                     k = k.lower()
-                self[k] = v
+                self[k] = to_model_or_val(v, case_insensitive=case_insensitive)
 
     def __getattr__(self, attr):
 
-        if attr.startswith('_Model__'):  # e.g. _Model__case_insensitive
-            raise AttributeError
+        if isinstance(attr, basestring):
+            if attr.startswith('_Model__'):  # e.g. _Model__case_insensitive
+                raise AttributeError
 
-        if self.__case_insensitive:
-            attr = attr.lower()
+            if self.__case_insensitive:
+                attr = attr.lower()
 
         if super(Model, self).__contains__(attr):
             v = super(self.__class__, self).get(attr)
-            if isinstance(v, Model):
+            if isinstance(v, Model) or isinstance(v, ListModel):
                 return v
             v = to_model_or_val(v, self.__case_insensitive)
             self.__setattr__(attr, v)
@@ -263,7 +266,7 @@ class Model(dict):
         return self.__getattr__(key)
 
     def __setitem__(self, key, value):
-        super(Model, self).__setitem__(key, value)
+        super(Model, self).__setitem__(key, to_model_or_val(value, case_insensitive=self.__case_insensitive))
 
     def __delitem__(self, key):
         if self.__is_case_sensitive__():

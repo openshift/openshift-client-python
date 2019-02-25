@@ -52,16 +52,16 @@ class Selector(Result):
                 kind_or_kinds_or_qname_or_qnames = "all"
             self.kinds = normalize_kinds(kind_or_kinds_or_qname_or_qnames)
 
-        else:
+        elif kind_or_kinds_or_qname_or_qnames is None:
+            # Someone wants an empty selector? Occasionally useful for things like a sequence of unions.
+            self.object_list = []
 
+        else:
             # Otherwise, allow args[0] of
             #  "kind"
             #  [ "kind", ... ]
             #  "kind/name"
             #  [ "kind/name", ... ]
-
-            if kind_or_kinds_or_qname_or_qnames is None:
-                raise ValueError("Requires kind, qualified name, or list of kinds or qualified names")
 
             first = kind_or_kinds_or_qname_or_qnames
 
