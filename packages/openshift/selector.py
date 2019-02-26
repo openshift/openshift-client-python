@@ -1,5 +1,5 @@
 from .result import Result
-from .naming import normalize_kinds, normalize_kind
+from .naming import normalize_kinds, normalize_kind, qname_matches
 from .model import *
 from .util import split_names, is_collection_type
 import util
@@ -253,13 +253,16 @@ class Selector(Result):
             selectors passed in as arguments.
         """
 
-        collector = set(self.qnames())
-        for sel in args:
-            s2 = set(sel.qnames())
-            collector = collector.union(s2)
+        # start with the base set of names
+        new_set = self.qnames()
+        for with_selector in args:
+            to_union = with_selector.qnames()
+            for qname in to_union:
+                # Only add if not already in the union
+                if not qname_matches(qname, new_set):
+                    new_set.append(qname)
 
-        qnames = list(collector)
-        return Selector("union", object_list=qnames)
+        return Selector("union", object_list=new_set)
 
     def intersect(self, *args):
         """
@@ -267,23 +270,28 @@ class Selector(Result):
         :return: Returns a static selector which will select the object names selected by the
             receiver AND ALL arguments.
         """
-        collector = set(self.qnames())
-        for sel in args:
-            s2 = set(sel.qnames())
-            collector = collector.intersection(s2)
 
-        qnames = list(collector)
-        return Selector("intersect", object_list=qnames)
+        new_set = list()
+        for with_selector in args:
+            to_intersect = with_selector.qnames()
+            for qname in self.qnames():
+                if qname_matches(qname, to_intersect):
+                    new_set.append(qname)
+
+        return Selector("intersect", object_list=new_set)
 
     def subtract(self, with_selector):
         """
         :param with_selector: A selector to subtract
         :return: Returns a static selector which selects names of this receiver minus names selected by the argument
         """
-        s1 = set(self.qnames())
-        s2 = set(with_selector.qnames())
-        qnames = list(s1.difference(s2))
-        return Selector("subtract", object_list=qnames)
+        to_subtract = with_selector.qnames()
+        new_set = list()
+        for qname in self.qnames():
+            if not qname_matches(qname, to_subtract):
+                new_set.append(qname)
+
+        return Selector("subtract", object_list=new_set)
 
     def count_existing(self):
         """

@@ -89,6 +89,24 @@ def kind_matches(k1, k2_or_list):
     return False
 
 
+def qname_matches(qn1, qn2_or_list):
+    qn1 = normalize_kind(qn1)
+
+    # If a single string is provided, turn it into a list
+    if isinstance(qn2_or_list, basestring):
+        qn2_or_list = [qn2_or_list]
+
+    _, kind1, name1 = split_fqn(qn1)
+
+    for qn2e in qn2_or_list:
+        _, kind2, name2 = split_fqn(qn2e)
+
+        if name1 == name2 and kind_matches(kind1, kind2):
+            return True
+
+    return False
+
+
 def qualify_name(name_or_qname, to_kind):
     """
     Formats a name or qualified name (kind/name) into a qualified

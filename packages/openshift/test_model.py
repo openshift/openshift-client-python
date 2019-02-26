@@ -2,7 +2,7 @@ from .model import *
 import unittest
 
 
-class TestStringMethods(unittest.TestCase):
+class TestModel(unittest.TestCase):
 
     def test_empty(self):
         empty = Model()
