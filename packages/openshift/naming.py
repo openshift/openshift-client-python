@@ -2,10 +2,12 @@
 # A dict of name -> APIResource.
 # keys include shortnames, full names, uppercamel Kind, and lowercase kind
 # this map is managed by register_api_resource
-_api_resource_lookup = {
-}
+# todo: make thread & context safe?
+_api_resource_lookup = {}
 
+# A list of APIResources which have been register; todo: make thread & context safe?
 _api_resources = list()
+
 
 class APIResource:
 
@@ -202,6 +204,12 @@ def process_api_resources_output(output):
     :param output: The output of `oc api-resources`
     :return: N/A.
     """
+
+    # Reset the global maps so that we can repopulate them
+    global _api_resource_lookup
+    _api_resource_lookup = {}
+    global _api_resources
+    _api_resources = list()
 
     lines = output.strip().splitlines()
     it = iter(lines)
