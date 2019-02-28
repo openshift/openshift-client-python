@@ -634,6 +634,15 @@ def build_secret_dockerconfig(secret_name, image_registry_auth_infos, obj_labels
     return d
 
 
+def update_api_resources():
+    """
+    Makes a call to `oc api-resources` and updates openshift-python's internal view of
+    resources available. This is only necessary if you are encountering scenarios where
+    """
+    res = invoke('api-resources')
+    naming.process_api_resources_output(res.out())
+
+
 def dumpinfo_apiobject(output_dir,
                        obj,
                        limit_daemonsets_to_nodes=None,
