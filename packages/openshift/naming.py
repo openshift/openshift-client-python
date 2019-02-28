@@ -35,7 +35,7 @@ def register_api_resource(api_resource):
 
 def get_api_resources_kinds():
     """
-    Returns a list of kinds known to openshift-python. Run
+    Returns a list of 'gettable' (i.e. oc get kind will work) kinds known to openshift-python. Run
     update_api_resources first if this needs to be exact for a cluster.
     :return: list<string> where each entry is a kind (qualified by group if available)
     """
@@ -44,38 +44,7 @@ def get_api_resources_kinds():
     for api_resource in _api_resources:
         kinds.add(api_resource.full_name)
 
-    # An annoying aspect of api-resources is that not all kinds can be 'gotten'.
-    # oc get bindings, for example will return an error. Without quick way to determine
-    # these programmatically, harcoding for now.
-    # To obtain, `for e in $list ; do oc get --ignore-not-found -l x=y $e > /dev/null 2>&1 || echo $e; done`
-    # where list is the full kind.group list returned in api_resource.
-    ungettable_kinds = """
-bindings
-tokenreviews.authentication.k8s.io
-localsubjectaccessreviews.authorization.k8s.io
-selfsubjectaccessreviews.authorization.k8s.io
-selfsubjectrulesreviews.authorization.k8s.io
-subjectaccessreviews.authorization.k8s.io
-localresourceaccessreviews.authorization.openshift.io
-localsubjectaccessreviews.authorization.openshift.io
-resourceaccessreviews.authorization.openshift.io
-selfsubjectrulesreviews.authorization.openshift.io
-subjectaccessreviews.authorization.openshift.io
-subjectrulesreviews.authorization.openshift.io
-imagesignatures.image.openshift.io
-imagestreamimages.image.openshift.io
-imagestreamimports.image.openshift.io
-imagestreammappings.image.openshift.io
-podsecuritypolicyreviews.security.openshift.io
-podsecuritypolicyselfsubjectreviews.security.openshift.io
-podsecuritypolicysubjectreviews.security.openshift.io
-rangeallocations.security.openshift.io
-useridentitymappings.user.openshift.io
-""".strip()
-
-    ungettable = set()
-    ungettable.update(ungettable_kinds.split())
-    return kinds.difference(ungettable)
+    return kinds
 
 
 def normalize_kind(kind):
@@ -249,172 +218,154 @@ def process_api_resources_output(output):
         except StopIteration:
             break
 
-# just paste the output of `oc api-resources` in this variable (including header!). It will be processed on startup.
-# this could eventually be replaced with calls to --raw 'api/v1', 'apis/..../v1'.. etc, but let oc
-# do the work for us.
+# just paste the output of `oc api-resources --verbs=get` in this variable (including header!).
+# It will be processed on startup. this could eventually be replaced with
+# calls to --raw 'api/v1', 'apis/..../v1'.. etc, but let oc do the work for us.
 _default_api_resources = """
-NAME                                  SHORTNAMES       APIGROUP                                NAMESPACED   KIND
-bindings                                                                                       true         Binding
-componentstatuses                     cs                                                       false        ComponentStatus
-configmaps                            cm                                                       true         ConfigMap
-endpoints                             ep                                                       true         Endpoints
-events                                ev                                                       true         Event
-limitranges                           limits                                                   true         LimitRange
-namespaces                            ns                                                       false        Namespace
-nodes                                 no                                                       false        Node
-persistentvolumeclaims                pvc                                                      true         PersistentVolumeClaim
-persistentvolumes                     pv                                                       false        PersistentVolume
-pods                                  po                                                       true         Pod
-podtemplates                                                                                   true         PodTemplate
-replicationcontrollers                rc                                                       true         ReplicationController
-resourcequotas                        quota                                                    true         ResourceQuota
-secrets                                                                                        true         Secret
-serviceaccounts                       sa                                                       true         ServiceAccount
-services                              svc                                                      true         Service
-mutatingwebhookconfigurations                          admissionregistration.k8s.io            false        MutatingWebhookConfiguration
-validatingwebhookconfigurations                        admissionregistration.k8s.io            false        ValidatingWebhookConfiguration
-customresourcedefinitions             crd,crds         apiextensions.k8s.io                    false        CustomResourceDefinition
-apiservices                                            apiregistration.k8s.io                  false        APIService
-controllerrevisions                                    apps                                    true         ControllerRevision
-daemonsets                            ds               apps                                    true         DaemonSet
-deployments                           deploy           apps                                    true         Deployment
-replicasets                           rs               apps                                    true         ReplicaSet
-statefulsets                          sts              apps                                    true         StatefulSet
-deploymentconfigs                     dc               apps.openshift.io                       true         DeploymentConfig
-tokenreviews                                           authentication.k8s.io                   false        TokenReview
-localsubjectaccessreviews                              authorization.k8s.io                    true         LocalSubjectAccessReview
-selfsubjectaccessreviews                               authorization.k8s.io                    false        SelfSubjectAccessReview
-selfsubjectrulesreviews                                authorization.k8s.io                    false        SelfSubjectRulesReview
-subjectaccessreviews                                   authorization.k8s.io                    false        SubjectAccessReview
-clusterrolebindings                                    authorization.openshift.io              false        ClusterRoleBinding
-clusterroles                                           authorization.openshift.io              false        ClusterRole
-localresourceaccessreviews                             authorization.openshift.io              true         LocalResourceAccessReview
-localsubjectaccessreviews                              authorization.openshift.io              true         LocalSubjectAccessReview
-resourceaccessreviews                                  authorization.openshift.io              false        ResourceAccessReview
-rolebindingrestrictions                                authorization.openshift.io              true         RoleBindingRestriction
-rolebindings                                           authorization.openshift.io              true         RoleBinding
-roles                                                  authorization.openshift.io              true         Role
-selfsubjectrulesreviews                                authorization.openshift.io              true         SelfSubjectRulesReview
-subjectaccessreviews                                   authorization.openshift.io              false        SubjectAccessReview
-subjectrulesreviews                                    authorization.openshift.io              true         SubjectRulesReview
-horizontalpodautoscalers              hpa              autoscaling                             true         HorizontalPodAutoscaler
-clusterautoscalers                                     autoscaling.openshift.io                false        ClusterAutoscaler
-machineautoscalers                                     autoscaling.openshift.io                true         MachineAutoscaler
-cronjobs                              cj               batch                                   true         CronJob
-jobs                                                   batch                                   true         Job
-buildconfigs                          bc               build.openshift.io                      true         BuildConfig
-builds                                                 build.openshift.io                      true         Build
-certificatesigningrequests            csr              certificates.k8s.io                     false        CertificateSigningRequest
-credentialsrequests                                    cloudcredential.openshift.io            true         CredentialsRequest
-clusters                                               cluster.k8s.io                          true         Cluster
-apiservers                                             config.openshift.io                     false        APIServer
-authentications                                        config.openshift.io                     false        Authentication
-builds                                                 config.openshift.io                     false        Build
-clusteroperators                      co               config.openshift.io                     false        ClusterOperator
-clusterversions                                        config.openshift.io                     false        ClusterVersion
-consoles                                               config.openshift.io                     false        Console
-dnses                                                  config.openshift.io                     false        DNS
-features                                               config.openshift.io                     false        Feature
-images                                                 config.openshift.io                     false        Image
-infrastructures                                        config.openshift.io                     false        Infrastructure
-ingresses                                              config.openshift.io                     false        Ingress
-networks                                               config.openshift.io                     false        Network
-oauths                                                 config.openshift.io                     false        OAuth
-projects                                               config.openshift.io                     false        Project
-registries                                             config.openshift.io                     false        Registry
-leases                                                 coordination.k8s.io                     true         Lease
-clusterdnses                                           dns.openshift.io                        false        ClusterDNS
-events                                ev               events.k8s.io                           true         Event
-daemonsets                            ds               extensions                              true         DaemonSet
-deployments                           deploy           extensions                              true         Deployment
-ingresses                             ing              extensions                              true         Ingress
-networkpolicies                       netpol           extensions                              true         NetworkPolicy
-podsecuritypolicies                   psp              extensions                              false        PodSecurityPolicy
-replicasets                           rs               extensions                              true         ReplicaSet
-machinehealthchecks                                    healthchecking.openshift.io             true         MachineHealthCheck
-images                                                 image.openshift.io                      false        Image
-imagesignatures                                        image.openshift.io                      false        ImageSignature
-imagestreamimages                     isimage          image.openshift.io                      true         ImageStreamImage
-imagestreamimports                                     image.openshift.io                      true         ImageStreamImport
-imagestreammappings                                    image.openshift.io                      true         ImageStreamMapping
-imagestreams                          is               image.openshift.io                      true         ImageStream
-imagestreamtags                       istag            image.openshift.io                      true         ImageStreamTag
-configs                                                imageregistry.operator.openshift.io     false        Config
-clusteringresses                                       ingress.openshift.io                    true         ClusterIngress
-network-attachment-definitions        net-attach-def   k8s.cni.cncf.io                         true         NetworkAttachmentDefinition
-clusters                                               machine.openshift.io                    true         Cluster
-machineclasses                                         machine.openshift.io                    true         MachineClass
-machinedeployments                                     machine.openshift.io                    true         MachineDeployment
-machines                                               machine.openshift.io                    true         Machine
-machinesets                                            machine.openshift.io                    true         MachineSet
-containerruntimeconfigs               ctrcfg           machineconfiguration.openshift.io       false        ContainerRuntimeConfig
-controllerconfigs                                      machineconfiguration.openshift.io       false        ControllerConfig
-kubeletconfigs                                         machineconfiguration.openshift.io       false        KubeletConfig
-machineconfigpools                                     machineconfiguration.openshift.io       false        MachineConfigPool
-machineconfigs                                         machineconfiguration.openshift.io       false        MachineConfig
-mcoconfigs                                             machineconfiguration.openshift.io       true         MCOConfig
-catalogsourceconfigs                  csc              marketplace.redhat.com                  true         CatalogSourceConfig
-operatorsources                       opsrc            marketplace.redhat.com                  true         OperatorSource
-alertmanagers                                          monitoring.coreos.com                   true         Alertmanager
-prometheuses                                           monitoring.coreos.com                   true         Prometheus
-prometheusrules                                        monitoring.coreos.com                   true         PrometheusRule
-servicemonitors                                        monitoring.coreos.com                   true         ServiceMonitor
-clusternetworks                                        network.openshift.io                    false        ClusterNetwork
-egressnetworkpolicies                                  network.openshift.io                    true         EgressNetworkPolicy
-hostsubnets                                            network.openshift.io                    false        HostSubnet
-netnamespaces                                          network.openshift.io                    false        NetNamespace
-networkpolicies                       netpol           networking.k8s.io                       true         NetworkPolicy
-networkconfigs                                         networkoperator.openshift.io            false        NetworkConfig
-oauthaccesstokens                                      oauth.openshift.io                      false        OAuthAccessToken
-oauthauthorizetokens                                   oauth.openshift.io                      false        OAuthAuthorizeToken
-oauthclientauthorizations                              oauth.openshift.io                      false        OAuthClientAuthorization
-oauthclients                                           oauth.openshift.io                      false        OAuthClient
-authentications                                        operator.openshift.io                   false        Authentication
-consoles                                               operator.openshift.io                   false        Console
-kubeapiservers                                         operator.openshift.io                   false        KubeAPIServer
-kubecontrollermanagers                                 operator.openshift.io                   false        KubeControllerManager
-kubeschedulers                                         operator.openshift.io                   false        KubeScheduler
-openshiftapiservers                                    operator.openshift.io                   false        OpenShiftAPIServer
-openshiftcontrollermanagers                            operator.openshift.io                   false        OpenShiftControllerManager
-servicecas                                             operator.openshift.io                   false        ServiceCA
-servicecatalogapiservers                               operator.openshift.io                   false        ServiceCatalogAPIServer
-servicecatalogcontrollermanagers                       operator.openshift.io                   false        ServiceCatalogControllerManager
-catalogsources                        catsrc           operators.coreos.com                    true         CatalogSource
-clusterserviceversions                csv,csvs         operators.coreos.com                    true         ClusterServiceVersion
-installplans                          ip               operators.coreos.com                    true         InstallPlan
-operatorgroups                        og               operators.coreos.com                    true         OperatorGroup
-subscriptions                         sub,subs         operators.coreos.com                    true         Subscription
-clusteroperators                                       operatorstatus.openshift.io             true         ClusterOperator
-poddisruptionbudgets                  pdb              policy                                  true         PodDisruptionBudget
-podsecuritypolicies                   psp              policy                                  false        PodSecurityPolicy
-projectrequests                                        project.openshift.io                    false        ProjectRequest
-projects                                               project.openshift.io                    false        Project
-appliedclusterresourcequotas                           quota.openshift.io                      true         AppliedClusterResourceQuota
-clusterresourcequotas                 clusterquota     quota.openshift.io                      false        ClusterResourceQuota
-clusterrolebindings                                    rbac.authorization.k8s.io               false        ClusterRoleBinding
-clusterroles                                           rbac.authorization.k8s.io               false        ClusterRole
-rolebindings                                           rbac.authorization.k8s.io               true         RoleBinding
-roles                                                  rbac.authorization.k8s.io               true         Role
-routes                                                 route.openshift.io                      true         Route
-configs                                                samples.operator.openshift.io           false        Config
-priorityclasses                       pc               scheduling.k8s.io                       false        PriorityClass
-podsecuritypolicyreviews                               security.openshift.io                   true         PodSecurityPolicyReview
-podsecuritypolicyselfsubjectreviews                    security.openshift.io                   true         PodSecurityPolicySelfSubjectReview
-podsecuritypolicysubjectreviews                        security.openshift.io                   true         PodSecurityPolicySubjectReview
-rangeallocations                                       security.openshift.io                   false        RangeAllocation
-securitycontextconstraints            scc              security.openshift.io                   false        SecurityContextConstraints
-servicecertsigneroperatorconfigs                       servicecertsigner.config.openshift.io   false        ServiceCertSignerOperatorConfig
-storageclasses                        sc               storage.k8s.io                          false        StorageClass
-volumeattachments                                      storage.k8s.io                          false        VolumeAttachment
-brokertemplateinstances                                template.openshift.io                   false        BrokerTemplateInstance
-processedtemplates                                     template.openshift.io                   true         Template
-templateinstances                                      template.openshift.io                   true         TemplateInstance
-templates                                              template.openshift.io                   true         Template
-tuneds                                                 tuned.openshift.io                      true         Tuned
-groups                                                 user.openshift.io                       false        Group
-identities                                             user.openshift.io                       false        Identity
-useridentitymappings                                   user.openshift.io                       false        UserIdentityMapping
-users                                                  user.openshift.io                       false        User
+NAME                               SHORTNAMES       APIGROUP                                NAMESPACED   KIND
+componentstatuses                  cs                                                       false        ComponentStatus
+configmaps                         cm                                                       true         ConfigMap
+endpoints                          ep                                                       true         Endpoints
+events                             ev                                                       true         Event
+limitranges                        limits                                                   true         LimitRange
+namespaces                         ns                                                       false        Namespace
+nodes                              no                                                       false        Node
+persistentvolumeclaims             pvc                                                      true         PersistentVolumeClaim
+persistentvolumes                  pv                                                       false        PersistentVolume
+pods                               po                                                       true         Pod
+podtemplates                                                                                true         PodTemplate
+replicationcontrollers             rc                                                       true         ReplicationController
+resourcequotas                     quota                                                    true         ResourceQuota
+secrets                                                                                     true         Secret
+serviceaccounts                    sa                                                       true         ServiceAccount
+services                           svc                                                      true         Service
+mutatingwebhookconfigurations                       admissionregistration.k8s.io            false        MutatingWebhookConfiguration
+validatingwebhookconfigurations                     admissionregistration.k8s.io            false        ValidatingWebhookConfiguration
+customresourcedefinitions          crd,crds         apiextensions.k8s.io                    false        CustomResourceDefinition
+apiservices                                         apiregistration.k8s.io                  false        APIService
+controllerrevisions                                 apps                                    true         ControllerRevision
+daemonsets                         ds               apps                                    true         DaemonSet
+deployments                        deploy           apps                                    true         Deployment
+replicasets                        rs               apps                                    true         ReplicaSet
+statefulsets                       sts              apps                                    true         StatefulSet
+deploymentconfigs                  dc               apps.openshift.io                       true         DeploymentConfig
+clusterrolebindings                                 authorization.openshift.io              false        ClusterRoleBinding
+clusterroles                                        authorization.openshift.io              false        ClusterRole
+rolebindingrestrictions                             authorization.openshift.io              true         RoleBindingRestriction
+rolebindings                                        authorization.openshift.io              true         RoleBinding
+roles                                               authorization.openshift.io              true         Role
+horizontalpodautoscalers           hpa              autoscaling                             true         HorizontalPodAutoscaler
+clusterautoscalers                                  autoscaling.openshift.io                false        ClusterAutoscaler
+machineautoscalers                                  autoscaling.openshift.io                true         MachineAutoscaler
+cronjobs                           cj               batch                                   true         CronJob
+jobs                                                batch                                   true         Job
+buildconfigs                       bc               build.openshift.io                      true         BuildConfig
+builds                                              build.openshift.io                      true         Build
+certificatesigningrequests         csr              certificates.k8s.io                     false        CertificateSigningRequest
+credentialsrequests                                 cloudcredential.openshift.io            true         CredentialsRequest
+apiservers                                          config.openshift.io                     false        APIServer
+authentications                                     config.openshift.io                     false        Authentication
+builds                                              config.openshift.io                     false        Build
+clusteroperators                   co               config.openshift.io                     false        ClusterOperator
+clusterversions                                     config.openshift.io                     false        ClusterVersion
+consoles                                            config.openshift.io                     false        Console
+dnses                                               config.openshift.io                     false        DNS
+features                                            config.openshift.io                     false        Feature
+images                                              config.openshift.io                     false        Image
+infrastructures                                     config.openshift.io                     false        Infrastructure
+ingresses                                           config.openshift.io                     false        Ingress
+networks                                            config.openshift.io                     false        Network
+oauths                                              config.openshift.io                     false        OAuth
+projects                                            config.openshift.io                     false        Project
+registries                                          config.openshift.io                     false        Registry
+leases                                              coordination.k8s.io                     true         Lease
+clusterdnses                                        dns.openshift.io                        false        ClusterDNS
+events                             ev               events.k8s.io                           true         Event
+daemonsets                         ds               extensions                              true         DaemonSet
+deployments                        deploy           extensions                              true         Deployment
+ingresses                          ing              extensions                              true         Ingress
+networkpolicies                    netpol           extensions                              true         NetworkPolicy
+podsecuritypolicies                psp              extensions                              false        PodSecurityPolicy
+replicasets                        rs               extensions                              true         ReplicaSet
+machinehealthchecks                                 healthchecking.openshift.io             true         MachineHealthCheck
+images                                              image.openshift.io                      false        Image
+imagestreamimages                  isimage          image.openshift.io                      true         ImageStreamImage
+imagestreams                       is               image.openshift.io                      true         ImageStream
+imagestreamtags                    istag            image.openshift.io                      true         ImageStreamTag
+configs                                             imageregistry.operator.openshift.io     false        Config
+clusteringresses                                    ingress.openshift.io                    true         ClusterIngress
+network-attachment-definitions     net-attach-def   k8s.cni.cncf.io                         true         NetworkAttachmentDefinition
+clusters                                            machine.openshift.io                    true         Cluster
+machineclasses                                      machine.openshift.io                    true         MachineClass
+machinedeployments                                  machine.openshift.io                    true         MachineDeployment
+machines                                            machine.openshift.io                    true         Machine
+machinesets                                         machine.openshift.io                    true         MachineSet
+containerruntimeconfigs            ctrcfg           machineconfiguration.openshift.io       false        ContainerRuntimeConfig
+controllerconfigs                                   machineconfiguration.openshift.io       false        ControllerConfig
+kubeletconfigs                                      machineconfiguration.openshift.io       false        KubeletConfig
+machineconfigpools                                  machineconfiguration.openshift.io       false        MachineConfigPool
+machineconfigs                                      machineconfiguration.openshift.io       false        MachineConfig
+mcoconfigs                                          machineconfiguration.openshift.io       true         MCOConfig
+catalogsourceconfigs               csc              marketplace.redhat.com                  true         CatalogSourceConfig
+operatorsources                    opsrc            marketplace.redhat.com                  true         OperatorSource
+nodes                                               metrics.k8s.io                          false        NodeMetrics
+pods                                                metrics.k8s.io                          true         PodMetrics
+alertmanagers                                       monitoring.coreos.com                   true         Alertmanager
+prometheuses                                        monitoring.coreos.com                   true         Prometheus
+prometheusrules                                     monitoring.coreos.com                   true         PrometheusRule
+servicemonitors                                     monitoring.coreos.com                   true         ServiceMonitor
+clusternetworks                                     network.openshift.io                    false        ClusterNetwork
+egressnetworkpolicies                               network.openshift.io                    true         EgressNetworkPolicy
+hostsubnets                                         network.openshift.io                    false        HostSubnet
+netnamespaces                                       network.openshift.io                    false        NetNamespace
+networkpolicies                    netpol           networking.k8s.io                       true         NetworkPolicy
+networkconfigs                                      networkoperator.openshift.io            false        NetworkConfig
+oauthaccesstokens                                   oauth.openshift.io                      false        OAuthAccessToken
+oauthauthorizetokens                                oauth.openshift.io                      false        OAuthAuthorizeToken
+oauthclientauthorizations                           oauth.openshift.io                      false        OAuthClientAuthorization
+oauthclients                                        oauth.openshift.io                      false        OAuthClient
+authentications                                     operator.openshift.io                   false        Authentication
+consoles                                            operator.openshift.io                   false        Console
+kubeapiservers                                      operator.openshift.io                   false        KubeAPIServer
+kubecontrollermanagers                              operator.openshift.io                   false        KubeControllerManager
+kubeschedulers                                      operator.openshift.io                   false        KubeScheduler
+openshiftapiservers                                 operator.openshift.io                   false        OpenShiftAPIServer
+openshiftcontrollermanagers                         operator.openshift.io                   false        OpenShiftControllerManager
+servicecas                                          operator.openshift.io                   false        ServiceCA
+servicecatalogapiservers                            operator.openshift.io                   false        ServiceCatalogAPIServer
+servicecatalogcontrollermanagers                    operator.openshift.io                   false        ServiceCatalogControllerManager
+catalogsources                     catsrc           operators.coreos.com                    true         CatalogSource
+clusterserviceversions             csv,csvs         operators.coreos.com                    true         ClusterServiceVersion
+installplans                       ip               operators.coreos.com                    true         InstallPlan
+operatorgroups                     og               operators.coreos.com                    true         OperatorGroup
+subscriptions                      sub,subs         operators.coreos.com                    true         Subscription
+clusteroperators                                    operatorstatus.openshift.io             true         ClusterOperator
+packagemanifests                                    packages.apps.redhat.com                true         PackageManifest
+poddisruptionbudgets               pdb              policy                                  true         PodDisruptionBudget
+podsecuritypolicies                psp              policy                                  false        PodSecurityPolicy
+projects                                            project.openshift.io                    false        Project
+appliedclusterresourcequotas                        quota.openshift.io                      true         AppliedClusterResourceQuota
+clusterresourcequotas              clusterquota     quota.openshift.io                      false        ClusterResourceQuota
+clusterrolebindings                                 rbac.authorization.k8s.io               false        ClusterRoleBinding
+clusterroles                                        rbac.authorization.k8s.io               false        ClusterRole
+rolebindings                                        rbac.authorization.k8s.io               true         RoleBinding
+roles                                               rbac.authorization.k8s.io               true         Role
+routes                                              route.openshift.io                      true         Route
+configs                                             samples.operator.openshift.io           false        Config
+priorityclasses                    pc               scheduling.k8s.io                       false        PriorityClass
+rangeallocations                                    security.openshift.io                   false        RangeAllocation
+securitycontextconstraints         scc              security.openshift.io                   false        SecurityContextConstraints
+servicecertsigneroperatorconfigs                    servicecertsigner.config.openshift.io   false        ServiceCertSignerOperatorConfig
+storageclasses                     sc               storage.k8s.io                          false        StorageClass
+volumeattachments                                   storage.k8s.io                          false        VolumeAttachment
+brokertemplateinstances                             template.openshift.io                   false        BrokerTemplateInstance
+templateinstances                                   template.openshift.io                   true         TemplateInstance
+templates                                           template.openshift.io                   true         Template
+tuneds                                              tuned.openshift.io                      true         Tuned
+groups                                              user.openshift.io                       false        Group
+identities                                          user.openshift.io                       false        Identity
+useridentitymappings                                user.openshift.io                       false        UserIdentityMapping
+users                                               user.openshift.io                       false        User
 """
 
 process_api_resources_output(_default_api_resources)

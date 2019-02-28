@@ -638,8 +638,10 @@ def update_api_resources():
     """
     Makes a call to `oc api-resources` and updates openshift-python's internal view of
     resources available. This is only necessary if you are encountering scenarios where
+    the default blob of resources in naming.py is no accurate for your cluster / use case.
+    --verbs=get limits the returned resources to those you can actually 'oc get'.
     """
-    res = invoke('api-resources')
+    res = invoke('api-resources', cmd_args=['--verbs=get'])
     naming.process_api_resources_output(res.out())
 
 
@@ -694,7 +696,6 @@ def dumpinfo_apiobject(output_dir,
         if not naming.kind_matches(obj.kind(), 'secret'):
             with io.open(prefix + '.json', mode='w', encoding="utf-8") as f:
                 f.write(obj.as_json())
-
 
 
 def dumpinfo_node(output_dir,
