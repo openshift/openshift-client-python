@@ -14,6 +14,8 @@ import io
 import sys
 import traceback
 import time
+import json
+import yaml
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -160,16 +162,22 @@ def delete_project(name, ignore_not_found=False, cmd_args=[]):
     r.fail_if("Unable to create delete project: {}".format(name))
 
 
-def _to_dict_list(dict_or_model_or_apiobject_or_list_thereof):
+def _to_dict_list(str_dict_model_apiobject_or_list_thereof):
     l = []
 
     # If incoming is not a list, make it a list so we can keep DRY
-    if not isinstance(dict_or_model_or_apiobject_or_list_thereof, list):
-        dict_or_model_or_apiobject_or_list_thereof = [dict_or_model_or_apiobject_or_list_thereof]
+    if not isinstance(str_dict_model_apiobject_or_list_thereof, list):
+        str_dict_model_apiobject_or_list_thereof = [str_dict_model_apiobject_or_list_thereof]
 
-    for i in dict_or_model_or_apiobject_or_list_thereof:
+    for i in str_dict_model_apiobject_or_list_thereof:
         if isinstance(i, APIObject):
             i = i.model
+
+        if isinstance(i, basestring):
+            if i.strip().startswith('{'):
+                i = json.loads(i)
+            else:
+                i = yaml.loads(i)
 
         if not isinstance(i, dict):
             raise ValueError('Unable to convert type into list items dict: {}'.format(type(i)))
@@ -218,8 +226,8 @@ def drain_node(node_name, ignore_daemonsets=True, delete_local_data=True, force=
     return r
 
 
-def create(dict_or_model_or_apiobject_or_list_thereof, cmd_args=[]):
-    items = _to_dict_list(dict_or_model_or_apiobject_or_list_thereof)
+def create(str_dict_model_apiobject_or_list_thereof, cmd_args=[]):
+    items = _to_dict_list(str_dict_model_apiobject_or_list_thereof)
 
     # If nothing is going to be acted on, return an empty selected
     if not items:
@@ -235,16 +243,16 @@ def create(dict_or_model_or_apiobject_or_list_thereof, cmd_args=[]):
     return __new_objects_action_selector("create", cmd_args=["-f", "-", cmd_args], stdin_obj=m)
 
 
-def delete(dict_or_model_or_apiobject_or_list_thereof, ignore_not_found=False, cmd_args=[]):
+def delete(str_dict_model_apiobject_or_list_thereof, ignore_not_found=False, cmd_args=[]):
     """
     Deletes one or more objects
-    :param dict_or_model_or_apiobject_or_list_thereof:
+    :param str_dict_model_apiobject_or_list_thereof:
     :param ignore_not_found: Pass --ignore-not-found to oc delete
     :param cmd_args: Additional arguments to pass
     :return: If successful, returns a list of qualified names to the caller (can be empty)
     """
 
-    items = _to_dict_list(dict_or_model_or_apiobject_or_list_thereof)
+    items = _to_dict_list(str_dict_model_apiobject_or_list_thereof)
 
     # If there is nothing to act on, return empty selector
     if not items:
@@ -384,8 +392,8 @@ def get_server_version():
     raise OpenShiftPythonException('Unable find version string in output')
 
 
-def apply(dict_or_model_or_apiobject_or_list_thereof, cmd_args=[]):
-    items = _to_dict_list(dict_or_model_or_apiobject_or_list_thereof)
+def apply(str_dict_model_apiobject_or_list_thereof, cmd_args=[]):
+    items = _to_dict_list(str_dict_model_apiobject_or_list_thereof)
 
     # If there is nothing to act on, return empty selector
     if not items:
