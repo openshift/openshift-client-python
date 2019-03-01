@@ -44,7 +44,14 @@ def get_api_resources_kinds():
     for api_resource in _api_resources:
         kinds.add(api_resource.full_name)
 
-    return kinds
+    # until https://bugzilla.redhat.com/show_bug.cgi?id=1684311 fixed
+    ungettable = set()
+    ungettable.update("""
+rangeallocations.security.openshift.io
+useridentitymappings.user.openshift.io
+""".strip().split())
+
+    return kinds.difference(ungettable)
 
 
 def normalize_kind(kind):
