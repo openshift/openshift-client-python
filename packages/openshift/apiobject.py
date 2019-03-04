@@ -118,6 +118,45 @@ class APIObject:
         return _access_field(self.model.kind,
                              "Object model does not contain .kind", if_missing=if_missing, lowercase=lowercase)
 
+    def apiVersion(self, lowercase=True, if_missing=_DEFAULT):
+        """
+        Return the API object's apiVersion if it possesses one.
+        If it does not, returns if_missing. When if_missing not specified, throws a ModelError.
+        :param if_missing: Value to return if apiVesion is not present in Model.
+        :param lowercase: Whether kind should be returned in lowercase.
+        :return: The kind or if_missing.
+        """
+        return _access_field(self.model.apiVersion,
+                             "Object model does not contain .apiVersion", if_missing=if_missing, lowercase=lowercase)
+
+    def group(self, prefix_dot=False, lowercase=True, if_missing=_DEFAULT):
+        """
+        Return the API object's group if it possesses an apiVersion field.
+        If it does not contain apiVersion field, returns if_missing. When if_missing not specified, throws a ModelError.
+        If apiVersion is a non-group version, an empty string is returned.
+        :param prefix_dot: Returns '.[group]' for resources with groups, but '' for those without. Convenience
+         for appending to grouped/ungrouped resource names.
+        :param if_missing: Value to return if apiVesion is not present in Model.
+        :param lowercase: Whether kind should be returned in lowercase.
+        :return: The kind or if_missing.
+        """
+        apiVersion = self.apiVersion(lowercase=lowercase, if_missing=None)
+        if apiVersion is None:
+            if if_missing is _DEFAULT:
+                raise ModelError("Unable to find apiVersion in object")
+            else:
+                return if_missing
+
+        # Otherwise, we have an apiVersion field to parse
+        if '/' not in apiVersion:
+            return ''
+
+        group = apiVersion.split('/')[0]
+        if prefix_dot:
+            return '.{}'.format(group)
+
+        return group
+
     def is_kind(self, test_kind_or_kind_list):
         return kind_matches(self.kind(), test_kind_or_kind_list)
 
@@ -145,9 +184,15 @@ class APIObject:
 
     def fqname(self):
         """
-        :return: Returns the fully qualified name of the object (ns:kind/name).
+        This name is not useful programmaticaly against the openshift API. It is useful
+        only to determine if two apiObjects appear to represent the same resource.
+        :return: Returns the fully qualified name of the object (ns:apiVersion.kind/name).
         """
-        return '{}:{}/{}'.format(self.namespace(if_missing=''), self.kind(), self.name())
+        return '{ns}:{kind}{group}/{name}'.format(ns=self.namespace(if_missing=''),
+                                                   group=self.group(prefix_dot=True),
+                                                   kind=self.kind(),
+                                                   name=self.name()
+                                                   )
 
     def qname(self):
         """
