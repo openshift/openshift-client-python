@@ -200,21 +200,21 @@ class APIObject:
         """
         return self.kind() + '/' + self.name()
 
-    def _object_def_action(self, verb, auto_raise=True, args=[]):
+    def _object_def_action(self, verb, auto_raise=True, cmd_args=None):
         """
         :param verb: The verb to execute
         :param auto_raise: If True, any failed action will cause an exception to be raised automatically.
-        :param args: Other arguments to pass to the verb
+        :param cmd_args: An optional list of additional arguments to pass on the command line
         :return: The Result
         :rtype: Result
         """
         # Convert Model into a dict
         content = self.as_dict()
 
-        a = list(args)
-        a.extend(["-o=name", "-f", "-"])
+        base_args = list()
+        base_args.extend(["-o=name", "-f", "-"])
         result = Result(verb)
-        result.add_action(oc_action(self.context, verb, cmd_args=a, stdin_obj=content))
+        result.add_action(oc_action(self.context, verb, cmd_args=[base_args, cmd_args], stdin_obj=content))
 
         if auto_raise:
             result.fail_if("Error during object {}".format(verb))
@@ -246,30 +246,33 @@ class APIObject:
 
         return does_exist, ret
 
-    def create(self, args=[]):
+    def create(self, cmd_args=None):
         """
         Creates the modeled object if possible.
+        :param cmd_args: An optional list of additional arguments to pass on the command line
         :return: A Result object
         :rtype: Result
         """
-        return self._object_def_action("create", args=args)
+        return self._object_def_action("create", cmd_args=cmd_args)
 
-    def replace(self, args=[]):
+    def replace(self, cmd_args=None):
         """
         Replaces the modeled object if possible.
+        :param cmd_args: An optional list of additional arguments to pass on the command line
         :return: A Result object
         :rtype: Result
         """
-        return self._object_def_action("replace", args=args)
+        return self._object_def_action("replace", cmd_args=cmd_args)
 
-    def create_or_replace(self, args=[]):
+    def create_or_replace(self, cmd_args=None):
         """
         Replaces the modeled object if it exists; creates otherwise.
+        :param cmd_args: An optional list of additional arguments to pass on the command line
         :return: A Result object
         :rtype: Result
         """
-        _, action = self.exists(on_exists_func=lambda: self.replace(args=args),
-                                on_absent_func=lambda: self.create(args=args))
+        _, action = self.exists(on_exists_func=lambda: self.replace(cmd_args=cmd_args),
+                                on_absent_func=lambda: self.create(cmd_args=cmd_args))
 
         return action
 
@@ -287,7 +290,7 @@ class APIObject:
 
         return (r.out() + '\n' + r.err()).strip()
 
-    def logs(self, timestamps=False, previous=False, since=None, limit_bytes=None, tail=-1, cmd_args=[],
+    def logs(self, timestamps=False, previous=False, since=None, limit_bytes=None, tail=-1, cmd_args=None,
              try_longshots=True):
         """
         Attempts to collect logs from running pods associated with this resource. Supports
@@ -306,6 +309,8 @@ class APIObject:
         an 'oc logs' invocation, the stderr will be considered the 'logs' of the object. In other words, oc
         returning an error will not terminate this function.
 
+        :param cmd_args: An optional list of additional arguments to pass on the command line
+
         :param try_longshots: If True, an attempt we will be made to collect logs from resources which the library does
         not natively understand to possess logs. If False and the object is not recognized, an empty dict will be
         returned.
@@ -322,7 +327,7 @@ class APIObject:
             entry = entry.strip().replace('\r\n', '\n')
             collection[entry_key] = entry
 
-        base_args = list(cmd_args)
+        base_args = list()
 
         if previous:
             base_args.append('-p')
@@ -358,7 +363,7 @@ class APIObject:
             pod_list.extend(self.get_owned('pod'))
 
         elif kind_matches(self.kind(), ['bc', 'build']):
-            action = oc_action(self.context, "logs", cmd_args=[base_args, self.qname()])
+            action = oc_action(self.context, "logs", cmd_args=[base_args, cmd_args, self.qname()])
             add_entry(log_aggregation, self.fqname(), action)
 
         else:
@@ -367,7 +372,7 @@ class APIObject:
                 pod_list.extend(self.get_owned('pod'))
                 if not pod_list:
                     # Just try to collect logs and see what happens
-                    action = oc_action(self.context, "logs", cmd_args=[base_args, self.qname()])
+                    action = oc_action(self.context, "logs", cmd_args=[base_args, cmd_args, self.qname()])
                     add_entry(log_aggregation, self.fqname(), action)
                 else:
                     # We don't recognize kind and we aren't taking longshots.
@@ -375,7 +380,7 @@ class APIObject:
 
         for pod in pod_list:
             for container in pod.model.spec.containers:
-                action = oc_action(self.context, "logs", cmd_args=[base_args, pod.qname(), '-c', container.name,
+                action = oc_action(self.context, "logs", cmd_args=[base_args, cmd_args, pod.qname(), '-c', container.name,
                                                                    '--namespace={}'.format(pod.namespace())],
                                    no_namespace=True  # Namespace is included in cmd_args, do not use context
                                    )
@@ -386,17 +391,18 @@ class APIObject:
         return log_aggregation
 
     def print_logs(self, stream=sys.stderr, timestamps=False, previous=False, since=None, limit_bytes=None, tail=-1,
-                   cmd_args=[], try_longshots=True):
+                   cmd_args=None, try_longshots=True):
         """
         Pretty prints logs from selected objects to an output stream (see logs() method).
         :param stream: Output stream to send pretty printed report (defaults to sys.stderr)..
+        :param cmd_args: An optional list of additional arguments to pass on the command line
         :return: n/a
         """
         util.print_logs(stream,
                         self.logs(timestamps=timestamps, previous=previous, since=since, limit_bytes=limit_bytes,
                                   tail=tail, try_longshots=try_longshots, cmd_args=cmd_args))
 
-    def modify_and_apply(self, modifier_func, retries=0, cmd_args=[]):
+    def modify_and_apply(self, modifier_func, retries=0, cmd_args=None):
         """
         Calls the modifier_func with self. The function should modify the model of the receiver
         and return True if it wants this method to try to apply the change via the API. For robust
@@ -405,6 +411,7 @@ class APIObject:
         :param modifier_func: Called before each attempt with an self. The associated model will be refreshed before
             each call if necessary. Function should modify the model with desired changes and return True to
             have those changes applied.
+        :param cmd_args: An optional list of additional arguments to pass on the command line
         :param retries: The number of times to retry. Zero=one attempt.
         :return: A Result object
         :rtype: Result
@@ -433,18 +440,26 @@ class APIObject:
 
         return r
 
-    def apply(self, cmd_args=[]):
+    def apply(self, cmd_args=None):
         """
         Applies any changes which have been made to the underlying model to the API.
         You should use modify_and_apply for robust code if the targeted API object may have been updated
         between the time this APIObject was created and when you call apply.
+        :param cmd_args: An optional list of additional arguments to pass on the command line
         :return: A Result object
         :rtype: Result
         """
 
         return self.modify_and_apply(lambda: True, retries=0, cmd_args=cmd_args)
 
-    def delete(self, ignore_not_found=False, cmd_args=[]):
+    def delete(self, ignore_not_found=False, cmd_args=None):
+        """
+        :param ignore_not_found: If true, no error will be raised if the object cannot be found.
+        :param cmd_args: An optional list of additional arguments to pass on the command line
+        :return:
+        """
+
+
         r = Result("delete")
         base_args = ["-o=name"]
 
@@ -477,26 +492,27 @@ class APIObject:
         r.fail_if("Error refreshing object content")
         return self
 
-    def label(self, labels, overwrite=True, cmd_args=[], refresh_model=True):
+    def label(self, labels, overwrite=True, cmd_args=None, refresh_model=True):
         """"
         Sends a request to the server to label this API object.
         :param labels: A dictionary of labels to apply to the object. If value is None, label will be removed.
         :param overwrite: Whether to pass the --overwrite argument.
+        :param cmd_args: An optional list of additional arguments to pass on the command line
         :param refresh_model: Whether to refresh apiobject model after label is applied.
         :return: Result
         """
 
-        result = self.self_selector().label(labels, overwrite, cmd_ags=cmd_args)
+        result = self.self_selector().label(labels, overwrite, cmd_args=cmd_args)
         if refresh_model:
             self.refresh()
         return result
 
-    def annotate(self, annotations, overwrite=True, cmd_args=[], refresh_model=True):
+    def annotate(self, annotations, overwrite=True, cmd_args=None, refresh_model=True):
         """"
         Sends a request to the server to annotate this API object
         :param annotations: A dictionary of annotations to apply to the object. If value is None, annotation will be removed.
         :param overwrite: Whether to pass the --overwrite argument.
-        :param cmd_args: Additional list of arguments to pass on the command line.
+        :param cmd_args: An optional list of additional arguments to pass on the command line
         :param refresh_model: Whether to refresh apiobject model after label is applied.
         :return: Result
         """
@@ -507,17 +523,17 @@ class APIObject:
 
         return result
 
-    def patch(self, patch_dict, strategy="strategic", cmd_args=[]):
+    def patch(self, patch_dict, strategy="strategic", cmd_args=None):
 
         r = Result("patch")
-        cmd_args = list(cmd_args)
-        cmd_args.append("--type=" + strategy)
+        base_args = list()
+        base_args.append("--type=" + strategy)
 
-        cmd_args.append('{}/{}'.format(self.kind(), self.name()))
+        base_args.append('{}/{}'.format(self.kind(), self.name()))
         patch_def = json.dumps(patch_dict, indent=None)
 
-        cmd_args.append("--patch=" + patch_def)
-        r.add_action(oc_action(self.context, "patch", cmd_args=[cmd_args]))
+        base_args.append("--patch=" + patch_def)
+        r.add_action(oc_action(self.context, "patch", cmd_args=[base_args, cmd_args]))
 
         r.fail_if("Error running patch on objects")
         return r
@@ -547,26 +563,29 @@ class APIObject:
 
         return l
 
-    def process(self, parameters={}, cmd_args=[]):
+    def process(self, parameters=None, cmd_args=None):
 
         """
         Assumes this APIObject is a template and runs oc process against it.
         :param parameters: An optional dict of parameters to supply the process command
-        :param cmd_args: An optional list of additional arguments to supply
+        :param cmd_args: An optional list of additional arguments to pass on the command line
         :return: A list of apiobjects resulting from processing this template.
         """
 
+        if parameters is None:
+            parameters = {}
+
         template = self.model._primitive()
-        cmd_args = list(cmd_args)
-        cmd_args.append("-o=json")
+        base_args = list()
+        base_args.append("-o=json")
 
         for k, v in parameters.items():
-            cmd_args.append("-p")
-            cmd_args.append(k + "=" + v)
+            base_args.append("-p")
+            base_args.append(k + "=" + v)
 
         # Convert python object into a json string
         r = Result("process")
-        r.add_action(oc_action(self.context, "process", cmd_args=["-f", "-", cmd_args], stdin_obj=template))
+        r.add_action(oc_action(self.context, "process", cmd_args=["-f", "-", base_args, cmd_args], stdin_obj=template))
         r.fail_if("Error processing template")
         return APIObject(r.out()).elements()
 
@@ -694,7 +713,7 @@ class APIObject:
 
         return selector(find_kind, labels=labels, static_context=self.context)
 
-    def execute(self, cmd_to_exec=[], stdin=None, container_name=None, auto_raise=True):
+    def execute(self, cmd_to_exec=None, stdin=None, container_name=None, auto_raise=True):
         """
         Performs an oc exec operation on a pod object - passing all of the arguments.
         :param cmd_to_exec: An array containing all elements of the command to execute.
@@ -703,6 +722,10 @@ class APIObject:
         :param auto_raise: Raise an exception if the command returns a non-zero status.
         :return: A result object
         """
+
+        if cmd_to_exec is None:
+            cmd_to_exec = []
+
         oc_args = []
 
         if stdin:

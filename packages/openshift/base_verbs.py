@@ -21,7 +21,7 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-def __new_objects_action_selector(verb, cmd_args=[], stdin_obj=None):
+def __new_objects_action_selector(verb, cmd_args=None, stdin_obj=None):
     """
     Performs and oc action and records objects output from the verb
     as changed in the content.
@@ -37,19 +37,19 @@ def __new_objects_action_selector(verb, cmd_args=[], stdin_obj=None):
     return sel
 
 
-def new_app(cmd_args=[]):
+def new_app(cmd_args=None):
     return __new_objects_action_selector("new-app", cmd_args=cmd_args)
 
 
-def new_build(cmd_args=[]):
+def new_build(cmd_args=None):
     return __new_objects_action_selector("new-build", cmd_args=cmd_args)
 
 
-def start_build(cmd_args=[]):
+def start_build(cmd_args=None):
     return __new_objects_action_selector("start-build", cmd_args=cmd_args)
 
 
-def get_project_name(cmd_args=[]):
+def get_project_name(cmd_args=None):
     """
     :return: Returns the name of the project selected by the current project. If no project
     context has been established, returns KUBECONFIG project using `oc project`.
@@ -65,9 +65,9 @@ def get_project_name(cmd_args=[]):
     return r.out().strip()
 
 
-def whoami(cmd_args=[]):
+def whoami(cmd_args=None):
     """
-    :param cmd_args: Additional arguments to pass to 'oc whoami'
+    :param cmd_args: An optional list of additional arguments to pass on the command line
     :return: The current user
     """
 
@@ -77,9 +77,9 @@ def whoami(cmd_args=[]):
     return r.out().strip()
 
 
-def get_auth_token(cmd_args=[]):
+def get_auth_token(cmd_args=None):
     """
-    :param cmd_args: Additional arguments to pass to 'oc whoami -t'
+    :param cmd_args: An optional list of additional arguments to pass on the command line
     :return: The current user
     """
 
@@ -89,24 +89,26 @@ def get_auth_token(cmd_args=[]):
     return r.out().strip()
 
 
-def get_config_context(cmd_args=[]):
+def get_config_context(cmd_args=None):
     """
-    Returns the result of 'oc config current-context' . If no context currently
+    :param cmd_args: An optional list of additional arguments to pass on the command line
+    :returns: Returns the result of 'oc config current-context' . If no context currently
     exists, None is returned.
     """
     r = Result("current-context")
-    r.add_action(oc_action(cur_context(), "config", cmd_args=['current-context']))
+    r.add_action(oc_action(cur_context(), "config", cmd_args=['current-context', cmd_args]))
     if r.status() != 0:
         return None
 
     return r.out()
 
 
-def use_config_context(context, cmd_args=[]):
+def use_config_context(context, cmd_args=None):
     """
     Sets the current context to use.
     :param context: The context name to pass into use-context. If None, no action is taken.
     exists, None is returned.
+    :param cmd_args: An optional list of additional arguments to pass on the command line
     """
     if not context:
         return
@@ -118,13 +120,13 @@ def use_config_context(context, cmd_args=[]):
     return True
 
 
-def login(username, password, cmd_args=[]):
+def login(username, password, cmd_args=None):
     """
     Executes a login operation with the specified username and password. You usually want to invoke
     this inside of an api_server() context.
     :param username: The username to supply to the login
     :param password: The password to supply to the login
-    :param cmd_args: Additional arguments to pass in
+    :param cmd_args: An optional list of additional arguments to pass on the command line
     :return:
     """
     r = Result("login")
@@ -133,12 +135,12 @@ def login(username, password, cmd_args=[]):
     return True
 
 
-def new_project(name, ok_if_exists=False, cmd_args=[]):
+def new_project(name, ok_if_exists=False, cmd_args=None):
     """
     Creates a new project
     :param name: The name of the project to create
     :param ok_if_exists: Do not raise an error if the project already exists
-    :param cmd_args: Additional arguments to pass on the command line
+    :param cmd_args: An optional list of additional arguments to pass on the command line
     :return: A context manager that can be used with 'with' statement.
     """
 
@@ -153,12 +155,12 @@ def new_project(name, ok_if_exists=False, cmd_args=[]):
     return project(name)
 
 
-def delete_project(name, ignore_not_found=False, cmd_args=[]):
+def delete_project(name, ignore_not_found=False, cmd_args=None):
     r = Result("delete-project")
-    args = list(cmd_args)
+    base_args = list()
     if ignore_not_found:
-        args.append("--ignore-not-found")
-    r.add_action(oc_action(cur_context(), "delete", cmd_args=["project", name, args]))
+        base_args.append("--ignore-not-found")
+    r.add_action(oc_action(cur_context(), "delete", cmd_args=["project", name, base_args, cmd_args]))
     r.fail_if("Unable to create delete project: {}".format(name))
 
 
@@ -199,26 +201,27 @@ def _to_dict_list(str_dict_model_apiobject_or_list_thereof):
 
 
 def drain_node(node_name, ignore_daemonsets=True, delete_local_data=True, force=False, timeout_seconds=None,
-               grace_period_seconds=None, cmd_args=[], auto_raise=True):
+               grace_period_seconds=None, cmd_args=None, auto_raise=True):
     r = Result('drain')
-    args = list(cmd_args)
+
+    base_args = list()
 
     if ignore_daemonsets:
-        args.append('--ignore-daemonsets')
+        base_args.append('--ignore-daemonsets')
 
     if delete_local_data:
-        args.append('--delete-local-data')
+        base_args.append('--delete-local-data')
 
     if force:
-        args.append('--force')
+        base_args.append('--force')
 
     if timeout_seconds is not None and timeout_seconds > 0:
-        args.append('--timeout={}s'.format(timeout_seconds))
+        base_args.append('--timeout={}s'.format(timeout_seconds))
 
     if grace_period_seconds is not None and grace_period_seconds > -1:
-        args.append('--grace-period={}'.format(grace_period_seconds))
+        base_args.append('--grace-period={}'.format(grace_period_seconds))
 
-    r.add_action(oc_action(cur_context(), 'adm', cmd_args=['drain', node_name, args], no_namespace=True))
+    r.add_action(oc_action(cur_context(), 'adm', cmd_args=['drain', node_name, base_args, cmd_args], no_namespace=True))
 
     if auto_raise:
         r.fail_if('Error during drain of node: {}'.format(node_name))
@@ -226,7 +229,7 @@ def drain_node(node_name, ignore_daemonsets=True, delete_local_data=True, force=
     return r
 
 
-def create(str_dict_model_apiobject_or_list_thereof, cmd_args=[]):
+def create(str_dict_model_apiobject_or_list_thereof, cmd_args=None):
     items = _to_dict_list(str_dict_model_apiobject_or_list_thereof)
 
     # If nothing is going to be acted on, return an empty selected
@@ -243,12 +246,12 @@ def create(str_dict_model_apiobject_or_list_thereof, cmd_args=[]):
     return __new_objects_action_selector("create", cmd_args=["-f", "-", cmd_args], stdin_obj=m)
 
 
-def delete(str_dict_model_apiobject_or_list_thereof, ignore_not_found=False, cmd_args=[]):
+def delete(str_dict_model_apiobject_or_list_thereof, ignore_not_found=False, cmd_args=None):
     """
     Deletes one or more objects
     :param str_dict_model_apiobject_or_list_thereof:
     :param ignore_not_found: Pass --ignore-not-found to oc delete
-    :param cmd_args: Additional arguments to pass
+    :param cmd_args: An optional list of additional arguments to pass on the command line
     :return: If successful, returns a list of qualified names to the caller (can be empty)
     """
 
@@ -277,21 +280,21 @@ def delete(str_dict_model_apiobject_or_list_thereof, ignore_not_found=False, cmd
     return r.out().strip().split()
 
 
-def invoke_create(cmd_args=[]):
+def invoke_create(cmd_args=None):
     """
     Relies on caller to provide sensible command line arguments. -o=name will
     be added to the arguments automatically.
-    :param cmd_args: An array of arguments to pass along to oc create
+    :param cmd_args: An optional list of additional arguments to pass on the command line
     :return: A selector for the newly created objects
     """
     return __new_objects_action_selector("create", cmd_args)
 
 
-def invoke(verb, cmd_args=[], stdin_str=None, auto_raise=True):
+def invoke(verb, cmd_args=None, stdin_str=None, auto_raise=True):
     """
     Invokes oc with the supplied arguments.
     :param verb: The verb to execute
-    :param cmd_args: An array of arguments to pass along to oc
+    :param cmd_args: An optional list of additional arguments to pass on the command line
     :param stdin_str: The standard input to supply to the process
     :param auto_raise: Raise an exception if the command returns a non-zero return code
     :return: A Result object containing the executed Action(s) with the output captured.
@@ -392,7 +395,12 @@ def get_server_version():
     raise OpenShiftPythonException('Unable find version string in output')
 
 
-def apply(str_dict_model_apiobject_or_list_thereof, cmd_args=[]):
+def apply(str_dict_model_apiobject_or_list_thereof, overwrite=False, cmd_args=None):
+
+    base_args = list()
+    if overwrite:
+        base_args.append('--overwrite')
+
     items = _to_dict_list(str_dict_model_apiobject_or_list_thereof)
 
     # If there is nothing to act on, return empty selector
@@ -406,10 +414,10 @@ def apply(str_dict_model_apiobject_or_list_thereof, cmd_args=[]):
         'items': items
     }
 
-    return __new_objects_action_selector("apply", cmd_args=["-f", "-", cmd_args], stdin_obj=m)
+    return __new_objects_action_selector("apply", cmd_args=["-f", "-", base_args, cmd_args], stdin_obj=m)
 
 
-def build_configmap_dict(configmap_name, dir_path_or_paths=None, dir_ext_include=None, data_map={}, obj_labels={}):
+def build_configmap_dict(configmap_name, dir_path_or_paths=None, dir_ext_include=None, data_map=None, obj_labels=None):
     """
     Creates a python dict structure for a configmap (if remains to the caller to send
     the yaml to the server with create()). This method does not use/require oc to be resident
@@ -425,6 +433,12 @@ def build_configmap_dict(configmap_name, dir_path_or_paths=None, dir_ext_include
     :param obj_labels: Additional labels to include in the resulting configmap metadata.
     :return: A python dict of a configmap resource.
     """
+
+    if data_map is None:
+        data_map = {}
+
+    if obj_labels is None:
+        obj_labels = {}
 
     dm = dict(data_map)
 
@@ -462,7 +476,7 @@ def build_configmap_dict(configmap_name, dir_path_or_paths=None, dir_ext_include
     return d
 
 
-def build_secret_dict(secret_name, dir_path_or_paths=None, dir_ext_include=None, data_map={}, obj_labels={}):
+def build_secret_dict(secret_name, dir_path_or_paths=None, dir_ext_include=None, data_map=None, obj_labels=None):
     """
     Creates a python dict structure for a secret (it remains to the caller to send
     the yaml to the server with create()). This method does not use/require oc to be resident
@@ -477,6 +491,12 @@ def build_secret_dict(secret_name, dir_path_or_paths=None, dir_ext_include=None,
     :param obj_labels: Additional labels to include in the resulting secret metadata.
     :return: A python dict of a secret resource.
     """
+
+    if data_map is None:
+        data_map = {}
+
+    if obj_labels is None:
+        obj_labels = {}
 
     dm = dict()
 
@@ -533,7 +553,7 @@ class ImageRegistryAuthInfo(object):
         self.email = email
 
 
-def build_secret_dockerconfigjson(secret_name, image_registry_auth_infos, obj_labels={}):
+def build_secret_dockerconfigjson(secret_name, image_registry_auth_infos, obj_labels=None):
     """
     Creates a python dict structure for a 'kubernetes.io/dockerconfigjson' secret (it remains to the caller to send
     the yaml to the server with create()). This method does not use/require oc to be resident
@@ -543,6 +563,9 @@ def build_secret_dockerconfigjson(secret_name, image_registry_auth_infos, obj_la
     :param obj_labels: Additional labels to include in the resulting secret metadata.
     :return: A python dict of a secret resource.
     """
+
+    if obj_labels is None:
+        obj_labels = {}
 
     auths = {}  # A map of registry urls to a map with a single element called 'auth'
 
@@ -582,7 +605,7 @@ def build_secret_dockerconfigjson(secret_name, image_registry_auth_infos, obj_la
     return d
 
 
-def build_secret_dockerconfig(secret_name, image_registry_auth_infos, obj_labels={}):
+def build_secret_dockerconfig(secret_name, image_registry_auth_infos, obj_labels=None):
     """
     Creates a python dict structure for a kubernetes.io/dockercfg secret (it remains to the caller to send
     the yaml to the server with create()). This method does not use/require oc to be resident
@@ -604,6 +627,9 @@ def build_secret_dockerconfig(secret_name, image_registry_auth_infos, obj_labels
     #     "docker-registry.default.svc.cluster.local:5000": {
     #         "username": "serviceaccount",
     #         ...more entries
+
+    if obj_labels is None:
+        obj_labels = {}
 
     auths = {}  # A map of registry urls to entries like those above
 
@@ -709,12 +735,18 @@ def dumpinfo_apiobject(output_dir,
 def dumpinfo_node(output_dir,
                   node,
                   critical_journal_units=['atomic-openshift-node', 'crio', 'docker'],
-                  sdn_pods=[],
-                  fluentd_pods=[],
+                  sdn_pods=None,
+                  fluentd_pods=None,
                   num_combined_journal_entries=10000,
                   num_critical_journal_entries=10000,
                   status_printer=eprint):
     node_dir = util.mkdir_p(output_dir)
+
+    if sdn_pods is None:
+        sdn_pods = []
+
+    if fluentd_pods is None:
+        fluentd_pods = []
 
     try:
 
@@ -833,9 +865,9 @@ def dumpinfo_project(dir,
 def dumpinfo_system(base_dir,
                     dump_core_projects=True,
                     dump_restricted_projects=False,
-                    additional_nodes=[],
-                    additional_projects=[],
-                    additional_namespaced_kinds=[],
+                    additional_nodes=None,
+                    additional_projects=None,
+                    additional_namespaced_kinds=None,
                     include_crd_kinds=False,
                     num_combined_journal_entries=10000,
                     num_critical_journal_entries=10000,
@@ -868,6 +900,15 @@ def dumpinfo_system(base_dir,
     proceeds. Defaults to stderr printing.
     :return: N/A
     """
+
+    if additional_nodes is None:
+        additional_nodes = []
+
+    if additional_projects is None:
+        additional_projects = []
+
+    if additional_namespaced_kinds is None:
+        additional_namespaced_kinds = []
 
     util.mkdir_p(base_dir)
 

@@ -11,11 +11,15 @@ _api_resources = list()
 
 class APIResource:
 
-    def __init__(self, name, group, kind, namespaced, shortnames=[]):
+    def __init__(self, name, group, kind, namespaced, shortnames=None):
         self.name = name
         self.kind = kind
         self.group = group
         self.namespaced = namespaced
+
+        if shortnames is None:
+            shortnames = []
+
         self.shortnames = shortnames
 
         if group:

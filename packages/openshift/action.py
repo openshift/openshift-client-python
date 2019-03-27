@@ -113,6 +113,16 @@ def escape_arg(arg):
 
 
 def _flatten_list(l):
+    """
+    Flattens a list of elements (which can themselves be lists) into a single list
+    of strings.
+    :param l: A list which may contain other lists. Elements of that list may be None.
+    :return: A single, flat list. None elements found in the argument will not be included.
+    """
+
+    if l is None:
+        return []
+
     agg = []
     if is_collection_type(l):
         for e in l:
@@ -127,14 +137,14 @@ def _flatten_list(l):
     return agg
 
 
-def oc_action(context, verb, cmd_args=[], all_namespaces=False, no_namespace=False, namespace=None,
+def oc_action(context, verb, cmd_args=None, all_namespaces=False, no_namespace=False, namespace=None,
               references=None, stdin_obj=None, stdin_str=None, last_attempt=True,
               **kwargs):
     """
     Executes oc client verb with arguments. Returns an Action with result information.
     :param context: context information for the execution
     :param verb: The name of the verb to execute
-    :param cmd_args: A list of strings|array<string> which will be flattened into oc arguments
+    :param cmd_args: A list of strings|list<string> which will be flattened into oc arguments
     :param all_namespaces: If true, --all-namespaces will be included in the invocation
     :param no_namespace: If true, namespace will not be included in invocation
     :param namespace: Namespace which will override context namespace if specified

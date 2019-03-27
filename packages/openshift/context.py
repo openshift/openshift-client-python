@@ -185,7 +185,10 @@ class Context(object):
             return self.parent.get_project()
         return context.default_project
 
-    def get_options(self, add_to={}):
+    def get_options(self, add_to=None):
+
+        if add_to is None:
+            add_to = {}
 
         aggregate = add_to
 

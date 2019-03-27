@@ -373,14 +373,15 @@ class Selector(Result):
         obj = json.loads(self.object_json(exportable, ignore_not_found=ignore_not_found))
         return APIObject(obj).elements()
 
-    def start_build(self, cmd_args=[]):
+    def start_build(self, cmd_args=None):
         r = Selector()
 
         # Have start-build output a list of objects it creates
-        cmd_args = list(cmd_args).append("-o=name")
+        base_args = list()
+        base_args.append("-o=name")
 
         for name in self.qnames():
-            r.add_action(oc_action(self.context, "start-build", cmd_args=[name, cmd_args]))
+            r.add_action(oc_action(self.context, "start-build", cmd_args=[name, base_args, cmd_args]))
 
         r.fail_if("Error running start-build on at least one item: " + str(self.qnames()))
         r.object_list = split_names(r.out())
@@ -427,7 +428,7 @@ class Selector(Result):
         """
         util.print_report(stream, self.report(timestamps=timestamps, logs_since=logs_since, try_longshots=try_longshots))
 
-    def logs(self, timestamps=False, previous=False, since=None, limit_bytes=None, tail=-1, cmd_args=[], try_longshots=False):
+    def logs(self, timestamps=False, previous=False, since=None, limit_bytes=None, tail=-1, cmd_args=None, try_longshots=False):
         """
         Builds a dict of logs for selected resources. Keys are fully qualified names for the source of the
         logs (format of this fqn is subject to change). Each value is the log extracted from the resource.
@@ -435,6 +436,7 @@ class Selector(Result):
         If an object like a deployment or daemonset is included, all pods related to that object will be included in the
         log gathering operation.
 
+        :param cmd_args: An optional list of additional arguments to pass on the command line
         :param try_longshots: Defaults to False. This allows broad selectors that select things without logs to
         not throw errors during this method.
         :return: {
@@ -449,20 +451,21 @@ class Selector(Result):
 
         return d
 
-    def print_logs(self, stream=sys.stderr, timestamps=False, previous=False, since=None, limit_bytes=None, tail=-1, try_longshots=False, cmd_args=[]):
+    def print_logs(self, stream=sys.stderr, timestamps=False, previous=False, since=None, limit_bytes=None, tail=-1, try_longshots=False, cmd_args=None):
         """
         Pretty prints logs from selected objects to an output stream (see logs() method).
         :param stream: Output stream to send pretty printed logs (defaults to sys.stderr)..
+        :param cmd_args: An optional list of additional arguments to pass on the command line
         :return: n/a
         """
         util.print_logs(stream, self.logs(timestamps=timestamps, previous=previous, since=since, limit_bytes=limit_bytes, tail=tail, try_longshots=try_longshots, cmd_args=cmd_args))
 
-    def describe(self, auto_raise=True, cmd_args=[]):
+    def describe(self, auto_raise=True, cmd_args=None):
         """
         Runs oc describe against the selected objects and returns the string which results.
         :param auto_raise: If True, an exception will be raised if an error occurs. If False,
         the returned string will contain stderr.
-        :param cmd_args: Additional arguments to supply to oc describe.
+        :param cmd_args: An optional list of additional arguments to pass on the command line
         :return: A string containing the oc describe output.
         """
         r = Result("describe")
@@ -473,11 +476,12 @@ class Selector(Result):
 
         return (r.out() + "\n" + r.err()).strip()
 
-    def delete(self, ignore_not_found=True, cmd_args=[]):
+    def delete(self, ignore_not_found=True, cmd_args=None):
         """
         :param ignore_not_found: If True, named resources which are not present will not raise an error.
-        :param cmd_args: Additional delete arguments
+        :param base_args: Additional delete arguments
         :param wait_for: Include an `oc wait --for=delete ...` for each resource deleted
+        :param cmd_args: An optional list of additional arguments to pass on the command line
         :return: Returns a list of qualified object names which were deleted.
         """
         names = self.qnames()
@@ -487,57 +491,72 @@ class Selector(Result):
         if len(names) == 0:
             return []
 
-        cmd_args = list(cmd_args)
+        base_args = list()
         if ignore_not_found:
-            cmd_args.append("--ignore-not-found")
-        cmd_args.append("-o=name")
+            base_args.append("--ignore-not-found")
+        base_args.append("-o=name")
 
         r.add_action(oc_action(self.context, "delete", all_namespaces=self.all_namespaces,
-                               cmd_args=[self._selection_args(needs_all=True), cmd_args]))
+                               cmd_args=[self._selection_args(needs_all=True), base_args, cmd_args]))
 
         r.fail_if("Error deleting objects")
         return split_names(r.out())
 
-    def label(self, labels, overwrite=True, cmd_ags=[]):
+    def label(self, labels, overwrite=True, cmd_args=None):
+
+        """
+        Applies a set of labels to selected objects.
+        :param labels: A dictionary of labels to apply.
+        :param overwrite: If true, any existing labels will be overwritten. If false, existing labels will cause
+        a failure.
+        :param cmd_args: An optional list of additional arguments to pass on the command line
+        """
 
         r = Result("label")
-        cmd_ags = list(cmd_ags)
+        base_args = list()
 
         if overwrite:
-            cmd_ags.append("--overwrite")
+            base_args.append("--overwrite")
 
         for l, v in labels.iteritems():
             if not v:
                 if not l.endswith("-"):
                     l += "-"  # Indicate removal on command line if caller has not applied "-" suffix
-                cmd_ags.append(l)
+                base_args.append(l)
             else:
-                cmd_ags.append('{}={}'.format(l, v))
+                base_args.append('{}={}'.format(l, v))
 
         r.add_action(oc_action(self.context, "label", all_namespaces=self.all_namespaces,
-                               cmd_args=[self._selection_args(needs_all=True), cmd_ags]))
+                               cmd_args=[self._selection_args(needs_all=True), base_args, cmd_args]))
 
         r.fail_if("Error running label")
         return self
 
-    def annotate(self, annotations, overwrite=True, cmd_args=[]):
+    def annotate(self, annotations, overwrite=True, cmd_args=None):
+        """
+        Applies a set of annotations to selected objects.
+        :param annotations: A dictionary of annotations to apply.
+        :param overwrite: If true, any existing annotations will be overwritten. If false, existing annotations will cause
+        a failure.
+        :param cmd_args: An optional list of additional arguments to pass on the command line
+        """
 
         r = Result("annotate")
-        cmd_args = list(cmd_args)
+        base_args = list()
 
         if overwrite:
-            cmd_args.append("--overwrite")
+            base_args.append("--overwrite")
 
         for l, v in annotations.iteritems():
             if not v:
                 if not l.endswith("-"):
                     l += "-"  # Indicate removal on command line if caller has not applied "-" suffix
-                cmd_args.append(l)
+                base_args.append(l)
             else:
-                cmd_args.append('{}={}'.format(l, v))
+                base_args.append('{}={}'.format(l, v))
 
         r.add_action(oc_action(self.context, "annotate", all_namespaces=self.all_namespaces,
-                               cmd_args=[self._selection_args(needs_all=True), cmd_args]))
+                               cmd_args=[self._selection_args(needs_all=True), base_args, cmd_args]))
 
         r.fail_if("Error running annotate")
         return self
@@ -556,12 +575,12 @@ class Selector(Result):
             r.append(func(obj, *args, **kwargs))
         return r
 
-    def scale(self, replicas, cmd_args=[]):
+    def scale(self, replicas, cmd_args=None):
         r = Result("scale")
-        cmd_args = list(cmd_args)
-        cmd_args.append('--scale={}'.format(replicas))
+        base_args = list()
+        base_args.append('--scale={}'.format(replicas))
         r.add_action(oc_action(self.context, "scale", all_namespaces=self.all_namespaces,
-                               cmd_args=[self._selection_args(needs_all=False), cmd_args]))
+                               cmd_args=[self._selection_args(needs_all=False), base_args, cmd_args]))
 
         r.fail_if("Error running scale")
         return self
