@@ -417,6 +417,28 @@ def apply(str_dict_model_apiobject_or_list_thereof, overwrite=False, cmd_args=No
     return __new_objects_action_selector("apply", cmd_args=["-f", "-", base_args, cmd_args], stdin_obj=m)
 
 
+def replace(str_dict_model_apiobject_or_list_thereof, force=False, cmd_args=None):
+
+    base_args = list()
+    if force:
+        base_args.append('--force')
+
+    items = _to_dict_list(str_dict_model_apiobject_or_list_thereof)
+
+    # If there is nothing to act on, return empty selector
+    if not items:
+        return selector([])
+
+    m = {
+        'kind': 'List',
+        'apiVersion': 'v1',
+        'metadata': {},
+        'items': items
+    }
+
+    return __new_objects_action_selector("replace", cmd_args=["-f", "-", base_args, cmd_args], stdin_obj=m)
+
+
 def build_configmap_dict(configmap_name, dir_path_or_paths=None, dir_ext_include=None, data_map=None, obj_labels=None):
     """
     Creates a python dict structure for a configmap (if remains to the caller to send
