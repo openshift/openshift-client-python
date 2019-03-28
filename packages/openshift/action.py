@@ -3,10 +3,7 @@ import time
 import socket
 import json
 import os
-import sys
 from .util import TempFile, is_collection_type
-
-DEFAULT_TLS_CHECK = os.getenv("OPENSHIFT_PYTHON_DEFAULT_TLS_CHECK", "true").lower() in ("yes", "true", "t", "y", "1")
 
 
 def _redact_token_arg(arg):
@@ -171,9 +168,6 @@ def oc_action(context, verb, cmd_args=None, all_namespaces=False, no_namespace=F
 
         cmds.append("--server=%s" % url)
 
-    if not DEFAULT_TLS_CHECK:
-        cmds.append("--insecure-skip-tls-verify")
-
     if context.get_token() is not None:
         cmds.append('--token={}'.format(context.get_token()))
 
@@ -202,6 +196,9 @@ def oc_action(context, verb, cmd_args=None, all_namespaces=False, no_namespace=F
 
     if context.get_loglevel() is not None:
         cmds.append("--loglevel=%s" % context.get_loglevel())
+
+    if context.get_skip_tls_verify():
+        cmds.append("--insecure-skip-tls-verify")
 
     # Arguments which are lists are flattened into the command list
     cmds.extend(_flatten_list(cmd_args))

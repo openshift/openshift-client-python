@@ -22,6 +22,7 @@ context.default_ca_cert_path = os.getenv("OPENSHIFT_PYTHON_DEFAULT_CA_CERT_PATH"
 context.default_project = os.getenv("OPENSHIFT_PYTHON_DEFAULT_PROJECT", None)
 context.default_options = {}
 context.default_loglevel = os.getenv("OPENSHIFT_PYTHON_DEFAULT_OC_LOGLEVEL", None)
+context.default_skip_tls_verify = os.getenv("OPENSHIFT_PYTHON_DEFAULT_SKIP_TLS_VERIFY", None)
 
 # Provides defaults for ssh_client context instantiations
 DEFAULT_SSH_HOSTNAME = os.getenv("OPENSHIFT_PYTHON_DEFAULT_SSH_HOSTNAME", None)
@@ -29,6 +30,9 @@ DEFAULT_SSH_USERNAME = os.getenv("OPENSHIFT_PYTHON_DEFAULT_SSH_USERNAME", None)
 DEFAULT_SSH_PORT = int(os.getenv("OPENSHIFT_PYTHON_DEFAULT_SSH_PORT", "22"))
 DEFAULT_SSH_AUTO_ADD = os.getenv("OPENSHIFT_PYTHON_DEFAULT_SSH_AUTO_ADD", "false").lower() in ("yes", "true", "t", "y", "1")
 DEFAULT_LOAD_SYSTEM_HOST_KEYS = os.getenv("OPENSHIFT_PYTHON_DEFAULT_LOAD_SYSTEM_HOST_KEYS", "true").lower() in ("yes", "true", "t", "y", "1")
+
+# If set, --insecure-skip-tls-verify will be included on all oc invocations
+GLOBAL_SKIP_TLS_VERIFY = os.getenv("OPENSHIFT_PYTHON_SKIP_TLS_VERIFY", "false").lower() in ("yes", "true", "t", "y", "1")
 
 # Environment variable can specify generally how long openshift operations can execute before an exception
 MASTER_TIMEOUT = int(os.getenv("OPENSHIFT_PYTHON_MASTER_TIMEOUT", -1))
@@ -49,6 +53,7 @@ class Context(object):
         self.ca_cert_path = None
         self.project_name = None
         self.loglevel_value = None
+        self.skip_tls_verify = None
         self.tracking_strategy = None
         self.no_tracking = False
         self.timeout_datetime = None
@@ -212,6 +217,13 @@ class Context(object):
             return self.parent.get_loglevel()
         return context.default_loglevel
 
+    def get_skip_tls_verify(self):
+        if self.skip_tls_verify is not None:
+            return self.skip_tls_verify
+        if self.parent is not None:
+            return self.parent.get_skip_tls_verify()
+        return context.default_skip_tls_verify
+
     def is_out_of_time(self):
         """
         :return: Returns true if any surrounding timeout context is expired.
@@ -324,6 +336,10 @@ def set_default_token(v):
 
 def set_default_loglevel(v):
     context.default_loglevel = v
+
+
+def set_default_skip_tls_verify(do_skip):
+    context.default_skip_tls_verify = do_skip
 
 
 def blank():
@@ -520,6 +536,18 @@ def loglevel(v):
     """
     c = Context()
     c.loglevel_value = v
+    return c
+
+
+def tls_verify(enable=True):
+    """
+    Establishes a context in which inner oc interactions
+    will pass honor/ignore tls verification.
+    :param enable: If false, --insecure-skip-tls-verify will be passed to oc invocations
+    :return: The context object. Can be safely ignored.
+    """
+    c = Context()
+    c.skip_tls_verify = not enable
     return c
 
 

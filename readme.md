@@ -437,8 +437,8 @@ Establishing explicit contexts within an application will override these environ
 - `OPENSHIFT_PYTHON_DEFAULT_API_SERVER` - default `--server` argument
 - `OPENSHIFT_PYTHON_DEFAULT_CA_CERT_PATH` - default `--cacert` argument
 - `OPENSHIFT_PYTHON_DEFAULT_PROJECT` - default `--namespace` argument
-- `OPENSHIFT_PYTHON_DEFAULT_OC_LOGLEVEL` - default `--loglevel`
-- `OPENSHIFT_PYTHON_DEFAULT_TLS_CHECK` - If `false`, always include `--insecure-skip-tls-verify`
+- `OPENSHIFT_PYTHON_DEFAULT_OC_LOGLEVEL` - default `--loglevel` argument
+- `OPENSHIFT_PYTHON_DEFAULT_SKIP_TLS_VERIFY` - default `--insecure-skip-tls-verify`
 
 ### Master timeout
 Defines an implicit outer timeout(..) context for the entire application. This allows you to ensure
