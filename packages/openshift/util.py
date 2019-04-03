@@ -40,7 +40,7 @@ class TempFile(object):
         self.content = content
 
     def __enter__(self):
-        self.file, self.path = tempfile.mkstemp(self.suffix, "openshift-python")
+        self.file, self.path = tempfile.mkstemp(self.suffix, "openshift-client-python")
 
         if self.content:
             try:

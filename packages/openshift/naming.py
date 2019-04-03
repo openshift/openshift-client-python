@@ -39,7 +39,7 @@ def register_api_resource(api_resource):
 
 def get_api_resources_kinds():
     """
-    Returns a list of 'gettable' (i.e. oc get kind will work) kinds known to openshift-python. Run
+    Returns a list of 'gettable' (i.e. oc get kind will work) kinds known to openshift-client-python. Run
     update_api_resources first if this needs to be exact for a cluster.
     :return: list<string> where each entry is a kind (qualified by group if available)
     """
@@ -178,8 +178,8 @@ def split_fqn(fqn, default_name=None, default_kind=None, default_namespace=None)
 def process_api_resources_output(output):
 
     """
-    Invoke this method with the output of `oc api-resources` and it will update openshift-python's
-    internal understanding of api resource names / kinds. openshift-python comes with a built in
+    Invoke this method with the output of `oc api-resources` and it will update openshift-client-python's
+    internal understanding of api resource names / kinds. openshift-client-python comes with a built in
     set of shortnames and common kind information, so this is often not necessary.
     :param output: The output of `oc api-resources`
     :return: N/A.

@@ -27,7 +27,7 @@
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 ## Overview
-The [openshift-python](https://www.github.com/jupierce/openshift-python) library aims to provide a readable, concise, comprehensive, and fluent
+The [openshift-client-python](https://www.github.com/jupierce/openshift-client-python) library aims to provide a readable, concise, comprehensive, and fluent
 API for rich interactions with an [OpenShift](https://www.openshift.com) cluster. Unlike other clients, this library exclusively uses the command
 line tool (oc) to achieve the interactions. This approach comes with important benefits and disadvantages when compared
 to other client libraries.
@@ -56,7 +56,7 @@ the CLI documentation to find the pass-through arguments a given interaction req
 * A familiarity with Python is assumed.
 
 ## Setup
-1. Git clone https://github.com/jupierce/openshift-python.git (or your fork).
+1. Git clone https://github.com/jupierce/openshift-client-python.git (or your fork).
 2. Append ./packages to your PYTHONPATH environment variable (e.g. export PYTHONPATH=$(pwd)/packages:$PYTHONPATH).
 3. Write and run your python script!
 
@@ -317,7 +317,7 @@ with oc.tracking(action_handler=print_action):
 
 ### Advanced contexts
 If you are unable to use a KUBECONFIG environment variable or need fine grained control over the 
-server/credentials you communicate with for each invocation, use openshift-python contexts. 
+server/credentials you communicate with for each invocation, use openshift-client-python contexts. 
 Contexts can be nested and cause oc invocations within them to use the most recently established 
 context information.
 
@@ -427,18 +427,18 @@ Pods running on node: node/ip-172-31-18-183.ca-central-1.compute.internal
 
 
 ## Environment Variables
-To allow openshift-python applications to be portable between environments without needing to be modified, 
+To allow openshift-client-python applications to be portable between environments without needing to be modified, 
 you can specify many default contexts in the environment. 
 
 ### Defaults when invoking `oc`
 Establishing explicit contexts within an application will override these environment defaults.
-- `OPENSHIFT_PYTHON_DEFAULT_OC_PATH` - default path to use when invoking `oc`
-- `OPENSHIFT_PYTHON_DEFAULT_CONFIG_PATH` - default `--config` argument
-- `OPENSHIFT_PYTHON_DEFAULT_API_SERVER` - default `--server` argument
-- `OPENSHIFT_PYTHON_DEFAULT_CA_CERT_PATH` - default `--cacert` argument
-- `OPENSHIFT_PYTHON_DEFAULT_PROJECT` - default `--namespace` argument
-- `OPENSHIFT_PYTHON_DEFAULT_OC_LOGLEVEL` - default `--loglevel` argument
-- `OPENSHIFT_PYTHON_DEFAULT_SKIP_TLS_VERIFY` - default `--insecure-skip-tls-verify`
+- `OPENSHIFT_CLIENT_PYTHON_DEFAULT_OC_PATH` - default path to use when invoking `oc`
+- `OPENSHIFT_CLIENT_PYTHON_DEFAULT_CONFIG_PATH` - default `--config` argument
+- `OPENSHIFT_CLIENT_PYTHON_DEFAULT_API_SERVER` - default `--server` argument
+- `OPENSHIFT_CLIENT_PYTHON_DEFAULT_CA_CERT_PATH` - default `--cacert` argument
+- `OPENSHIFT_CLIENT_PYTHON_DEFAULT_PROJECT` - default `--namespace` argument
+- `OPENSHIFT_CLIENT_PYTHON_DEFAULT_OC_LOGLEVEL` - default `--loglevel` argument
+- `OPENSHIFT_CLIENT_PYTHON_DEFAULT_SKIP_TLS_VERIFY` - default `--insecure-skip-tls-verify`
 
 ### Master timeout
 Defines an implicit outer timeout(..) context for the entire application. This allows you to ensure
@@ -447,10 +447,10 @@ not included explicit timeout contexts. Like any `timeout` context, this value i
 by subsequent `timeout` contexts within the application. It provides an upper bound for the entire
 application's oc interactions.
 
-- `OPENSHIFT_PYTHON_MASTER_TIMEOUT` 
+- `OPENSHIFT_CLIENT_PYTHON_MASTER_TIMEOUT` 
 
 ### SSH Client Host
-In some cases, it is desirable to run an openshift-python application using a local `oc` binary and 
+In some cases, it is desirable to run an openshift-client-python application using a local `oc` binary and 
 in other cases, the `oc` binary resides on a remote client. Encoding this decision in the application
 itself is unnecessary.
 
@@ -458,15 +458,15 @@ Simply wrap you application in a `client_host` context without arguments. This w
 client host information from environment variables if they are present. If they are not present,
 the application will execute on the local host.
 
-For example, the following application will ssh to `OPENSHIFT_PYTHON_DEFAULT_SSH_HOSTNAME` if it is defined
+For example, the following application will ssh to `OPENSHIFT_CLIENT_PYTHON_DEFAULT_SSH_HOSTNAME` if it is defined
 in the environment. Otherwise, `oc` interactions will be executed on the host running the python application.
 
 ```python
-with oc.client_host():  # if OPENSHIFT_PYTHON_DEFAULT_SSH_HOSTNAME if not defined in the environment, this is a no-op
+with oc.client_host():  # if OPENSHIFT_CLIENT_PYTHON_DEFAULT_SSH_HOSTNAME if not defined in the environment, this is a no-op
     print( 'Found nodes: {}'.format(oc.selector('nodes').qnames()) ) 
 ```
 
-- `OPENSHIFT_PYTHON_DEFAULT_SSH_HOSTNAME` - The hostname on which the `oc` binary resides
-- `OPENSHIFT_PYTHON_DEFAULT_SSH_USERNAME` - Username to use for the ssh connection (optional)
-- `OPENSHIFT_PYTHON_DEFAULT_SSH_PORT` - SSH port to use (optional; defaults to 22)
-- `OPENSHIFT_PYTHON_DEFAULT_SSH_AUTO_ADD` - Whether to automatically trust news hosts
+- `OPENSHIFT_CLIENT_PYTHON_DEFAULT_SSH_HOSTNAME` - The hostname on which the `oc` binary resides
+- `OPENSHIFT_CLIENT_PYTHON_DEFAULT_SSH_USERNAME` - Username to use for the ssh connection (optional)
+- `OPENSHIFT_CLIENT_PYTHON_DEFAULT_SSH_PORT` - SSH port to use (optional; defaults to 22)
+- `OPENSHIFT_CLIENT_PYTHON_DEFAULT_SSH_AUTO_ADD` - Whether to automatically trust news hosts

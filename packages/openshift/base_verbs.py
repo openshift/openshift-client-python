@@ -692,7 +692,7 @@ def build_secret_dockerconfig(secret_name, image_registry_auth_infos, obj_labels
 
 def update_api_resources():
     """
-    Makes a call to `oc api-resources` and updates openshift-python's internal view of
+    Makes a call to `oc api-resources` and updates openshift-client-python's internal view of
     resources available. This is only necessary if you are encountering scenarios where
     the default blob of resources in naming.py is no accurate for your cluster / use case.
     --verbs=get limits the returned resources to those you can actually 'oc get'.

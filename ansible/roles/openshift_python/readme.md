@@ -1,8 +1,8 @@
 Role Name
 =========
 
-This role exposes the openshift-python module allows you to use python leveraging 
-the openshift-python library directly within ansible playbooks.
+This role exposes the openshift-client-python module allows you to use python leveraging 
+the openshift-client-python library directly within ansible playbooks.
 
 Requirements
 ------------

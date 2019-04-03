@@ -249,7 +249,7 @@ def oc_action(context, verb, cmd_args=None, all_namespaces=False, no_namespace=F
                     ssh_stdin.channel.shutdown_write()
 
                 # In python2, read() returns type:str. In python3, I believe it will return type:bytes.
-                # By decoding, we are making the assumption that openshift-python will be
+                # By decoding, we are making the assumption that openshift-client-python will be
                 # useful for text based interactions (e.g. we don't support oc exec with
                 # binary output). By converting into a real unicode string type, hopefully we prevent
                 # a raft of incompatibilities between 2 and 3.
