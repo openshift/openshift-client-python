@@ -17,6 +17,7 @@
   - [Tracking oc invocations](#tracking-oc-invocations)
   - [Time limits](#time-limits)
   - [Advanced contexts](#advanced-contexts)
+  - [Something missing?](#something-missing)
   - [Running oc on a bastion host](#running-oc-on-a-bastion-host)
   - [Gathering reports and logs with selectors](#gathering-reports-and-logs-with-selectors)
   - [Advanced verbs:](#advanced-verbs)
@@ -369,6 +370,16 @@ You ask `oc` to skip TLS verification if necessary.
 with oc.tls_verify(enable=False):
    # all oc invocations within this context will be invoked with --insecure-skip-tls-verify
     oc...   
+```
+
+### Something missing?
+Most common API iterations have abstractions, but if there is no openshift-client-python API 
+exposing the `oc` function you want to run, you can always use `oc.invoke` to directly pass arguments to 
+an `oc` invocation on your host.
+
+```python
+# oc adm policy add-scc-to-user privileged -z my-sa-name
+oc.invoke('adm', ['policy', 'add-scc-to-user', 'privileged', '-z', 'my-sa-name'])
 ```
 
 ### Running oc on a bastion host
