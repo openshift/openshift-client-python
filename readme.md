@@ -15,6 +15,7 @@
   - [Making changes to APIObjects](#making-changes-to-apiobjects)
   - [Running within a Pod](#running-within-a-pod)
   - [Tracking oc invocations](#tracking-oc-invocations)
+  - [Time limits](#time-limits)
   - [Advanced contexts](#advanced-contexts)
   - [Running oc on a bastion host](#running-oc-on-a-bastion-host)
   - [Gathering reports and logs with selectors](#gathering-reports-and-logs-with-selectors)
@@ -75,8 +76,8 @@ import openshift as oc
 print('OpenShift client version: {}'.format(oc.get_client_version()))
 print('OpenShift server version: {}'.format(oc.get_server_version()))
 
-# Set a project context for all inner `oc` invocations
-with oc.project('openshift-infra'):
+# Set a project context for all inner `oc` invocations and limit execution to 10 minutes
+with oc.project('openshift-infra'), oc.timeout(10*60):
     # Print the list of qualified pod names (e.g. ['pod/xyz', 'pod/abc', ...]  in the current project
     print('Found the following pods in {}: {}'.format(oc.get_project_name(), oc.selector('pods').qnames()))
     
@@ -234,7 +235,6 @@ configmap.modify_and_apply(make_model_change, retries=5)
 It is simple to use the API within a Pod. The `oc` binary automatically
 detects it is running within a container and automatically uses the Pod's serviceaccount token/cacert.
 
-
 ### Tracking oc invocations
 It is good practice to setup at least one tracking context within your application so that
 you will be able to easily analyze what `oc` invocations where made on your behalf and the result
@@ -315,6 +315,32 @@ with oc.tracking(action_handler=print_action):
 
 ```
 
+### Time limits
+Have a script you want to ensure succeeds or fails within a specific period of time? Use
+a `timeout` context. Timeout contexts can be nested - if any timeout context expires, 
+the current oc invocation will be killed. 
+
+```python
+#!/usr/bin/python
+import openshift as oc
+
+def node_is_ready(node):
+    ready = node.model.status.conditions.can_match({
+        'type': 'Ready',
+        'status': 'True',
+    })
+    return ready
+
+
+print "Waiting for up to 15 minutes for at least 6 nodes to be ready..."
+with oc.timeout(15 * 60):
+    oc.selector('nodes').until_all(6, success_func=node_is_ready)
+    print "All detected nodes are reporting ready"
+```        
+
+You will be able to see in `tracking` context results that a timeout occurred for an affected
+invocation. The `timeout` field will be set to `True`.
+
 ### Advanced contexts
 If you are unable to use a KUBECONFIG environment variable or need fine grained control over the 
 server/credentials you communicate with for each invocation, use openshift-client-python contexts. 
@@ -329,6 +355,20 @@ with oc.api_server('https:///....'):  # use the specified api server for nested 
     
     with oc.token('def..'):  # --server=... --token=def... will be included in inner oc invocations.
         print "Current project: " + oc.get_project_name()
+```
+
+You can control the loglevel specified  for `oc` invocations.
+```python
+with oc.loglevel(6):
+   # all oc invocations within this context will be invoked with --loglevel=6
+    oc...   
+```
+
+You ask `oc` to skip TLS verification if necessary.
+```python
+with oc.tls_verify(enable=False):
+   # all oc invocations within this context will be invoked with --insecure-skip-tls-verify
+    oc...   
 ```
 
 ### Running oc on a bastion host
