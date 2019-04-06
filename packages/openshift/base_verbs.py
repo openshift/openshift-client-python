@@ -17,6 +17,7 @@ import time
 import json
 import yaml
 
+
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
@@ -172,6 +173,10 @@ def _to_dict_list(str_dict_model_apiobject_or_list_thereof):
         str_dict_model_apiobject_or_list_thereof = [str_dict_model_apiobject_or_list_thereof]
 
     for i in str_dict_model_apiobject_or_list_thereof:
+
+        if i is None:
+            continue
+
         if isinstance(i, APIObject):
             i = i.model
 
@@ -396,7 +401,6 @@ def get_server_version():
 
 
 def apply(str_dict_model_apiobject_or_list_thereof, overwrite=False, cmd_args=None):
-
     base_args = list()
     if overwrite:
         base_args.append('--overwrite')
@@ -418,7 +422,6 @@ def apply(str_dict_model_apiobject_or_list_thereof, overwrite=False, cmd_args=No
 
 
 def replace(str_dict_model_apiobject_or_list_thereof, force=False, cmd_args=None):
-
     base_args = list()
     if force:
         base_args.append('--force')
@@ -561,7 +564,6 @@ def build_secret_dict(secret_name, dir_path_or_paths=None, dir_ext_include=None,
 
 
 class ImageRegistryAuthInfo(object):
-
     """
     Simple struct to pass around information about image registry authentication information.
     """
@@ -625,6 +627,128 @@ def build_secret_dockerconfigjson(secret_name, image_registry_auth_infos, obj_la
     }
 
     return d
+
+
+def build_list(*args):
+    """
+    Converts an arbitrary list of resources into a dict modeling a kube List.
+    :param args: The incoming arguments can be json/yaml strings, dicts, or apiobjects.
+    :return: A dict modeling a kube dict
+    """
+    return _to_dict_list(args)
+
+
+def build_pod_simple(pod_name, image,
+                     command=None,
+                     namespace=None,
+                     labels=None,
+                     working_dir=None,
+                     port=None,
+                     host_network=False,
+                     node_name=None,
+                     restart_policy='Never',
+                     termination_grace_period=0,
+                     api_version='v1',
+                     ):
+    if not labels:
+        labels = {}
+
+    metadata = {
+        'name': pod_name,
+        'labels': labels,
+    }
+
+    if namespace:
+        metadata['namespace'] = namespace
+
+    container0 = {
+        'name': pod_name,
+        'image': image,
+    }
+
+    if port:
+        ports = [
+            {
+                'containerPort': port,
+            },
+        ]
+        container0['ports'] = ports
+
+    if command:
+        # If command is not a list of some sort, make it into one
+        if not util.is_collection_type(command):
+            command = [command]
+        container0['command'] = command
+
+    if working_dir:
+        container0['workingDir'] = working_dir
+
+    spec = {
+        'containers': [container0],
+        'termination_grace_period': termination_grace_period,
+        'restart_policy': restart_policy,
+    }
+
+    if host_network:
+        spec['host_network'] = host_network
+
+    if node_name:
+        spec['node_name'] = node_name
+
+    pod = {
+        'apiVersion': api_version,
+        'kind': 'Pod',
+        'metadata': metadata,
+        'spec': spec,
+    }
+
+    return pod
+
+
+def build_service_simple(service_name,
+                         selector,
+                         target_port,
+                         namespace=None,
+                         protocol='TCP',
+                         service_port=None,
+                         labels=None,
+                         type='ClusterIP',
+                         api_version='v1'):
+    if not service_port:
+        service_port = target_port
+
+    if not labels:
+        labels = {}
+
+    metadata = {
+        'pod_name': service_name,
+        'labels': labels,
+    }
+
+    if namespace:
+        metadata['namespace'] = namespace
+
+    spec = {
+        'ports': [
+            {
+                'name': '{}'.format(target_port),
+                'port': int(service_port),
+                'protocol': protocol,
+                'targetPort': int(target_port),
+            }
+        ],
+        'selector': selector,
+        'type': type,
+    }
+
+    service = {
+        'apiVersion': api_version,
+        'kind': 'Service',
+        'metadata': metadata,
+        'spec': spec,
+    }
+
+    return service
 
 
 def build_secret_dockerconfig(secret_name, image_registry_auth_infos, obj_labels=None):
@@ -736,7 +860,8 @@ def dumpinfo_apiobject(output_dir,
                     running_on_node = naming.qualify_name(obj.model.spec.nodeName, 'node')
                     if running_on_node not in ldn:
                         status_printer(
-                            'Skipping information collection for daemonset pod on non-collected node: {}'.format(obj.fqname()))
+                            'Skipping information collection for daemonset pod on non-collected node: {}'.format(
+                                obj.fqname()))
                         return
 
             with io.open(prefix + '.logs.txt', mode='w', encoding="utf-8") as f:
@@ -1122,7 +1247,6 @@ def node_ssh_await(apiobj_node_name_or_qname=None,
                    auto_add_host=True,
                    through_client_host=True,
                    address_type_pref="ExternalDNS,ExternalIP,Hostname"):
-
     """
     Periodically attempts to connect to a node's ssh server.
     :param apiobj_node_name_or_qname:
