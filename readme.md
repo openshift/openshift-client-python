@@ -202,6 +202,22 @@ oc.selector('node/alpha').object().model.status.conditions.can_match(
         'status': "True",
     }
 )
+
+# can_match can also ensure nest objects and list are present within a resource. Several
+# of these types of checks are already implemented in the openshift.status module.
+def is_route_admitted(apiobj):
+    return apiobj.model.status.can_match({
+        'ingress': [
+            {
+                'conditions': [
+                    {
+                        'type': 'Admitted',
+                        'status': 'True',
+                    }
+                ]
+            }
+        ]
+    })
 ```
 
 

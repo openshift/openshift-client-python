@@ -741,6 +741,5 @@ class APIObject:
             r.fail_if("Error running {} exec on {} [rc={}]: {}".format(self.qname(), cmd_to_exec[0], r.status(), r.err()))
         return r
 
-
 from .context import cur_context
 from .selector import selector
