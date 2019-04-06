@@ -136,12 +136,14 @@ def login(username, password, cmd_args=None):
     return True
 
 
-def new_project(name, ok_if_exists=False, cmd_args=None):
+def new_project(name, ok_if_exists=False, cmd_args=None, adm=False):
     """
     Creates a new project
     :param name: The name of the project to create
     :param ok_if_exists: Do not raise an error if the project already exists
     :param cmd_args: An optional list of additional arguments to pass on the command line
+    :param adm: If true, 'oc adm new-project' will be used. This avoid project templates and can
+    create privileged namespaces (e.g. openshift-*).
     :return: A context manager that can be used with 'with' statement.
     """
 
@@ -151,7 +153,11 @@ def new_project(name, ok_if_exists=False, cmd_args=None):
             return project(name)
 
     r = Result("new-project")
-    r.add_action(oc_action(cur_context(), "new-project", cmd_args=[name, cmd_args]))
+    if adm:
+        r.add_action(oc_action(cur_context(), 'adm', cmd_args=['new-project', name, cmd_args]))
+    else:
+        r.add_action(oc_action(cur_context(), "new-project", cmd_args=[name, cmd_args]))
+
     r.fail_if("Unable to create new project: {}".format(name))
     return project(name)
 
