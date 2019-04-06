@@ -235,6 +235,14 @@ def drain_node(node_name, ignore_daemonsets=True, delete_local_data=True, force=
 
 
 def create(str_dict_model_apiobject_or_list_thereof, cmd_args=None):
+    """
+    Runs oc create against an object or list of objects. The objects will be normalized into a
+    kube List object and set to the create verb.
+    :param str_dict_model_apiobject_or_list_thereof: A single json/yaml string, Model, apiobject, or a
+    list of any of those.
+    :param cmd_args: An optional list of additional arguments to pass on the command line
+    :return: Returns a selector which can select the items just created (if namespace is correct)
+    """
     items = _to_dict_list(str_dict_model_apiobject_or_list_thereof)
 
     # If nothing is going to be acted on, return an empty selected
@@ -721,7 +729,7 @@ def build_service_simple(service_name,
         labels = {}
 
     metadata = {
-        'pod_name': service_name,
+        'name': service_name,
         'labels': labels,
     }
 
