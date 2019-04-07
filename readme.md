@@ -492,6 +492,9 @@ Pods running on node: node/ip-172-31-18-183.ca-central-1.compute.internal
 ...
 ```
 
+## Examples
+
+- [Some unit tests](examples/cluster_tests.py)
 
 ## Environment Variables
 To allow openshift-client-python applications to be portable between environments without needing to be modified, 
