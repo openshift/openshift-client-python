@@ -21,6 +21,7 @@
   - [Running oc on a bastion host](#running-oc-on-a-bastion-host)
   - [Gathering reports and logs with selectors](#gathering-reports-and-logs-with-selectors)
   - [Advanced verbs:](#advanced-verbs)
+- [Examples](#examples)
 - [Environment Variables](#environment-variables)
   - [Defaults when invoking `oc`](#defaults-when-invoking-oc)
   - [Master timeout](#master-timeout)
