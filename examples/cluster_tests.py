@@ -3,6 +3,7 @@
 import argparse
 import time
 import logging
+import traceback
 
 import openshift as oc
 from openshift import status
@@ -272,7 +273,16 @@ if __name__ == '__main__':
         print('Running in local mode. Expecting "oc" in PATH')
 
     with oc.client_host(hostname=bastion_hostname, username="root",
-                        auto_add_host=True, load_system_host_keys=False), oc.timeout(60 * 60):
-        check_online_network_multitenant()
-        check_prevents_cron_jobs()
-        check_online_project_constraints
+                        auto_add_host=True, load_system_host_keys=False):
+        # Ensure tests complete within 30 minutes and track all oc invocations
+        with oc.timeout(60*30), oc.tracking() as t:
+            try:
+                check_online_network_multitenant()
+                check_prevents_cron_jobs()
+                check_online_project_constraints
+            except:
+                logging.fatal('Error occurred during tests')
+                traceback.print_exc()
+                # print out all oc interactions and do not redact secret information
+                print("Tracking:\n{}\n\n".format(t.get_result().as_json(redact_streams=False)))
+
