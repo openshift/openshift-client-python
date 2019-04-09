@@ -662,6 +662,9 @@ def build_pod_simple(pod_name, image,
                      node_name=None,
                      restart_policy='Never',
                      termination_grace_period=0,
+                     service_account_name=None,
+                     privileged=False,
+                     host_mount=False,
                      api_version='v1',
                      ):
     if not labels:
@@ -697,17 +700,44 @@ def build_pod_simple(pod_name, image,
     if working_dir:
         container0['workingDir'] = working_dir
 
+    if privileged or host_mount:
+        container0['securityContext'] = {
+            'privileged' : True,
+        }
+
+    if host_mount:
+        container0['volumeMounts'] = [
+            {
+                'name': 'host-volume',
+                'mountPath': '/host',
+                'readOnly': True,
+            }
+        ]
+
     spec = {
         'containers': [container0],
         'termination_grace_period': termination_grace_period,
         'restart_policy': restart_policy,
     }
 
+    if service_account_name:
+        spec['serviceAccountName'] = service_account_name
+
     if host_network:
         spec['host_network'] = host_network
 
     if node_name:
         spec['node_name'] = node_name
+
+    if host_mount:
+        spec['volumes'] = [
+            {
+                'name': 'host-volume',
+                'hostPath': {
+                    'path': '/',
+                }
+            }
+        ]
 
     pod = {
         'apiVersion': api_version,

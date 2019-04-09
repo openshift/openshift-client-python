@@ -6,7 +6,6 @@ import logging
 import traceback
 
 import openshift as oc
-from openshift import status
 from contextlib import contextmanager
 
 
@@ -179,13 +178,13 @@ def check_online_network_multitenant():
             )
             report_progress("Created: {}".format(server_sel.qnames()))
             report_progress("Waiting for resources readiness...")
-            server_sel.narrow('pod').until_all(1, success_func=status.is_pod_running)
-            server_sel.narrow('route').until_all(1, success_func=status.is_route_admitted)
+            server_sel.narrow('pod').until_all(1, success_func=oc.status.is_pod_running)
+            server_sel.narrow('route').until_all(1, success_func=oc.status.is_route_admitted)
 
             # Create a passive pod that blocks forever so we exec commands within it
             client_sel = oc.create(
                 oc.build_pod_simple(client_name, image='python:3', command=['tail', '-f', '/dev/null']))
-            client_sel.until_all(1, success_func=status.is_pod_running)
+            client_sel.until_all(1, success_func=oc.status.is_pod_running)
 
             server_pod = server_sel.narrow('pod').object()
             service = server_sel.narrow('service').object()

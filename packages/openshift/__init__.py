@@ -6,6 +6,7 @@ from .model import Model, Missing
 from .selector import *
 from .apiobject import *
 import naming
+import status
 null = None  # Allow scripts to specify null in object definitions
 
 

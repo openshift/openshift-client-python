@@ -3,17 +3,28 @@ import time
 import socket
 import json
 import os
+import re
 from .util import TempFile, is_collection_type
 
+# Three base64 encoded components, . delimited will be considered a token
+token_regex = re.compile(r"[a-zA-Z0-9+/_\-]{5,}\.[a-zA-Z0-9+/_\-]{5,}\.[a-zA-Z0-9+/_\-]{5,}")
 
-def _redact_token_arg(arg):
-    if "--token" in arg.lower():
-        return u'--token=**REDACTED**'
-    return arg
+secret_regex = re.compile(r"['\" ]*kind['\" :]*['\" ]*Secret['\" ]*")
 
+# OAuthAccessTokens are 43 char base64 encoded strings
+oauth_regex = re.compile(r"[a-zA-Z0-9+/_\-]{43}")
 
 def _is_sensitive(content_str):
-    return 'kind: Secret' in content_str.replace('"', '').replace("'", '')
+    if token_regex.match(content_str):
+        return True
+
+    if secret_regex.match(content_str):
+        return True
+
+    if oauth_regex.match(content_str):
+        return True
+
+    return False
 
 
 def _redaction_string():
@@ -21,8 +32,13 @@ def _redaction_string():
 
 
 def _redact_content(content_str):
-    if _is_sensitive(content_str):
-        return _redaction_string()
+
+    content_str = token_regex.sub(_redaction_string(), content_str, 0)
+    content_str = oauth_regex.sub(_redaction_string(), content_str, 0)
+
+    if secret_regex.match(content_str):
+        return 'Secret: {}'.format(_redaction_string())
+
     return content_str
 
 
@@ -62,7 +78,20 @@ class Action(object):
         }
 
         if redact_tokens:
-            d['cmd'] = [_redact_token_arg(arg) for arg in self.cmd]
+            redacted = []
+            next_is_token = False
+            for arg in self.cmd:
+                if next_is_token:
+                    redacted.append(_redaction_string())
+                    next_is_token = False
+                elif arg == '--token':
+                    next_is_token = True
+                    redacted.append(arg)
+                elif arg.startswith('--token'):
+                    redacted.append(u'--token=**REDACTED**')
+                else:
+                    redacted.append(arg)
+            d['cmd'] = redacted
 
         if redact_references:
             d['references'] = {key: _redact_content(value) for (key, value) in self.references.iteritems()}
