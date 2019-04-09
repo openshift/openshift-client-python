@@ -211,11 +211,17 @@ def _to_dict_list(str_dict_model_apiobject_or_list_thereof):
     return l
 
 
-def drain_node(node_name, ignore_daemonsets=True, delete_local_data=True, force=False, timeout_seconds=None,
+def drain_node(apiobj_node_name_or_qname, ignore_daemonsets=True,
+               delete_local_data=True, force=False, timeout_seconds=None,
                grace_period_seconds=None, cmd_args=None, auto_raise=True):
     r = Result('drain')
 
     base_args = list()
+
+    if isinstance(apiobj_node_name_or_qname, APIObject):
+        node_name = apiobj_node_name_or_qname.name()
+    else:
+        _, _, node_name = naming.split_fqn(apiobj_node_name_or_qname)
 
     if ignore_daemonsets:
         base_args.append('--ignore-daemonsets')
