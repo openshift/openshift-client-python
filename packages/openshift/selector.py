@@ -22,6 +22,7 @@ class Selector(Result):
     def __init__(self, high_level_operation,
                  kind_or_kinds_or_qname_or_qnames=None,
                  labels=None,
+                 field_selectors=None,
                  object_list=None,
                  object_action=None,
                  filter_func=None,
@@ -33,6 +34,7 @@ class Selector(Result):
         self.context_override = static_context
         self.object_list = object_list
         self.labels = labels
+        self.field_selectors = field_selectors
         self.filter_func = filter_func
         self.all_namespaces = all_namespaces
 
@@ -108,8 +110,27 @@ class Selector(Result):
 
         args.append(','.join(self.kinds))
 
+        if self.field_selectors:
+            sel = '--field-selector='
+            pairs = []
+            for k, v in self.labels.iteritems():
+                negate = False
+                if k.startswith('!'):
+                    # Strip the '!'
+                    k = k[1:]
+                    negate = True
+
+                if isinstance(v, bool):  # booleans in json/yaml need to be lowercase
+                    v = '{}'.format(v).lower()
+
+                # field-selector supports = and !=
+                pairs.append('{}{}{}'.format(k, '!=' if negate else '=', v))
+
+            sel += ','.join(pairs)
+            args.append(sel)
+
         if self.labels is not None:
-            sel = "--selector="
+            sel = '--selector='
             pairs = []
             for k, v in self.labels.iteritems():
 
@@ -664,7 +685,8 @@ class Selector(Result):
             poll_period = min(poll_period + 1, 15)
 
 
-def selector(kind_or_kinds_or_qname_or_qnames=None, labels=None, all_namespaces=False, static_context=None):
+def selector(kind_or_kinds_or_qname_or_qnames=None, labels=None,
+             field_selectors=None, all_namespaces=False, static_context=None):
     """
     selector( "kind" )
     selector( "kind", labels={ 'k': 'v' } )
@@ -679,6 +701,7 @@ def selector(kind_or_kinds_or_qname_or_qnames=None, labels=None, all_namespaces=
         - If dict value is a list/set, evaluates to 'in' or 'notin' selector expression.
         - {'labelname': None}  (read as labelname is None)  performs '-l !labelname' search
         - {'!labelname': None} (read as labelname is not None) performs '-l labelname'
+    :param field_selectors: field-selectors map. If key name starts with '!', != logic will be applied.
     :param all_namespaces: Whether the selector should select from all namespaces.
     :param static_context: Usually, a selector will select from its current context. For example,
         openshift.selector('pods') will select pods from the openshift.project(..) in which it resides. Selectors
@@ -687,6 +710,7 @@ def selector(kind_or_kinds_or_qname_or_qnames=None, labels=None, all_namespaces=
     :rtype: Selector
     """
     return Selector("selector", kind_or_kinds_or_qname_or_qnames, labels=labels,
+                    field_selectors=field_selectors,
                     all_namespaces=all_namespaces, static_context=static_context)
 
 
