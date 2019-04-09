@@ -113,7 +113,7 @@ class Selector(Result):
         if self.field_selectors:
             sel = '--field-selector='
             pairs = []
-            for k, v in self.labels.iteritems():
+            for k, v in self.field_selectors.iteritems():
                 negate = False
                 if k.startswith('!'):
                     # Strip the '!'
