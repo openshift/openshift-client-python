@@ -28,11 +28,14 @@ context.default_skip_tls_verify = os.getenv("OPENSHIFT_CLIENT_PYTHON_DEFAULT_SKI
 DEFAULT_SSH_HOSTNAME = os.getenv("OPENSHIFT_CLIENT_PYTHON_DEFAULT_SSH_HOSTNAME", None)
 DEFAULT_SSH_USERNAME = os.getenv("OPENSHIFT_CLIENT_PYTHON_DEFAULT_SSH_USERNAME", None)
 DEFAULT_SSH_PORT = int(os.getenv("OPENSHIFT_CLIENT_PYTHON_DEFAULT_SSH_PORT", "22"))
-DEFAULT_SSH_AUTO_ADD = os.getenv("OPENSHIFT_CLIENT_PYTHON_DEFAULT_SSH_AUTO_ADD", "false").lower() in ("yes", "true", "t", "y", "1")
-DEFAULT_LOAD_SYSTEM_HOST_KEYS = os.getenv("OPENSHIFT_CLIENT_PYTHON_DEFAULT_LOAD_SYSTEM_HOST_KEYS", "true").lower() in ("yes", "true", "t", "y", "1")
+DEFAULT_SSH_AUTO_ADD = os.getenv("OPENSHIFT_CLIENT_PYTHON_DEFAULT_SSH_AUTO_ADD", "false").lower() in (
+"yes", "true", "t", "y", "1")
+DEFAULT_LOAD_SYSTEM_HOST_KEYS = os.getenv("OPENSHIFT_CLIENT_PYTHON_DEFAULT_LOAD_SYSTEM_HOST_KEYS", "true").lower() in (
+"yes", "true", "t", "y", "1")
 
 # If set, --insecure-skip-tls-verify will be included on all oc invocations
-GLOBAL_SKIP_TLS_VERIFY = os.getenv("OPENSHIFT_CLIENT_PYTHON_SKIP_TLS_VERIFY", "false").lower() in ("yes", "true", "t", "y", "1")
+GLOBAL_SKIP_TLS_VERIFY = os.getenv("OPENSHIFT_CLIENT_PYTHON_SKIP_TLS_VERIFY", "false").lower() in (
+"yes", "true", "t", "y", "1")
 
 # Environment variable can specify generally how long openshift operations can execute before an exception
 MASTER_TIMEOUT = int(os.getenv("OPENSHIFT_CLIENT_PYTHON_MASTER_TIMEOUT", -1))
@@ -43,7 +46,6 @@ def cur_context():
 
 
 class Context(object):
-
     def __init__(self):
         self.parent = None
         self.oc_path = None
@@ -74,7 +76,24 @@ class Context(object):
         if len(context.stack) > 0:
             self.parent = context.stack[-1]
         context.stack.append(self)
+        self.reconnect_ssh()
+        return self
 
+    def close_ssh(self):
+        # Shutdown ssh if it is in use
+        if self.ssh_client:
+            try:
+                self.ssh_client.close()
+            except:
+                pass
+            self.ssh_client = None
+
+    def reconnect_ssh(self):
+        """
+        If you lose a connection to the bastion, you can restablish it.
+        :return:
+        """
+        self.close_ssh()
         if self.ssh_hostname:
 
             # Just-in-time import to avoid hard dependency. Allows
@@ -96,21 +115,15 @@ class Context(object):
                 self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
             self.ssh_client.connect(hostname=self.ssh_hostname, port=self.ssh_port, username=self.ssh_username,
-                                password=self.ssh_password, timeout=self.ssh_timeout)
+                                    password=self.ssh_password, timeout=self.ssh_timeout)
 
             # Enable agent fowarding
             transport = self.ssh_client.get_transport()
             paramiko.agent.AgentRequestHandler(transport.open_session())
 
-        return self
-
     def __exit__(self, type, value, traceback):
         context.stack.pop()
-
-        # Shutdown ssh if it is in use
-        if self.ssh_client:
-            self.ssh_client.close()
-            self.ssh_client = None
+        self.close_ssh()
 
     def get_api_url(self):
 
@@ -256,9 +269,9 @@ class Context(object):
                 if now > c.timeout_datetime:
                     return 1
                 elif min_secs is None:
-                    min_secs = (c.timeout_datetime-now).total_seconds()
+                    min_secs = (c.timeout_datetime - now).total_seconds()
                 else:
-                    min_secs = min((c.timeout_datetime-now).total_seconds(), min_secs)
+                    min_secs = min((c.timeout_datetime - now).total_seconds(), min_secs)
             c = c.parent
 
         if min_secs and min_secs < 1:

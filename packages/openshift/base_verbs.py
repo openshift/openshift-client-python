@@ -1206,7 +1206,7 @@ def node_ssh_client(apiobj_node_name_or_qname=None,
                     auto_add_host=True,
                     connect_timeout=600,
                     through_client_host=True,
-                    address_type_pref="ExternalDNS,ExternalIP,Hostname"
+                    address_type_pref="ExternalDNS,ExternalIP,Hostname",
                     ):
     """
     Returns a paramiko ssh client connected to the named cluster node. The caller is responsible for closing the
@@ -1237,11 +1237,7 @@ def node_ssh_client(apiobj_node_name_or_qname=None,
         apiobj = apiobj_node_name_or_qname
 
     else:
-        if '/' not in apiobj_node_name_or_qname:
-            qname = 'node/{}'.format(apiobj_node_name_or_qname)
-        else:
-            qname = apiobj_node_name_or_qname
-
+        qname = naming.qualify_name(apiobj_node_name_or_qname, 'node')
         apiobj = selector(qname).object()
 
     address_entries = apiobj.model.status.addresses
@@ -1305,7 +1301,6 @@ def node_ssh_await(apiobj_node_name_or_qname=None,
     :param username:
     :param password:
     :param auto_add_host:
-    :param connect_timeout:
     :param through_client_host:
     :param address_type_pref:
     :return: N/A, but throws the last exception received if timeout occurs.
@@ -1314,7 +1309,7 @@ def node_ssh_await(apiobj_node_name_or_qname=None,
     timeout_seconds = int(timeout_seconds)
     timeout_start = time.time()
 
-    while time.time() < timeout_start + timeout_seconds:
+    while True:
         try:
             with node_ssh_client(apiobj_node_name_or_qname=apiobj_node_name_or_qname,
                                  port=port,
@@ -1327,10 +1322,9 @@ def node_ssh_await(apiobj_node_name_or_qname=None,
                 return
 
         except Exception as e:
-            last_e = e
             time.sleep(10)
-
-    raise last_e
+            if time.time() > timeout_start + timeout_seconds:
+                raise
 
 
 def node_ssh_client_exec(apiobj_node_name_or_qname=None,
