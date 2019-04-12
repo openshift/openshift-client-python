@@ -355,28 +355,21 @@ def get_pod_metrics(pod_obj, auto_raise=True):
     return APIObject(string_to_model=r.out())
 
 
-def get_pods_by_node(node_name, auto_raise=True):
+def get_pods_by_node(apiobj_node_name_or_qname):
     """
     Returns a list<APIObject> where each APIObject is a pod running on the specified node.
-    :param node_name: The name of the node ("xyz" or "node/xyz")
-    :param auto_raise: Whether a failure should result in an exception. If false and oc returns an error, an empty
-     list will result.
+    :param apiobj_node_name_or_qname: The name of the node ("xyz" or "node/xyz") or apiobject
     :return: A list of apiobjects. List may be empty.
     """
-    # permit node/xyz and strip it off
-    _, _, node_name = naming.split_fqn(node_name)
-    r = Result('get_pods_by_node')
-    r.add_action(oc_action(cur_context(), verb='adm', cmd_args=['manage-node', node_name, '--list-pods', '-o=json']))
 
-    if auto_raise:
-        r.fail_if('Error retrieving pods for node: {}'.format(node_name))
+    if isinstance(apiobj_node_name_or_qname, APIObject):
+        node_name = apiobj_node_name_or_qname.name()
+    else:
+        # permit node/xyz, but and strip off node/
+        _, _, node_name = naming.split_fqn(apiobj_node_name_or_qname)
 
-    pod_list = []
-
-    if r.status() == 0:
-        pod_list = APIObject(string_to_model=r.out()).elements()
-
-    return pod_list
+    return selector('pod', all_namespaces=True,
+                    field_selectors={'spec.nodeName': node_name}).objects(ignore_not_found=True)
 
 
 def get_client_version():
