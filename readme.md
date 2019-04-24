@@ -30,7 +30,7 @@
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 ## Overview
-The [openshift-client-python](https://www.github.com/jupierce/openshift-client-python) library aims to provide a readable, concise, comprehensive, and fluent
+The [openshift-client-python](https://www.github.com/openshift/openshift-client-python) library aims to provide a readable, concise, comprehensive, and fluent
 API for rich interactions with an [OpenShift](https://www.openshift.com) cluster. Unlike other clients, this library exclusively uses the command
 line tool (oc) to achieve the interactions. This approach comes with important benefits and disadvantages when compared
 to other client libraries.
@@ -59,7 +59,7 @@ the CLI documentation to find the pass-through arguments a given interaction req
 * A familiarity with Python is assumed.
 
 ## Setup
-1. Git clone https://github.com/jupierce/openshift-client-python.git (or your fork).
+1. Git clone https://github.com/openshift/openshift-client-python.git (or your fork).
 2. Append ./packages to your PYTHONPATH environment variable (e.g. export PYTHONPATH=$(pwd)/packages:$PYTHONPATH).
 3. Write and run your python script!
 
