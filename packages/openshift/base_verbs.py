@@ -22,18 +22,20 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-def __new_objects_action_selector(verb, cmd_args=None, stdin_obj=None):
+def __new_objects_action_selector(verb, cmd_args=None, stdin_obj=None, no_namespace=False):
     """
     Performs and oc action and records objects output from the verb
     as changed in the content.
     :param verb: The verb to execute
     :param cmd_args: A list of str|list<str> which will be flattened into command line arguments
     :param stdin_obj: The standard input to feed to the invocation.
+    :param no_namespace: If the incoming objects have namespace information, set to True.
     :return: A selector for the newly created objects
     """
 
     sel = Selector(verb,
-                   object_action=oc_action(cur_context(), verb, cmd_args=['-o=name', cmd_args], stdin_obj=stdin_obj))
+                   object_action=oc_action(cur_context(), verb, cmd_args=['-o=name', cmd_args], stdin_obj=stdin_obj,
+                                           no_namespace=no_namespace))
     sel.fail_if('{} returned an error: {}'.format(verb, sel.err().strip()))
     return sel
 
@@ -172,7 +174,15 @@ def delete_project(name, ignore_not_found=False, cmd_args=None):
 
 
 def _to_dict_list(str_dict_model_apiobject_or_list_thereof):
-    l = []
+    """
+    Normalizes the parameter into a python list<dict>.
+    :param str_dict_model_apiobject_or_list_thereof: The parameter to convert. Could be a yaml/json string,
+    dict, Model, apiobject, or a list of any of those.
+    :return: A normalized list<dict>, and a boolean of whether namespace information was detected in the result.
+    """
+
+    normalized_list = []
+    namespace_detected = False
 
     # If incoming is not a list, make it a list so we can keep DRY
     if not isinstance(str_dict_model_apiobject_or_list_thereof, list):
@@ -200,15 +210,19 @@ def _to_dict_list(str_dict_model_apiobject_or_list_thereof):
 
         # At this point, we should have a Model to make analyzing the structure easier
 
+        # See if a modeled object has a defined, non-empty string for namesapce
+        if i.metadata.namespace is not Missing and i.metadata.namespace:
+            namespace_detected = True
+
         # If we received a List, extract the underlying items. This should include unwrapping things like
         # kind: ImageStreamList.
         if i.kind.endswith("List") and i.items is not Missing:
             # can't use .items here since that is interpreted as a method reference
-            l.extend(i['items']._primitive())
+            normalized_list.extend(i['items']._primitive())
         else:
-            l.append(i._primitive())
+            normalized_list.append(i._primitive())
 
-    return l
+    return normalized_list, namespace_detected
 
 
 def drain_node(apiobj_node_name_or_qname, ignore_daemonsets=True,
@@ -255,7 +269,7 @@ def create(str_dict_model_apiobject_or_list_thereof, cmd_args=None):
     :param cmd_args: An optional list of additional arguments to pass on the command line
     :return: Returns a selector which can select the items just created (if namespace is correct)
     """
-    items = _to_dict_list(str_dict_model_apiobject_or_list_thereof)
+    items, namespace_detected = _to_dict_list(str_dict_model_apiobject_or_list_thereof)
 
     # If nothing is going to be acted on, return an empty selected
     if not items:
@@ -268,7 +282,10 @@ def create(str_dict_model_apiobject_or_list_thereof, cmd_args=None):
         'items': items
     }
 
-    return __new_objects_action_selector("create", cmd_args=["-f", "-", cmd_args], stdin_obj=m)
+    return __new_objects_action_selector("create",
+                                         cmd_args=["-f", "-", cmd_args],
+                                         stdin_obj=m,
+                                         no_namespace=namespace_detected)
 
 
 def delete(str_dict_model_apiobject_or_list_thereof, ignore_not_found=False, cmd_args=None):
@@ -280,7 +297,7 @@ def delete(str_dict_model_apiobject_or_list_thereof, ignore_not_found=False, cmd
     :return: If successful, returns a list of qualified names to the caller (can be empty)
     """
 
-    items = _to_dict_list(str_dict_model_apiobject_or_list_thereof)
+    items, namespace_detected = _to_dict_list(str_dict_model_apiobject_or_list_thereof)
 
     # If there is nothing to act on, return empty selector
     if not items:
@@ -299,33 +316,43 @@ def delete(str_dict_model_apiobject_or_list_thereof, ignore_not_found=False, cmd
         base_args.append('--ignore-not-found')
 
     r = Result('delete')
-    r.add_action(oc_action(cur_context(), "delete", cmd_args=[base_args, cmd_args], stdin_obj=m))
+    r.add_action(oc_action(cur_context(), "delete",
+                           cmd_args=[base_args, cmd_args],
+                           stdin_obj=m,
+                           no_namespace=namespace_detected))
+
     r.fail_if("Delete operation failed")
 
     return r.out().strip().split()
 
 
-def invoke_create(cmd_args=None):
+def invoke_create(cmd_args=None, no_namespace=False):
     """
     Relies on caller to provide sensible command line arguments. -o=name will
     be added to the arguments automatically.
     :param cmd_args: An optional list of additional arguments to pass on the command line
+    :param no_namespace: If False, the context based namespace will not be passed along with the invocation.
     :return: A selector for the newly created objects
     """
-    return __new_objects_action_selector("create", cmd_args)
+    return __new_objects_action_selector("create", cmd_args, no_namespace=no_namespace)
 
 
-def invoke(verb, cmd_args=None, stdin_str=None, auto_raise=True):
+def invoke(verb, cmd_args=None, stdin_str=None, no_namespace=False, auto_raise=True):
     """
     Invokes oc with the supplied arguments.
     :param verb: The verb to execute
     :param cmd_args: An optional list of additional arguments to pass on the command line
     :param stdin_str: The standard input to supply to the process
+    :param no_namespace: If False, the context based namespace will not be passed along with the invocation.
     :param auto_raise: Raise an exception if the command returns a non-zero return code
     :return: A Result object containing the executed Action(s) with the output captured.
     """
     r = Result('invoke')
-    r.add_action(oc_action(cur_context(), verb=verb, cmd_args=cmd_args, stdin_str=stdin_str))
+    r.add_action(oc_action(cur_context(),
+                           verb=verb,
+                           cmd_args=cmd_args,
+                           stdin_str=stdin_str,
+                           no_namespace=no_namespace))
     if auto_raise:
         r.fail_if("Non-zero return code from invoke action")
     return r
@@ -418,7 +445,7 @@ def apply(str_dict_model_apiobject_or_list_thereof, overwrite=False, cmd_args=No
     if overwrite:
         base_args.append('--overwrite')
 
-    items = _to_dict_list(str_dict_model_apiobject_or_list_thereof)
+    items, namespace_detected = _to_dict_list(str_dict_model_apiobject_or_list_thereof)
 
     # If there is nothing to act on, return empty selector
     if not items:
@@ -431,7 +458,10 @@ def apply(str_dict_model_apiobject_or_list_thereof, overwrite=False, cmd_args=No
         'items': items
     }
 
-    return __new_objects_action_selector("apply", cmd_args=["-f", "-", base_args, cmd_args], stdin_obj=m)
+    return __new_objects_action_selector("apply",
+                                         cmd_args=["-f", "-", base_args, cmd_args],
+                                         stdin_obj=m,
+                                         no_namespace=namespace_detected)
 
 
 def replace(str_dict_model_apiobject_or_list_thereof, force=False, cmd_args=None):
@@ -439,7 +469,7 @@ def replace(str_dict_model_apiobject_or_list_thereof, force=False, cmd_args=None
     if force:
         base_args.append('--force')
 
-    items = _to_dict_list(str_dict_model_apiobject_or_list_thereof)
+    items, namespace_detected = _to_dict_list(str_dict_model_apiobject_or_list_thereof)
 
     # If there is nothing to act on, return empty selector
     if not items:
@@ -452,7 +482,10 @@ def replace(str_dict_model_apiobject_or_list_thereof, force=False, cmd_args=None
         'items': items
     }
 
-    return __new_objects_action_selector("replace", cmd_args=["-f", "-", base_args, cmd_args], stdin_obj=m)
+    return __new_objects_action_selector("replace",
+                                         cmd_args=["-f", "-", base_args, cmd_args],
+                                         stdin_obj=m,
+                                         no_namespace=namespace_detected)
 
 
 def build_configmap_dict(configmap_name, dir_path_or_paths=None, dir_ext_include=None, data_map=None, obj_labels=None):

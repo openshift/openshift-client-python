@@ -80,7 +80,7 @@ class APIObject:
             if string_to_model.startswith("{"):
                 dict_to_model = json.loads(string_to_model)
             elif "\n" in string_to_model:  # Assume yaml
-                dict_to_model = yaml.load(string_to_model)
+                dict_to_model = yaml.safe_load(string_to_model)
             else:  # Assume URL
                 raise ValueError("Unable to detect markup format (not yaml or json)")
 
