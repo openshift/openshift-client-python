@@ -33,3 +33,6 @@ def is_credentialsrequest_provisioned(apiobj):
         return apiobj.model.status.provisioned  # This is a boolean
     return False
 
+
+def is_pvc_bound(apiobj):
+    return apiobj.model.status.phase == 'Bound'
