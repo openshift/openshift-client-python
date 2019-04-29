@@ -166,11 +166,16 @@ def new_project(name, ok_if_exists=False, cmd_args=None, adm=False):
 
 def delete_project(name, ignore_not_found=False, cmd_args=None):
     r = Result("delete-project")
+    _, _, name = naming.split_fqn(name)  # Allow project/x, namespace/x, etc. Just out actual name.
     base_args = list()
     if ignore_not_found:
         base_args.append("--ignore-not-found")
     r.add_action(oc_action(cur_context(), "delete", cmd_args=["project", name, base_args, cmd_args]))
     r.fail_if("Unable to create delete project: {}".format(name))
+
+    # Give the controller time to clean up project resources:
+    while selector('namespace/{}'.format(name)).count_existing() > 0:
+        time.sleep(1)
 
 
 def _to_dict_list(str_dict_model_apiobject_or_list_thereof):
