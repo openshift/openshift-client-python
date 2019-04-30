@@ -4,6 +4,7 @@ import socket
 import json
 import os
 import re
+import datetime
 from .util import TempFile, is_collection_type
 
 # Three base64 encoded components, . delimited will be considered a token
@@ -45,7 +46,8 @@ def _redact_content(content_str):
 class Action(object):
 
     def __init__(self, verb, cmd_list, out, err, references, status, stdin_str=None,
-                 timeout=False, last_attempt=True, internal=False, elapsed_time=0):
+                 timeout=False, last_attempt=True, internal=False, elapsed_time=0,
+                 exec_time=0):
         self.status = status
         self.verb = verb
         self.cmd = cmd_list
@@ -57,6 +59,7 @@ class Action(object):
         self.last_attempt = last_attempt
         self.internal = internal
         self.elapsed_time = elapsed_time
+        self.exec_time = exec_time
 
         if not self.references:
             self.references = {}
@@ -64,6 +67,7 @@ class Action(object):
     def as_dict(self, truncate_stdout=-1, redact_tokens=True, redact_references=True, redact_streams=True):
 
         d = {
+            'time': self.exec_time,
             'elapsed_time': self.elapsed_time,
             'status': self.status,
             'verb': self.verb,
@@ -246,6 +250,7 @@ def oc_action(context, verb, cmd_args=None, all_namespaces=False, no_namespace=F
     return_code = -1
 
     start_time = time.time()
+    exec_time = int((datetime.datetime.utcnow() - datetime.datetime(1970, 1, 1)).total_seconds() * 1000)
 
     # If we are out of time, don't even try to execute.
     if not context.is_out_of_time():
@@ -327,6 +332,7 @@ def oc_action(context, verb, cmd_args=None, all_namespaces=False, no_namespace=F
     internal = kwargs.get("internal", False)
     a = Action(verb, cmds, stdout, stderr, references, return_code,
                stdin_str=stdin_str, timeout=timeout, last_attempt=last_attempt,
-               internal=internal, elapsed_time=(end_time-start_time))
+               internal=internal, elapsed_time=(end_time-start_time),
+               exec_time=exec_time)
     context.register_action(a)
     return a
