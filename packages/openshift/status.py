@@ -2,6 +2,7 @@
 
 from openshift import Missing
 
+
 def is_route_admitted(apiobj):
     return apiobj.model.status.can_match({
         'ingress': [
@@ -36,3 +37,21 @@ def is_credentialsrequest_provisioned(apiobj):
 
 def is_pvc_bound(apiobj):
     return apiobj.model.status.phase == 'Bound'
+
+
+def is_imagestream_imported(apiobj):
+    """
+    Returns False if an imagestream reports an issue
+    importing images. Recommended that you run import-image --all
+    against the imagestream.
+    """
+    return not apiobj.model.status.tags.can_match(
+            {
+                'conditions': [
+                    {
+                        'type': 'ImportSuccess',
+                        'status': 'False'
+                    }
+                ]
+            }
+    )
