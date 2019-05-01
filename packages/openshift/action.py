@@ -5,24 +5,30 @@ import json
 import os
 import re
 import datetime
+import traceback
+
 from .util import TempFile, is_collection_type
 
-# Three base64 encoded components, . delimited will be considered a token
-token_regex = re.compile(r"[a-zA-Z0-9+/_\-]{5,}\.[a-zA-Z0-9+/_\-]{5,}\.[a-zA-Z0-9+/_\-]{5,}")
+# Three base64 encoded components, '.' delimited is a token. First, find any such match.
+# You can find examples of these tokens with `oc sa get-token <serviceaccount name>`
+token_regex = re.compile(r"[a-zA-Z0-9+/_\-]{10,}\.[a-zA-Z0-9+/_\-]{100,}\.[a-zA-Z0-9+/_\-]{20,}")
 
-secret_regex = re.compile(r"['\" ]*kind['\" :]*['\" ]*Secret['\" ]*")
+# Find any semblance of kind..Secret
+secret_regex = re.compile(r"\W*kind\W+Secret\W*", re.IGNORECASE)
 
 # OAuthAccessTokens are 43 char base64 encoded strings
 oauth_regex = re.compile(r"[a-zA-Z0-9+/_\-]{43}")
 
+
 def _is_sensitive(content_str):
-    if token_regex.match(content_str):
+
+    if token_regex.findall(content_str):
         return True
 
-    if secret_regex.match(content_str):
+    if secret_regex.findall(content_str):
         return True
 
-    if oauth_regex.match(content_str):
+    if oauth_regex.findall(content_str):
         return True
 
     return False
@@ -47,7 +53,7 @@ class Action(object):
 
     def __init__(self, verb, cmd_list, out, err, references, status, stdin_str=None,
                  timeout=False, last_attempt=True, internal=False, elapsed_time=0,
-                 exec_time=0):
+                 exec_time=0, stack=None):
         self.status = status
         self.verb = verb
         self.cmd = cmd_list
@@ -60,6 +66,7 @@ class Action(object):
         self.internal = internal
         self.elapsed_time = elapsed_time
         self.exec_time = exec_time
+        self.stack = stack or []
 
         if not self.references:
             self.references = {}
@@ -67,7 +74,7 @@ class Action(object):
     def as_dict(self, truncate_stdout=-1, redact_tokens=True, redact_references=True, redact_streams=True):
 
         d = {
-            'time': self.exec_time,
+            'timestamp': self.exec_time,
             'elapsed_time': self.elapsed_time,
             'status': self.status,
             'verb': self.verb,
@@ -79,6 +86,7 @@ class Action(object):
             'timeout': self.timeout,
             'last_attempt': self.last_attempt,
             'internal': self.internal,
+            'stack': self.stack,
         }
 
         if redact_tokens:
@@ -98,10 +106,20 @@ class Action(object):
             d['cmd'] = redacted
 
         if redact_references:
-            d['references'] = {key: _redact_content(value) for (key, value) in self.references.iteritems()}
+            refs = {}
+            for (key, value) in self.references.iteritems():
+                if _is_sensitive(value):
+                    refs[key] = _redact_content(value)
+                else:
+                    refs[key] = value
+
+            d['references'] = refs
 
         if redact_streams:
-            d['err'] = _redact_content(self.err)
+            if _is_sensitive(self.err):
+                d['err'] = _redact_content(self.err)
+            else:
+                d['err'] = self.err
 
         if self.stdin_str:
             if redact_streams and _is_sensitive(self.stdin_str):
@@ -329,10 +347,16 @@ def oc_action(context, verb, cmd_args=None, all_namespaces=False, no_namespace=F
 
     end_time = time.time()
 
+    # If there is an error, collect a stack for debug purposes
+    stack = []
+    if return_code != 0:
+        stack = traceback.format_stack()
+
     internal = kwargs.get("internal", False)
     a = Action(verb, cmds, stdout, stderr, references, return_code,
                stdin_str=stdin_str, timeout=timeout, last_attempt=last_attempt,
                internal=internal, elapsed_time=(end_time-start_time),
-               exec_time=exec_time)
+               exec_time=exec_time,
+               stack=stack)
     context.register_action(a)
     return a
