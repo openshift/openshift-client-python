@@ -459,14 +459,14 @@ class APIObject:
         :return:
         """
 
-
         r = Result("delete")
         base_args = ["-o=name"]
 
         if ignore_not_found is True:
             base_args.append("--ignore-not-found")
 
-        r.add_action(oc_action(self.context, "delete", cmd_args=[self.kind(), self.name(), base_args, cmd_args]))
+        r.add_action(oc_action(self.context, "delete",
+                               cmd_args=[self.kind(), self.name(), base_args, cmd_args]))
         r.fail_if("Error deleting object")
         return r
 
@@ -479,7 +479,8 @@ class APIObject:
         base_args = ["-o=json"]
 
         for attempt in reversed(range(9)):
-            r_action = oc_action(self.context, "get", cmd_args=[self.kind(), self.name(), base_args],
+            r_action = oc_action(self.context, "get",
+                                 cmd_args=[self.kind(), self.name(), base_args],
                                  last_attempt=(attempt == 0))
 
             r.add_action(r_action)
@@ -491,6 +492,18 @@ class APIObject:
 
         r.fail_if("Error refreshing object content")
         return self
+
+    def get_label(self, name, if_missing=None):
+        """
+        :param name: The name of the label
+        :param if_missing: Value to return if the label is not present (defaults to None).
+        :return: Returns the value of the specified label or the specified default if not present.
+        """
+        v = self.model.metadata.labels[name]
+        if v is not Missing:
+            return v
+
+        return if_missing
 
     def label(self, labels, overwrite=True, cmd_args=None, refresh_model=True):
         """"
@@ -506,6 +519,18 @@ class APIObject:
         if refresh_model:
             self.refresh()
         return result
+
+    def get_annotation(self, name, if_missing=None):
+        """
+        :param name: The name of the annotation
+        :param if_missing: Value to return if the annotation is not present (defaults to None).
+        :return: Returns the value of the specified annotation or the specified default if not present.
+        """
+        v = self.model.metadata.annotations[name]
+        if v is not Missing:
+            return v
+
+        return if_missing
 
     def annotate(self, annotations, overwrite=True, cmd_args=None, refresh_model=True):
         """"
@@ -740,6 +765,7 @@ class APIObject:
         if auto_raise:
             r.fail_if("Error running {} exec on {} [rc={}]: {}".format(self.qname(), cmd_to_exec[0], r.status(), r.err()))
         return r
+
 
 from .context import cur_context
 from .selector import selector
