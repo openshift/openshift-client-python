@@ -160,6 +160,17 @@ class APIObject:
     def is_kind(self, test_kind_or_kind_list):
         return kind_matches(self.kind(), test_kind_or_kind_list)
 
+    def uid(self, if_missing=_DEFAULT):
+        """
+        Return the API object's uid if it possesses one.
+        If it does not, returns if_missing. When if_missing not specified, throws a ModelError.
+        :param if_missing: Value to return if uid is not present in Model.
+        :return: The name or if_missing.
+        """
+        return _access_field(self.model.metadata.uid,
+                             "Object model does not contain .metadata.uid", if_missing=if_missing,
+                             lowercase=True)
+
     def name(self, if_missing=_DEFAULT):
         """
         Return the API object's name if it possesses one.
@@ -409,21 +420,24 @@ class APIObject:
         implementations, a non-zero number of retries is recommended.
 
         :param modifier_func: Called before each attempt with an self. The associated model will be refreshed before
-            each call if necessary. Function should modify the model with desired changes and return True to
-            have those changes applied.
+            each call if necessary. If the function finds changes it wants to make to the model, it should
+            make them directly and return True. If it does not want to make changes, it should return False.
         :param cmd_args: An optional list of additional arguments to pass on the command line
         :param retries: The number of times to retry. Zero=one attempt.
-        :return: A Result object
+        :return: A Result object containing a record of all attempts AND a boolean. The boolean will be True
+           if an apply operation was successful   OR   the modifier_func returned False.
         :rtype: Result
         """
         r = Result("apply")
 
+        success = False;
         for attempt in reversed(range(retries + 1)):
 
             do_apply = modifier_func(self)
 
-            # Modifier does not want to modify this object -- stop retrying
-            if not do_apply:
+            # Modifier does not want to modify this object -- stop retrying. Retuning None should continue attempts.
+            if do_apply is False:
+                success = True
                 break
 
             apply_action = oc_action(self.context, "apply", cmd_args=["-f", "-", cmd_args], stdin_obj=self.as_dict(),
@@ -432,13 +446,14 @@ class APIObject:
             r.add_action(apply_action)
 
             if apply_action.status == 0:
+                success = True
                 break
 
             if attempt != 0:
                 # Get a fresh copy of the API object from the server
                 self.refresh()
 
-        return r
+        return r, success
 
     def apply(self, cmd_args=None):
         """
