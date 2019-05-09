@@ -440,7 +440,15 @@ class APIObject:
                 success = True
                 break
 
-            apply_action = oc_action(self.context, "apply", cmd_args=["-f", "-", cmd_args], stdin_obj=self.as_dict(),
+            new_obj = self.as_dict()
+
+            # Remove items which should not be included in apply
+            new_obj['metadata'].pop('resourceVersion', None)
+            new_obj['metadata'].pop('selfLink', None)
+            new_obj['metadata'].pop('uid', None)
+            new_obj['metadata'].pop('creationTimestamp', None)
+
+            apply_action = oc_action(self.context, "apply", cmd_args=["-f", "-", cmd_args], stdin_obj=new_obj,
                                      last_attempt=(attempt == 0))
 
             r.add_action(apply_action)
