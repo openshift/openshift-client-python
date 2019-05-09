@@ -471,7 +471,7 @@ def apply(str_dict_model_apiobject_or_list_thereof, overwrite=False, cmd_args=No
                            stdin_obj=m,
                            no_namespace=namespace_detected)
 
-        r = Result()
+        r = Result('fetching_resourceVersion')
         r.add_action(action)
         r.fail_if('Unable to fetch existing resource versions')
 
