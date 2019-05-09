@@ -171,6 +171,28 @@ class APIObject:
                              "Object model does not contain .metadata.uid", if_missing=if_missing,
                              lowercase=True)
 
+    def resource_version(self, if_missing=_DEFAULT):
+        """
+        Return the API object's resourceVersion if it possesses one.
+        If it does not, returns if_missing. When if_missing not specified, throws a ModelError.
+        :param if_missing: Value to return if resourceVersion is not present in Model.
+        :return: The name or if_missing.
+        """
+        return _access_field(self.model.metadata.resourceVersion,
+                             "Object model does not contain .metadata.resourceVersion", if_missing=if_missing,
+                             lowercase=True)
+
+    def api_version(self, if_missing=_DEFAULT):
+        """
+        Return the API object's apiVersion if it possesses one.
+        If it does not, returns if_missing. When if_missing not specified, throws a ModelError.
+        :param if_missing: Value to return if apiVersion is not present in Model.
+        :return: The name or if_missing.
+        """
+        return _access_field(self.model.apiVersion,
+                             "Object model does not contain apiVersion", if_missing=if_missing,
+                             lowercase=True)
+
     def name(self, if_missing=_DEFAULT):
         """
         Return the API object's name if it possesses one.
@@ -440,15 +462,7 @@ class APIObject:
                 success = True
                 break
 
-            new_obj = self.as_dict()
-
-            # Remove items which should not be included in apply
-            new_obj['metadata'].pop('resourceVersion', None)
-            new_obj['metadata'].pop('selfLink', None)
-            new_obj['metadata'].pop('uid', None)
-            new_obj['metadata'].pop('creationTimestamp', None)
-
-            apply_action = oc_action(self.context, "apply", cmd_args=["-f", "-", cmd_args], stdin_obj=new_obj,
+            apply_action = oc_action(self.context, "apply", cmd_args=["-f", "-", cmd_args], stdin_obj=self.as_dict(),
                                      last_attempt=(attempt == 0))
 
             r.add_action(apply_action)
