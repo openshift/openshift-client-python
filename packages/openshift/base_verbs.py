@@ -445,7 +445,7 @@ def get_server_version():
     raise OpenShiftPythonException('Unable find version string in output')
 
 
-def apply(str_dict_model_apiobject_or_list_thereof, overwrite=False, cmd_args=None):
+def apply(str_dict_model_apiobject_or_list_thereof, overwrite=False, cmd_args=None, fetch_resource_versions=False):
     base_args = list()
     if overwrite:
         base_args.append('--overwrite')
@@ -462,6 +462,33 @@ def apply(str_dict_model_apiobject_or_list_thereof, overwrite=False, cmd_args=No
         'metadata': {},
         'items': items
     }
+
+    if fetch_resource_versions:
+        # If we are supposed to update resource versions before performing the apply,
+        # get a current copy of the incoming resources, ignoring those which don't exist.
+        action = oc_action(cur_context(), 'get',
+                           cmd_args=['-f', '-', '--ignore-not-found', '-o=json'],
+                           stdin_obj=m,
+                           no_namespace=namespace_detected)
+
+        r = Result()
+        r.add_action(action)
+        r.fail_if('Unable to fetch existing resource versions')
+
+        if not action.out.strip():
+            # Parse the output to get an up-to-date copy of the objects from the server. Put each
+            # fully qualified name in a dict.
+            existing_resource_versions = {}
+            for obj in APIObject(string_to_model=action.out).elements():
+                existing_resource_versions[obj.fqname()] = obj.resource_version()
+
+            # Update the incoming items with resourceVersion found on the server.
+            for item in items:
+                item_obj = APIObject(dict_to_model=item)
+                if item_obj.fqname() in existing_resource_versions:
+                    new_metadata = item.get('metadata', {})
+                    new_metadata['resourceVersion'] == existing_resource_versions[item_obj.fqname()]
+                    item['metadata'] = new_metadata
 
     return __new_objects_action_selector("apply",
                                          cmd_args=["-f", "-", base_args, cmd_args],
@@ -739,7 +766,7 @@ def build_pod_simple(pod_name, image,
 
     if privileged or host_mount:
         container0['securityContext'] = {
-            'privileged' : True,
+            'privileged': True,
         }
 
     if host_mount:
