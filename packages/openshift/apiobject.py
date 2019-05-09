@@ -12,7 +12,6 @@ _DEFAULT = object()
 
 
 def _obj_to_primitive(obj):
-
     """
     Converts objects into their python primitive form. e.g.
       - APIObject or Model -> dict
@@ -74,10 +73,18 @@ class APIObject:
 
     def __init__(self, dict_to_model=None, string_to_model=None, context=None):
 
-        if string_to_model:
+        if string_to_model is not None:
             string_to_model = string_to_model.strip()
 
-            if string_to_model.startswith("{"):
+            if string_to_model == "":
+                # oc sometimes returns empty string to indicate an empty list
+                dict_to_model = {
+                    "apiVersion": "v1",
+                    "kind": "List",
+                    "metadata": {},
+                    "items": []
+                }
+            elif string_to_model.startswith("{"):
                 dict_to_model = json.loads(string_to_model)
             elif "\n" in string_to_model:  # Assume yaml
                 dict_to_model = yaml.safe_load(string_to_model)
@@ -222,10 +229,10 @@ class APIObject:
         :return: Returns the fully qualified name of the object (ns:apiVersion.kind/name).
         """
         return '{ns}:{kind}{group}/{name}'.format(ns=self.namespace(if_missing=''),
-                                                   group=self.group(prefix_dot=True),
-                                                   kind=self.kind(),
-                                                   name=self.name()
-                                                   )
+                                                  group=self.group(prefix_dot=True),
+                                                  kind=self.kind(),
+                                                  name=self.name()
+                                                  )
 
     def qname(self):
         """
@@ -413,8 +420,9 @@ class APIObject:
 
         for pod in pod_list:
             for container in pod.model.spec.containers:
-                action = oc_action(self.context, "logs", cmd_args=[base_args, cmd_args, pod.qname(), '-c', container.name,
-                                                                   '--namespace={}'.format(pod.namespace())],
+                action = oc_action(self.context, "logs",
+                                   cmd_args=[base_args, cmd_args, pod.qname(), '-c', container.name,
+                                             '--namespace={}'.format(pod.namespace())],
                                    no_namespace=True  # Namespace is included in cmd_args, do not use context
                                    )
                 # Include self.fqname() to let reader know how we actually found this pod (e.g. from a dc).
@@ -607,7 +615,8 @@ class APIObject:
         """
         self_kind = self.kind(lowercase=False)
         if self_kind.endswith('List'):  # e.g. "List", "PodList", "NodeList"
-            item_kind = self_kind[:-4]  # strip 'List' off the end. This may leave '' or the kind of elements in the list
+            item_kind = self_kind[
+                        :-4]  # strip 'List' off the end. This may leave '' or the kind of elements in the list
         else:
             return [self]
 
@@ -771,7 +780,8 @@ class APIObject:
         elif this_kind.startswith("job"):
             labels["job-name"] = name
         else:
-            raise OpenShiftPythonException("Unknown how to find {} resources to related to kind: {}".format(find_kind, this_kind))
+            raise OpenShiftPythonException(
+                "Unknown how to find {} resources to related to kind: {}".format(find_kind, this_kind))
 
         return selector(find_kind, labels=labels, static_context=self.context)
 
@@ -800,7 +810,8 @@ class APIObject:
         r.add_action(
             oc_action(self.context, "exec", cmd_args=[oc_args, self.name(), "--", cmd_to_exec], stdin_str=stdin))
         if auto_raise:
-            r.fail_if("Error running {} exec on {} [rc={}]: {}".format(self.qname(), cmd_to_exec[0], r.status(), r.err()))
+            r.fail_if(
+                "Error running {} exec on {} [rc={}]: {}".format(self.qname(), cmd_to_exec[0], r.status(), r.err()))
         return r
 
 

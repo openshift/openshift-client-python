@@ -446,6 +446,17 @@ def get_server_version():
 
 
 def apply(str_dict_model_apiobject_or_list_thereof, overwrite=False, cmd_args=None, fetch_resource_versions=False):
+    """
+    Applies the specifies resource(s) on the server.
+    :param str_dict_model_apiobject_or_list_thereof:
+    :param overwrite: If --overwrite should be sent to apply.
+    :param cmd_args: Additional apply arguments
+    :param fetch_resource_versions: If True, before trying to apply the resources, a get operation will be uesd to
+    fetch any existing resourceVersion(s). Those resourceVersions will be populated into the apply payload before
+    being sent to the server. See https://github.com/kubernetes/kubernetes/issues/70674 for why this is sometimes
+    necessary.
+    :return:
+    """
     base_args = list()
     if overwrite:
         base_args.append('--overwrite')
@@ -475,7 +486,7 @@ def apply(str_dict_model_apiobject_or_list_thereof, overwrite=False, cmd_args=No
         r.add_action(action)
         r.fail_if('Unable to fetch existing resource versions')
 
-        if not action.out.strip():
+        if action.out.strip():
             # Parse the output to get an up-to-date copy of the objects from the server. Put each
             # fully qualified name in a dict.
             existing_resource_versions = {}
@@ -487,7 +498,7 @@ def apply(str_dict_model_apiobject_or_list_thereof, overwrite=False, cmd_args=No
                 item_obj = APIObject(dict_to_model=item)
                 if item_obj.fqname() in existing_resource_versions:
                     new_metadata = item.get('metadata', {})
-                    new_metadata['resourceVersion'] == existing_resource_versions[item_obj.fqname()]
+                    new_metadata['resourceVersion'] = existing_resource_versions[item_obj.fqname()]
                     item['metadata'] = new_metadata
 
     return __new_objects_action_selector("apply",
