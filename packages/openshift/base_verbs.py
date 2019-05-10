@@ -205,7 +205,7 @@ def _to_dict_list(str_dict_model_apiobject_or_list_thereof):
             if i.strip().startswith('{'):
                 i = json.loads(i)
             else:
-                i = yaml.loads(i)
+                i = yaml.safe_load(i)
 
         if not isinstance(i, dict):
             raise ValueError('Unable to convert type into list items dict: {}'.format(type(i)))

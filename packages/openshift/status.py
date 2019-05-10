@@ -22,11 +22,40 @@ def is_pod_running(apiobj):
     return apiobj.model.status.phase == 'Running'
 
 
+def is_pod_succeeded(apiobj):
+    return apiobj.model.status.phase == 'Succeeded'
+
+
 def is_node_ready(apiobj):
     return apiobj.model.status.conditions.can_match({
         'type': 'Ready',
         'status': 'True',
     })
+
+
+def is_operator_ready(operator_apiobj):
+
+    # Operator not reporting conditions yet?
+    if not operator_apiobj.model.status.conditions:
+        return False
+
+    happy = True
+    for condition in operator_apiobj.model.status.conditions:
+
+        if condition.type == "Progressing" and condition.status == "True":
+            happy = False
+
+        if condition.type == "Failing" and condition.status == "True":
+            happy = False
+
+        # Degraded replaced 'Failing' in 4.1
+        if condition.type == "Degraded" and condition.status == "True":
+            happy = False
+
+        if condition.type == "Available" and condition.status == "False":
+            happy = False
+
+    return happy
 
 
 def is_credentialsrequest_provisioned(apiobj):
