@@ -52,7 +52,7 @@ def _redact_content(content_str):
 class Action(object):
 
     def __init__(self, verb, cmd_list, out, err, references, status, stdin_str=None,
-                 timeout=False, last_attempt=True, internal=False, elapsed_time=0,
+                 timeout_context=None, last_attempt=True, internal=False, elapsed_time=0,
                  exec_time=0, stack=None):
         self.status = status
         self.verb = verb
@@ -61,17 +61,20 @@ class Action(object):
         self.err = err or ''
         self.stdin_str = stdin_str
         self.references = references
-        self.timeout = timeout
+        self.timeout = (timeout_context is not None)
         self.last_attempt = last_attempt
         self.internal = internal
         self.elapsed_time = elapsed_time
         self.exec_time = exec_time
-        self.stack = stack or []
 
         if not self.references:
             self.references = {}
 
-    def as_dict(self, truncate_stdout=-1, redact_tokens=True, redact_references=True, redact_streams=True):
+        self.references['stack'] = stack or []
+        if timeout_context and timeout_context.frame_info:
+            self.references['timeout_context'] = '{}:{}'.format(timeout_context.frame_info[0], timeout_context.frame_info[1])
+
+    def as_dict(self, truncate_stdout=-1, redact_tokens=True, redact_streams=True, redact_references=True):
 
         d = {
             'timestamp': self.exec_time,
@@ -86,7 +89,6 @@ class Action(object):
             'timeout': self.timeout,
             'last_attempt': self.last_attempt,
             'internal': self.internal,
-            'stack': self.stack,
         }
 
         if redact_tokens:
@@ -108,9 +110,24 @@ class Action(object):
         if redact_references:
             refs = {}
             for (key, value) in self.references.iteritems():
-                if _is_sensitive(value):
-                    refs[key] = _redact_content(value)
+
+                # pass through references that we provided through the library and won't contain secrets
+                if key in ('stack', 'timeout_context'):
+                    refs[key] = value
+                    continue
+
+                # References van be string or complex structures.
+                if isinstance(value, basestring):
+                    value_str = value
                 else:
+                    # If a structure of some type, serialize into a string to
+                    # check the entire thing for sensitivity.
+                    value_str = json.dumps(value)
+
+                if _is_sensitive(value_str):
+                    refs[key] = _redact_content(value_str)
+                else:
+                    # If not sensitive, make sure to keep structure.
                     refs[key] = value
 
             d['references'] = refs
@@ -149,7 +166,7 @@ class Action(object):
 
         return d
 
-    def as_json(self, indent=4, redact_tokens=True, redact_references=True, redact_streams=True):
+    def as_json(self, indent=4, redact_tokens=True, redact_streams=True, redact_references=True):
         return json.dumps(
             self.as_dict(redact_tokens=redact_tokens, redact_references=redact_references,
                          redact_streams=redact_streams), indent=indent)
@@ -271,7 +288,8 @@ def oc_action(context, verb, cmd_args=None, all_namespaces=False, no_namespace=F
     exec_time = int((datetime.datetime.utcnow() - datetime.datetime(1970, 1, 1)).total_seconds() * 1000)
 
     # If we are out of time, don't even try to execute.
-    if not context.is_out_of_time():
+    expired, timeout_context = context.get_out_of_time()
+    if not expired:
 
         if context.get_ssh_client() is not None:
             command_string = ""
@@ -289,8 +307,9 @@ def oc_action(context, verb, cmd_args=None, all_namespaces=False, no_namespace=F
 
                 # This timeout applies to individual read / write channel operations which follow.
                 # If paramiko fails to timeout, consider using polling: https://stackoverflow.com/a/45844203
+                remaining, timeout_context = context.get_min_remaining_seconds()
                 ssh_stdin, ssh_stdout, ssh_stderr = context.get_ssh_client().exec_command(command=pathed_command,
-                                                                                          timeout=context.get_min_remaining_seconds(),
+                                                                                          timeout=remaining,
                                                                                           environment={
                                                                                               'LC_ALL': 'en_US.UTF-8',
                                                                                           }
@@ -324,7 +343,8 @@ def oc_action(context, verb, cmd_args=None, all_namespaces=False, no_namespace=F
                         process = subprocess.Popen(cmds, stdin=stdin_file.file, stdout=out.file, stderr=err.file)
 
                         while process.poll() is None:
-                            if context.is_out_of_time():
+                            expired, timeout_context = context.get_out_of_time()
+                            if expired:
                                 try:
                                     timeout = True
                                     process.kill()
@@ -341,22 +361,29 @@ def oc_action(context, verb, cmd_args=None, all_namespaces=False, no_namespace=F
             return_code = process.returncode
             if timeout:
                 return_code = -1
+
+        end_time = time.time()
+        elapsed_time = (end_time - start_time)
+
     else:
         timeout = True
         return_code = -1
-
-    end_time = time.time()
+        elapsed_time = -1  # Indicate we never tried to run the process
 
     # If there is an error, collect a stack for debug purposes
     stack = []
     if return_code != 0:
         stack = traceback.format_stack()
 
+    if not timeout:
+        timeout_context = None
+
     internal = kwargs.get("internal", False)
     a = Action(verb, cmds, stdout, stderr, references, return_code,
-               stdin_str=stdin_str, timeout=timeout, last_attempt=last_attempt,
-               internal=internal, elapsed_time=(end_time-start_time),
+               stdin_str=stdin_str, timeout_context=timeout_context, last_attempt=last_attempt,
+               internal=internal, elapsed_time=elapsed_time,
                exec_time=exec_time,
                stack=stack)
+
     context.register_action(a)
     return a
