@@ -1,6 +1,7 @@
 from datetime import datetime
 from datetime import timedelta
 from threading import local
+import inspect
 
 import os
 
@@ -71,6 +72,17 @@ class Context(object):
         self.ssh_timeout = 600
         self.ssh_auto_add_host = False
         self.ssh_load_system_host_keys = True
+
+        # Find the source code that appears to have created this Context
+        self.frame_info = None
+        for frame in inspect.stack():
+            module = inspect.getmodule(frame[0])
+            if module and (module.__name__ == 'openshift' or module.__name__.startswith('openshift.')):
+                # The source appears to be within this module; skip this frame
+                continue
+
+            self.frame_info = inspect.getframeinfo(frame[0])
+            break
 
     def __enter__(self):
         if len(context.stack) > 0:
@@ -237,9 +249,9 @@ class Context(object):
             return self.parent.get_skip_tls_verify()
         return context.default_skip_tls_verify
 
-    def is_out_of_time(self):
+    def get_out_of_time(self):
         """
-        :return: Returns true if any surrounding timeout context is expired.
+        :return: Returns any Context which claims it is timed out. Returns (True,Context) if any surrounding timeout context is expired. If not, returns (False,None)
         """
 
         # Unlike most context methods, timeout methods use cur_context instead of self.
@@ -248,15 +260,16 @@ class Context(object):
         now = datetime.utcnow()
         while c is not None:
             if c.timeout_datetime is not None and now > c.timeout_datetime:
-                return True
+                return True, c
             c = c.parent
-        return False
+        return False, None
 
     def get_min_remaining_seconds(self):
         """
         :return: Returns the number of seconds a command needs to finish to satisfy
-        existing timeout contexts. A minimum of 1 second is always returned
-        if a timeout context exists. If no timeout context exists, None is returned.
+        existing timeout contexts and the Context which possessed the minimum; i.e. (secs, Context).
+        A minimum of 1 second is always returned if a timeout context exists. If no timeout context exists,
+        (None,None) is returned.
         """
 
         # Unlike most context methods, timeout methods use cur_context instead of self.
@@ -264,20 +277,23 @@ class Context(object):
         c = cur_context()
         min_secs = None
         now = datetime.utcnow()
+        limiting_context = None
         while c is not None:
             if c.timeout_datetime is not None:
                 if now > c.timeout_datetime:
-                    return 1
+                    return 1, c
                 elif min_secs is None:
                     min_secs = (c.timeout_datetime - now).total_seconds()
-                else:
-                    min_secs = min((c.timeout_datetime - now).total_seconds(), min_secs)
+                    limiting_context = c
+                elif (c.timeout_datetime - now).total_seconds() < min_secs:
+                    limiting_context = c
+                    min_secs = (c.timeout_datetime - now).total_seconds()
             c = c.parent
 
-        if min_secs and min_secs < 1:
-            return 1
+        if min_secs is not None and min_secs < 1:
+            return 1, limiting_context
 
-        return min_secs
+        return min_secs, limiting_context
 
     def get_result(self):
         """
