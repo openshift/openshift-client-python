@@ -735,8 +735,8 @@ def build_pod_simple(pod_name, image,
                      port=None,
                      host_network=False,
                      node_name=None,
-                     restart_policy='Never',
-                     termination_grace_period=0,
+                     restart_policy=None,
+                     termination_grace_period=None,
                      service_account_name=None,
                      privileged=False,
                      host_mount=False,
@@ -791,9 +791,13 @@ def build_pod_simple(pod_name, image,
 
     spec = {
         'containers': [container0],
-        'termination_grace_period': termination_grace_period,
-        'restart_policy': restart_policy,
     }
+
+    if restart_policy is not None:
+        spec['restartPolicy'] = restart_policy
+
+    if termination_grace_period is not None:
+        spec['terminationGracePeriodSeconds'] = termination_grace_period
 
     if service_account_name:
         spec['serviceAccountName'] = service_account_name
