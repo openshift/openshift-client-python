@@ -60,12 +60,12 @@ the CLI documentation to find the pass-through arguments a given interaction req
 
 ## Setup
 Setup-Prerequisites
-1. Python 2.7
-2. pyyaml library
-    ```text
-    sudo pip install pyyaml
+1. You will require certain pip packages, use the following command to install them when at the root folder of the repository.
+
+    ```editorconfig
+    sudo pip install -r requirements.txt
     ```
-3. Download and install the OpenShift [command-line Tools](https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/) needed to access your OpenShift cluster.
+2. Download and install the OpenShift [command-line Tools](https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/) needed to access your OpenShift cluster.
 
 Setup steps
 1. Git clone https://github.com/openshift/openshift-client-python.git (or your fork).
