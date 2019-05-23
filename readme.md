@@ -540,4 +540,5 @@ with oc.client_host():  # if OPENSHIFT_CLIENT_PYTHON_DEFAULT_SSH_HOSTNAME if not
 - `OPENSHIFT_CLIENT_PYTHON_DEFAULT_SSH_HOSTNAME` - The hostname on which the `oc` binary resides
 - `OPENSHIFT_CLIENT_PYTHON_DEFAULT_SSH_USERNAME` - Username to use for the ssh connection (optional)
 - `OPENSHIFT_CLIENT_PYTHON_DEFAULT_SSH_PORT` - SSH port to use (optional; defaults to 22)
-- `OPENSHIFT_CLIENT_PYTHON_DEFAULT_SSH_AUTO_ADD` - Whether to automatically trust news hosts
+- `OPENSHIFT_CLIENT_PYTHON_DEFAULT_SSH_AUTO_ADD` - Defaults to `false`. If set to `true`, unknown hosts will automatically be trusted.
+- `OPENSHIFT_CLIENT_PYTHON_DEFAULT_LOAD_SYSTEM_HOST_KEYS` - Defaults to `true`. If true, the local known hosts information will be used.
