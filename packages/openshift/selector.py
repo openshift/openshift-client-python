@@ -606,10 +606,10 @@ class Selector(Result):
         r.fail_if("Error running scale")
         return self
 
-    def until_any(self, success_func=None, failure_func=None, *args, **kwargs):
+    def until_any(self, min_to_satisfy=1, success_func=None, tolerate_failures=0, failure_func=None, *args, **kwargs):
         """
-        Polls the server until a selected resource satisfies a user specified
-        success condition or violates a user specified failure condition.
+        Polls the server until at least min_to_satisfy resources satisfies a user specified
+        success condition or until more than tolerate_failures are detected.
 
         To accomplish this, until_any periodically selects all objects selected
         by the receiver and iterates through them. For each object selected,
@@ -617,30 +617,51 @@ class Selector(Result):
         as a Model (*args and **kwargs will also be passed along).
 
         You can use this function to wait for the existence of any satisfying
-        object to be returned by the API by not specifying any success or failure
+        object(s) to be returned by the API by not specifying any success or failure
         criteria.
 
+        This method will not continue polling if there is an exception. The caller must
+        handle API errors.
+
+        :param min_to_satisfy: Within the resources selected, the success_func must
+            return True for this number of resources before the condition is satisfied.
         :param success_func: If this function returns True on any obj, iteration will stop
-            and until_any will return (True, obj) where obj was the object. If no success_func
-            is specified, the method behaves as if any object returns True.
+            and until_any will return (True, objs) where objs are the objects satisfying
+            the condition. If no success_func is specified, the method behaves as if any
+            object returns True.
+        :param tolerate_failures: The number of items which can fail the failure_func before
+            terminating polling. By default, this value is set to 0, so any failure will
+            terminate the loop.
         :param failure_func: If this function returns True on any obj, iteration will stop
-            and until_any will return (False, obj) where obj was the object
-        :return: (bool, obj) where bool is True if the success condition was satisfied
-            and False if the failure condition was satisfied.
+            and until_any will return (False, objs, obj) where objs is all selected
+            objects and obj failed the test.
+        :return:  (True, satisfying_apiobjs, all_apiobjs) or (False, failing_apiobjs, all_apiobjs)
         """
         poll_period = 1
         while True:
-            for obj in self.objects():
+            objs = self.objects()
+            satisfied_by = []
+            failed_by = []
+            for obj in objs:
                 if failure_func is not None and failure_func(obj, *args, **kwargs):
-                    return False, obj
+                    failed_by.append(obj)
+
+                if len(failed_by) > tolerate_failures:
+                    return False, failed_by, objs
+
                 if success_func is None or success_func(obj, *args, **kwargs):
-                    return True, obj
+                    satisfied_by.append(obj)
+
+                if len(satisfied_by) >= min_to_satisfy:
+                    return True, satisfied_by, objs
+
             time.sleep(poll_period)
             poll_period = min(poll_period + 1, 15)
 
-    def until_all(self, min_count, success_func=None, failure_func=None, *args, **kwargs):
+    def until_all(self, min_exist=1, success_func=None, tolerate_failures=0, failure_func=None, *args, **kwargs):
         """
-        Polls the server until ALL selected resources satisfy a user specified
+        Waits until the API returns at least min_exist resources and then
+        polls the server until ALL selected resources satisfy a user specified
         success condition or ANY violate a user specified failure condition.
 
         To accomplish this, until_all periodically selects all objects selected
@@ -651,13 +672,20 @@ class Selector(Result):
         until_all with a min_count and not success_func will wait until at least min_count
         objects are selected.
 
-        :param min_count: Minimum number of objects which must exist before check will be performed
-        :param success_func: If this function returns True on ALL objects, iteration will stop
-            and until_all will return (True, objs, None) where objs is a list of APIObjects
-            selected/checked. If not specified, a function that always returns True will be used.
-        :param failure_func: If this function returns True on ANY obj, iteration will stop
-            and until_all will return (False, objs, bad) where objs is the list of APIObjects
-            selected/checked and bad is the APIObject which failed.
+        This method will not continue polling if there is an exception. The caller must
+        handle API errors.
+
+        :param min_exist: Minimum number of objects which must exist before success/failure checks will be performed
+        :param success_func: If this function returns True on ALL objects selected, iteration will stop
+            and until_all will return (True, objs, objs) where objs is a list of all selected APIObjects.
+            If not specified, a function that always returns True will be used.
+        :param tolerate_failures: The number of items which can fail the failure_func before
+            terminating polling. By default, this value is set to 0, so any failure will
+            terminate the loop.
+        :param failure_func: If this function returns True on more than the tolerate_failures value,
+            polling will stop and until_all will return (False, failed_objs, all_objs) where failed_objs is a
+            list containing the objects which failed and all_objs the full listing of server objects
+            selected.
         :return: (bool, objs, bad) where bool is True if the success condition was satisfied
             and False if the failure condition triggered. objs is the list of selected objects
             which were checked, and bad will be an non-None APIObject if an object failed
@@ -670,17 +698,26 @@ class Selector(Result):
         poll_period = 1
         while True:
             objs = self.objects()
-            if len(objs) >= min_count:
-                successer = True
-                failer = False
+            if len(objs) >= min_exist:
+
+                satisfied_by = []
+                failed_by = []
+
                 for obj in objs:
-                    successer &= success_func(obj, *args, **kwargs)
+                    if success_func(obj, *args, **kwargs):
+                        satisfied_by.append(obj)
+
                     if failure_func is not None:
-                        failer |= failure_func(obj, *args, **kwargs)
-                if successer:
-                    return True, objs, None
-                if failer:
-                    return False, objs, obj
+                        if failure_func(obj, *args, **kwargs):
+                            failed_by.append(obj)
+                            break
+
+                if len(failed_by) > tolerate_failures:
+                    return False, failed_by, objs
+
+                if len(satisfied_by) == len(objs):
+                    return True, satisfied_by, objs
+
             time.sleep(poll_period)
             poll_period = min(poll_period + 1, 15)
 
