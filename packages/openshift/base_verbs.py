@@ -406,43 +406,66 @@ def get_pods_by_node(apiobj_node_name_or_qname):
 
 def get_client_version():
     """
-    :return: Returns the version of the oc binary being used (e.g. 'v3.11.28')
+    :return: Returns the version of the oc binary being used (e.g. '3.11.28')
     """
 
-    r = Result('version')
+    r = Result('version3')
     r.add_action(oc_action(cur_context(), verb='version'))
     r.fail_if('Unable to determine version')
-    for line in r.out().splitlines():
-        if line.startswith('oc '):
-            return line.split()[1]
 
-    raise OpenShiftPythonException('Unable find version string in output')
+    # Example OpenShift 3 output:
+    # oc v3.11.82
+    # kubernetes v1.11.0+d4cacc0
+    # features: Basic-Auth GSSAPI Kerberos SPNEGO
+    for line in r.out().splitlines():
+        if line.startswith('oc v'):
+            return line.split()[1].lstrip('v')
+
+    r = Result('version4')
+    r.add_action(oc_action(cur_context(), verb='version', cmd_args=['-o=json']))
+    r.fail_if('Unable to determine version')
+
+    version_dict = json.loads(r.out())
+    version_model = Model(dict_to_model=version_dict, case_insensitive=True)
+    if version_model.clientVersion.gitVersion:
+        return version_model.clientVersion.gitVersion.lstrip('v')
+
+    raise OpenShiftPythonException('Unable extract version from json: {}'.format(r.out()))
 
 
 def get_server_version():
     """
-    :return: Returns the version of the oc server being accessed (e.g 'v3.11.28')
+    :return: Returns the version of the oc server being accessed (e.g '3.11.28')
     """
 
-    r = Result('version')
+    r = Result('version3')
     r.add_action(oc_action(cur_context(), verb='version'))
     r.fail_if('Unable to determine version')
+
+    # Example OpenShift 3 output:
+    # oc v3.11.82
+    # kubernetes v1.11.0+d4cacc0
+    # features: Basic-Auth GSSAPI Kerberos SPNEGO
+    #
+    # Server https://internal.api.starter-us-east-2.openshift.com:443
+    # openshift v3.11.82
+    # kubernetes v1.11.0+d4cacc0
     for line in reversed(r.out().splitlines()):
-        if line.startswith('openshift '):
-            return line.split()[1]
+        if line.startswith('openshift v'):
+            return line.split()[1].strip().lstrip('v')
 
     # If not found, this is a 4.0 cluster where this output line was removed. The best
     # alternative is the version returned by the API.
-    r = Result('version')
-    r.add_action(
-        oc_action(cur_context(), 'get', cmd_args=['--raw', '/apis/config.openshift.io/v1/clusterversions/version']))
-    r.fail_if('Error contacting clusterversions/version endpoint')
+    r = Result('version4')
+    r.add_action(oc_action(cur_context(), 'adm', cmd_args=['release', 'info', '-o=json']))
+    r.fail_if('Error returning release info')
 
-    version_obj = APIObject(string_to_model=r.out())
-    if version_obj.model.status.current.version is not Missing:
-        return version_obj.model.status.current.version
+    version_dict = json.loads(r.out())
+    version_model = Model(dict_to_model=version_dict, case_insensitive=True)
+    if version_model.metadata.version:
+        return version_model.metadata.version
 
-    raise OpenShiftPythonException('Unable find version string in output')
+    raise OpenShiftPythonException('Unable find version string in json: {}'.format(r.out()))
 
 
 def apply(str_dict_model_apiobject_or_list_thereof, overwrite=False, cmd_args=None, fetch_resource_versions=False):
