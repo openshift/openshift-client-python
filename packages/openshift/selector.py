@@ -620,7 +620,7 @@ class Selector(Result):
         object(s) to be returned by the API by not specifying any success or failure
         criteria.
 
-        This method will not continue polling if there is an exception. The caller must
+        This method will NOT continue polling if there is an exception. The caller must
         handle API errors.
 
         :param min_to_satisfy: Within the resources selected, the success_func must
@@ -669,10 +669,10 @@ class Selector(Result):
         the user specified callable(s) will be invoked once with the object
         as a Model (*args and **kwargs will also be passed along).
 
-        until_all with a min_count and not success_func will wait until at least min_count
+        If success_func is not specified, until_all will return satisfied when at least min_exist
         objects are selected.
 
-        This method will not continue polling if there is an exception. The caller must
+        This method will NOT continue polling if there is an exception. The caller must
         handle API errors.
 
         :param min_exist: Minimum number of objects which must exist before success/failure checks will be performed
