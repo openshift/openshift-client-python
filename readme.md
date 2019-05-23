@@ -59,6 +59,15 @@ the CLI documentation to find the pass-through arguments a given interaction req
 * A familiarity with Python is assumed.
 
 ## Setup
+Setup-Prerequisites
+1. You will require certain pip packages, use the following command to install them when at the root folder of the repository.
+
+    ```editorconfig
+    sudo pip install -r requirements.txt
+    ```
+2. Download and install the OpenShift [command-line Tools](https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/) needed to access your OpenShift cluster.
+
+Setup steps
 1. Git clone https://github.com/openshift/openshift-client-python.git (or your fork).
 2. Append ./packages to your PYTHONPATH environment variable (e.g. export PYTHONPATH=$(pwd)/packages:$PYTHONPATH).
 3. Write and run your python script!
@@ -255,7 +264,7 @@ detects it is running within a container and automatically uses the Pod's servic
 
 ### Tracking oc invocations
 It is good practice to setup at least one tracking context within your application so that
-you will be able to easily analyze what `oc` invocations where made on your behalf and the result
+you will be able to easily analyze what `oc` invocations were made on your behalf and the result
 of those operations. *Note that details about all `oc` invocations performed within the context will
 be stored within the tracker. Therefore, do not use a single tracker for a continuously running
 process -- it will consume memory for every oc invocation.*
