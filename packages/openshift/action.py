@@ -52,8 +52,9 @@ def _redact_content(content_str):
 class Action(object):
 
     def __init__(self, verb, cmd_list, out, err, references, status, stdin_str=None,
-                 timeout_context=None, last_attempt=True, internal=False, elapsed_time=0,
-                 exec_time=0, stack=None):
+                 last_attempt=True, internal=False, elapsed_time=0,
+                 timeout=False,
+                 exec_time=0):
         self.status = status
         self.verb = verb
         self.cmd = cmd_list
@@ -61,18 +62,14 @@ class Action(object):
         self.err = err or ''
         self.stdin_str = stdin_str
         self.references = references
-        self.timeout = (timeout_context is not None)
+        self.timeout = timeout
         self.last_attempt = last_attempt
         self.internal = internal
         self.elapsed_time = elapsed_time
         self.exec_time = exec_time
 
-        if not self.references:
+        if self.references is None:
             self.references = {}
-
-        self.references['stack'] = stack or []
-        if timeout_context and timeout_context.frame_info:
-            self.references['timeout_context'] = '{}:{}'.format(timeout_context.frame_info[0], timeout_context.frame_info[1])
 
     def as_dict(self, truncate_stdout=-1, redact_tokens=True, redact_streams=True, redact_references=True):
 
@@ -111,8 +108,9 @@ class Action(object):
             refs = {}
             for (key, value) in self.references.iteritems():
 
-                # pass through references that we provided through the library and won't contain secrets
-                if key in ('stack', 'timeout_context'):
+                # pass through references starting with . since those are internal and designed not to
+                # contain private values.
+                if key.startswith('.'):
                     refs[key] = value
                     continue
 
@@ -223,6 +221,9 @@ def oc_action(context, verb, cmd_args=None, all_namespaces=False, no_namespace=F
     """
     cmds = [context.get_oc_path(), verb]
 
+    if references is None:
+        references = {}
+
     if context.get_kubeconfig_path() is not None:
         cmds.append("--config=%s" % context.get_kubeconfig_path())
 
@@ -287,6 +288,9 @@ def oc_action(context, verb, cmd_args=None, all_namespaces=False, no_namespace=F
     start_time = time.time()
     exec_time = int((datetime.datetime.utcnow() - datetime.datetime(1970, 1, 1)).total_seconds() * 1000)
 
+    if context.get_ssh_client() is not None:
+        references['.client_host'] = '{}@{}'.format(context.get_ssh_username() or '', context.get_ssh_hostname())
+
     # If we are out of time, don't even try to execute.
     expired, timeout_context = context.get_out_of_time()
     if not expired:
@@ -302,7 +306,6 @@ def oc_action(context, verb, cmd_args=None, all_namespaces=False, no_namespace=F
                 command_string += c
 
             try:
-
                 pathed_command = 'PATH=$PATH:$HOME/bin {}'.format(command_string)
 
                 # This timeout applies to individual read / write channel operations which follow.
@@ -371,19 +374,18 @@ def oc_action(context, verb, cmd_args=None, all_namespaces=False, no_namespace=F
         elapsed_time = -1  # Indicate we never tried to run the process
 
     # If there is an error, collect a stack for debug purposes
-    stack = []
     if return_code != 0:
-        stack = traceback.format_stack()
+        references['.stack'] = traceback.format_stack()
 
-    if not timeout:
-        timeout_context = None
+    if timeout and timeout_context and timeout_context.frame_info:
+        references['.timeout_context'] = '{}:{}'.format(timeout_context.frame_info[0], timeout_context.frame_info[1])
 
     internal = kwargs.get("internal", False)
     a = Action(verb, cmds, stdout, stderr, references, return_code,
-               stdin_str=stdin_str, timeout_context=timeout_context, last_attempt=last_attempt,
+               stdin_str=stdin_str, last_attempt=last_attempt,
                internal=internal, elapsed_time=elapsed_time,
-               exec_time=exec_time,
-               stack=stack)
+               exec_time=exec_time, timeout=timeout,
+               )
 
     context.register_action(a)
     return a
