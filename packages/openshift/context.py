@@ -481,7 +481,7 @@ def project(name):
     return c
 
 
-def tracking(action_handler=None):
+def tracking(action_handler=None, limit=None):
     """
     Establishes a context in which all inner actions will
     be tracked (unless a inner no_tracking context prevents
@@ -493,6 +493,10 @@ def tracking(action_handler=None):
     performed, this method will be called with the Action object.
     If not specified, all Actions will aggregate into a internally
     managed Result object which can be accessed with get_result.
+    :param limit: If specified, it allows to specify a limit on the
+    number of actions stored by a given tracking context. If not
+    specified or given a value less than 0, it will store unlimited number of oc
+    interactions, and the limit value will be stored in the Result object.
     :return: The tracker contextmanager. If action_handler is not
     specified, call get_result to receive a Result object with all
     tracked Action objects.
@@ -503,7 +507,8 @@ def tracking(action_handler=None):
             raise ValueError('Expected action_handler to be callable')
         c.tracking_strategy = action_handler
     else:
-        c.tracking_strategy = Result('tracking')
+        c.tracking_strategy = Result('tracking', limit)
+
     return c
 
 

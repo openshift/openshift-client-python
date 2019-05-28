@@ -3,9 +3,14 @@ from model import OpenShiftPythonException
 
 
 class Result(object):
-    def __init__(self, high_level_operation):
+    def __init__(self, high_level_operation, tracking_limit = None):
         self.high_level_operation = high_level_operation
         self.__actions = []
+        #if tracking_limit is less than 0 that means unlimited tracking_limit
+        if tracking_limit is not None and tracking_limit>=0:
+            self.limit_tracking_actions = tracking_limit
+        else:
+            self.limit_tracking_actions = None
 
     def actions(self):
         my_list = [a for a in self.__actions if not a.internal]
@@ -70,6 +75,8 @@ class Result(object):
 
     def add_action(self, action):
         self.__actions.append(action)
+        if self.limit_tracking_actions is not None and len(self.__actions) > self.limit_tracking_actions:
+            self.__actions.pop(0)
 
     def __repr__(self):
         return self.as_json()
