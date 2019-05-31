@@ -7,6 +7,7 @@ from .selector import *
 from .apiobject import *
 import naming
 import status
+import config
 null = None  # Allow scripts to specify null in object definitions
 
 
