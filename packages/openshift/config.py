@@ -91,6 +91,43 @@ def get_kubeconfig_cluster(cluster_name=None, _kc_model=None):
     return None
 
 
+def set_kubeconfig_insecure_skip_tls_verify(active, cluster_name=None, _kc_model=None):
+    """
+    Sets or removes insecure-skip-tls-verify for the specified cluster (or the current cluster if
+    not specified).
+    :param active: If True, enable insecure-skip-tls-verify for the the cluster
+    :param cluster_name: The cluster name to modify. If not specified, the current context's cluster will be modified.
+    :param _kc_model: Internally used to cache kubeconfig info.
+    """
+    if not cluster_name:
+        cluster_name = get_kubeconfig_current_cluster_name(_kc_model=_kc_model)
+
+    oc.invoke('config',
+              cmd_args=['set-cluster',
+                        cluster_name,
+                        '--insecure-skip-tls-verify={}'.format(str(active).lower()),
+                        ],
+              no_namespace=True)
+
+
+def remove_kubeconfig_certifcate_authority(cluster_name=None, _kc_model=None):
+    """
+    When you installer a valid certificate for your api endpoint, you may want to
+    use your host's local certificate authorities. To do that, references to certificate
+    authorities must be removed from your kubeconfig.
+    :param cluster_name: The cluster name to modify. If not specified, the current context's cluster will be modified.
+    :param _kc_model: Internally used to cache kubeconfig info.
+    """
+    if not cluster_name:
+        cluster_name = get_kubeconfig_current_cluster_name(_kc_model=_kc_model)
+
+    # Setting insecure will remove any other certificate-authority data from the cluster's entry
+    set_kubeconfig_insecure_skip_tls_verify(True, cluster_name=cluster_name, _kc_model=_kc_model)
+
+    # Now set it back to false, removing the insecure-skip-tls-verify entry from kubeconfig
+    set_kubeconfig_insecure_skip_tls_verify(False, cluster_name=cluster_name, _kc_model=_kc_model)
+
+
 def get_kubeconfig_certificate_authority_data(cluster_name=None, _kc_model=None):
     """
     Returns the certificate authority data (if any) for the specified cluster.
@@ -133,20 +170,8 @@ def set_kubeconfig_certificate_authority_data(ca_data, cluster_name=None, _kc_mo
     # an invalid state for the kubeconfig, so we use a trick: setting insecure-skip-tls-verify
     # will clear existing certificate authority entries. When we set it back to true, we can
     # safely poke in the ca-data
-    oc.invoke('config',
-              cmd_args=['set-cluster',
-                        cluster_name,
-                        '--insecure-skip-tls-verify=true',
-                        ],
-              no_namespace=True)
 
-    # Now set it back to false, removing the insecure-skip-tls-verify entry from kubeconfig
-    oc.invoke('config',
-              cmd_args=['set-cluster',
-                        cluster_name,
-                        '--insecure-skip-tls-verify=false',
-                        ],
-              no_namespace=True)
+    remove_kubeconfig_certifcate_authority(cluster_name=cluster_name, _kc_model=kc)
 
     b64_data = base64.b64encode(ca_data)
 
