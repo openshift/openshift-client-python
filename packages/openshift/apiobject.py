@@ -443,9 +443,9 @@ class APIObject:
                         self.logs(timestamps=timestamps, previous=previous, since=since, limit_bytes=limit_bytes,
                                   tail=tail, try_longshots=try_longshots, cmd_args=cmd_args))
 
-    def modify_and_apply(self, modifier_func, retries=0, cmd_args=None):
+    def modify_and_apply(self, modifier_func, retries=2, cmd_args=None):
         """
-        Calls the modifier_func with self. The function should modify the model of the receiver
+        Calls the modifier_func with self. The function should modify the model of the apiobj argument
         and return True if it wants this method to try to apply the change via the API. For robust
         implementations, a non-zero number of retries is recommended.
 
@@ -453,21 +453,21 @@ class APIObject:
             each call if necessary. If the function finds changes it wants to make to the model, it should
             make them directly and return True. If it does not want to make changes, it should return False.
         :param cmd_args: An optional list of additional arguments to pass on the command line
-        :param retries: The number of times to retry. Zero=one attempt.
-        :return: A Result object containing a record of all attempts AND a boolean. The boolean will be True
-           if an apply operation was successful   OR   the modifier_func returned False.
-        :rtype: Result
+        :param retries: The number of times to retry. A value of 0 means only one attempt will be made.
+        :return: A Result object containing a record of all attempts AND a boolean. The boolean indicates
+        True if a change was applied to a resource (i.e. it will be False if modifier_func suggested no
+        change was necessary by returning False).
+        :rtype: Result, bool
         """
         r = Result("apply")
 
-        success = False;
+        applied_change = False;
         for attempt in reversed(range(retries + 1)):
 
             do_apply = modifier_func(self)
 
             # Modifier does not want to modify this object -- stop retrying. Retuning None should continue attempts.
             if do_apply is False:
-                success = True
                 break
 
             apply_action = oc_action(self.context, "apply", cmd_args=["-f", "-", cmd_args], stdin_obj=self.as_dict(),
@@ -476,14 +476,14 @@ class APIObject:
             r.add_action(apply_action)
 
             if apply_action.status == 0:
-                success = True
+                applied_change = True
                 break
 
             if attempt != 0:
                 # Get a fresh copy of the API object from the server
                 self.refresh()
 
-        return r, success
+        return r, applied_change
 
     def apply(self, cmd_args=None):
         """
@@ -494,8 +494,8 @@ class APIObject:
         :return: A Result object
         :rtype: Result
         """
-
-        return self.modify_and_apply(lambda: True, retries=0, cmd_args=cmd_args)
+        r, _ = self.modify_and_apply(lambda: True, retries=0, cmd_args=cmd_args)
+        return r
 
     def delete(self, ignore_not_found=False, cmd_args=None):
         """

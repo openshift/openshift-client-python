@@ -71,6 +71,9 @@ class Result(object):
     def add_action(self, action):
         self.__actions.append(action)
 
+    def add_result(self, result):
+        self.__actions.extend(result.__actions)
+
     def __repr__(self):
         return self.as_json()
 
