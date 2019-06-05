@@ -78,6 +78,9 @@ class Result(object):
         if self.limit_tracking_actions is not None and len(self.__actions) > self.limit_tracking_actions:
             self.__actions.pop(0)
 
+    def add_result(self, result):
+        self.__actions.extend(result.__actions)
+
     def __repr__(self):
         return self.as_json()
 

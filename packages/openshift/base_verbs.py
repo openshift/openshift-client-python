@@ -22,7 +22,7 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-def __new_objects_action_selector(verb, cmd_args=None, stdin_obj=None, no_namespace=False):
+def __new_objects_action_selector(verb, cmd_args=None, stdin_obj=None, no_namespace=False, auto_raise=True):
     """
     Performs and oc action and records objects output from the verb
     as changed in the content.
@@ -30,13 +30,16 @@ def __new_objects_action_selector(verb, cmd_args=None, stdin_obj=None, no_namesp
     :param cmd_args: A list of str|list<str> which will be flattened into command line arguments
     :param stdin_obj: The standard input to feed to the invocation.
     :param no_namespace: If the incoming objects have namespace information, set to True.
+    :param auto_raise: If True, errors from oc will raise an exception.
     :return: A selector for the newly created objects
     """
 
     sel = Selector(verb,
                    object_action=oc_action(cur_context(), verb, cmd_args=['-o=name', cmd_args], stdin_obj=stdin_obj,
                                            no_namespace=no_namespace))
-    sel.fail_if('{} returned an error: {}'.format(verb, sel.err().strip()))
+    if auto_raise:
+        sel.fail_if('{} returned an error: {}'.format(verb, sel.err().strip()))
+
     return sel
 
 
@@ -468,17 +471,20 @@ def get_server_version():
     raise OpenShiftPythonException('Unable find version string in json: {}'.format(r.out()))
 
 
-def apply(str_dict_model_apiobject_or_list_thereof, overwrite=False, cmd_args=None, fetch_resource_versions=False):
+def apply(str_dict_model_apiobject_or_list_thereof, overwrite=False, cmd_args=None,
+          fetch_resource_versions=False,
+          auto_raise=True):
     """
     Applies the specifies resource(s) on the server.
     :param str_dict_model_apiobject_or_list_thereof:
     :param overwrite: If --overwrite should be sent to apply.
     :param cmd_args: Additional apply arguments
-    :param fetch_resource_versions: If True, before trying to apply the resources, a get operation will be uesd to
+    :param fetch_resource_versions: If True, before trying to apply the resources, a get operation will be used to
     fetch any existing resourceVersion(s). Those resourceVersions will be populated into the apply payload before
     being sent to the server. See https://github.com/kubernetes/kubernetes/issues/70674 for why this is sometimes
     necessary.
-    :return:
+    :param auto_raise: If True, errors from oc will raise an exception.
+    :return: A selector for the updated objects and Result.
     """
     base_args = list()
     if overwrite:
@@ -527,7 +533,8 @@ def apply(str_dict_model_apiobject_or_list_thereof, overwrite=False, cmd_args=No
     return __new_objects_action_selector("apply",
                                          cmd_args=["-f", "-", base_args, cmd_args],
                                          stdin_obj=m,
-                                         no_namespace=namespace_detected)
+                                         no_namespace=namespace_detected,
+                                         auto_raise=auto_raise)
 
 
 def replace(str_dict_model_apiobject_or_list_thereof, force=False, cmd_args=None):

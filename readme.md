@@ -255,6 +255,32 @@ def make_model_change(apiobj):
 # up to the specified retry account.
 configmap.modify_and_apply(make_model_change, retries=5)
 
+
+# For best results, ensure the function passed to modify_and_apply is idempotent:
+
+def set_unmanaged_in_cvo(apiobj):
+    desired_entry = {
+        'group': 'config.openshift.io/v1',
+        'kind': 'ClusterOperator',
+        'name': 'openshift-samples',
+        'unmanaged': True,
+    }
+
+    if apiobj.model.spec.overrides.can_match(desired_entry):
+        # No change required
+        return False
+
+    if not apiobj.model.spec.overrides:
+        apiobj.model.spec.overrides = []
+
+    context.progress('Attempting to disable CVO interest in openshift-samples operator')
+    apiobj.model.spec.overrides.append(desired_entry)
+    return True
+
+result, changed = oc.selector('clusterversion.config.openshift.io/version').object().modify_and_apply(set_unmanaged_in_cvo)
+if changed:
+    context.report_change('Instructed CVO to ignore openshift-samples operator')
+
 ```
 
 
