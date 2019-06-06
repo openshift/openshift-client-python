@@ -209,16 +209,20 @@ class ListModel(list):
             l.append(e)
         return l
 
-    def can_match(self, *vals):
+    def can_match(self, list_or_entry):
         """
-        Answers whether this list contains values / objects which match those in the arguments. The arguments
-        are considered a list that must be a subset of this list.
-        Elements of the subset can be primitives, lists, or dicts. In the case of non-primitives, the list or
-         dicts must ultimately be subsets of at least one element in the receiver list.
-        :param vals: One or more elements that must 'match' elements in this list.
+        Answers whether this list is a subset of the specified list. If the argument is not a list,
+        it placed into one for comparison purposes.
+        Elements of the argument list can be primitives, lists, or dicts. In the case of non-primitives, the list or
+        dicts must ultimately be subsets of at least one element in the receiver list.
+        :param list_or_entry: The list to compare or a primitive/dict that must exist in the receiver's list.
         :return: Returns true if all of the elements specify can match (i.e. are subsets of) elements of this list.
         """
-        return _list_is_subset(self, vals, case_insensitive=self.__case_insensitive)
+        if not isinstance(list_or_entry, (list, tuple, ListModel)):
+            # If we were not passed a list, turn it into one
+            list_or_entry = [list_or_entry]
+
+        return _list_is_subset(self, list_or_entry, case_insensitive=self.__case_insensitive)
 
 
 class Model(dict):

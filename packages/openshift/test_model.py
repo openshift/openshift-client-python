@@ -243,13 +243,18 @@ class TestModel(unittest.TestCase):
     def test_list_match(self):
 
         l1 = ListModel(["a", "b", "c"])
-        self.assertTrue(l1.can_match("b", "c"))
-        self.assertTrue(l1.can_match("a", "c"))
+        self.assertTrue(l1.can_match(l1))
+        self.assertTrue(l1.can_match([]))
+        self.assertTrue(l1.can_match(["b", "c"]))
+        self.assertTrue(l1.can_match(["a", "c"]))
         self.assertTrue(l1.can_match("c"))
         self.assertTrue(l1.can_match("a"))
 
+        nomatch_lm = ListModel(["1"])
+        self.assertFalse(l1.can_match(nomatch_lm))
         self.assertFalse(l1.can_match("1"))
-        self.assertFalse(l1.can_match("1", "2"))
+        self.assertFalse(l1.can_match(["1"]))
+        self.assertFalse(l1.can_match(["1", "2"]))
         self.assertFalse(l1.can_match(True))
 
         self.assertFalse(l1.can_match({"a": 2}))
