@@ -147,3 +147,36 @@ def mkdir_p(path):
         else:
             raise
     return path
+
+# unit scale used by kubernetes
+_unit_scales = {'n':-3, 'u':-2, 'm':-1, 'k':1, 'K':1, 'M':2, 'G':3, 'T':4, 'P':5, 'E':6}
+def extract_numerical_value(val):
+    """Extract numerical values from string, removing any units present
+       e.g, 10K => 10000; 10Ki => 10240 """
+    if not val:
+        return 0
+    base = 10
+    value = 0
+    power = 0
+    power_scale = 3
+    unit_place = -1
+    if val[-1] == 'i':
+        if len(val) < 3:
+            return 0
+        base = 2
+        power_scale = 10
+        unit_place = -2
+    unit = val[unit_place]
+    if unit in _unit_scales:
+        power = _unit_scales[unit]
+        if len(val[:unit_place]) == 0:
+            value = 0
+        else:
+            value = float(val[:unit_place])
+    elif unit_place == -2:
+        value = float(val[:-1])
+    else:
+        value = float(val)
+    return value * pow(base, power*power_scale)
+
+
