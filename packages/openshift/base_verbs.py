@@ -141,12 +141,14 @@ def login(username, password, cmd_args=None):
     return True
 
 
-def new_project(name, ok_if_exists=False, cmd_args=None, adm=False):
+def new_project(name, ok_if_exists=False, cmd_args=None, description=None, display_name=None, adm=False):
     """
     Creates a new project
     :param name: The name of the project to create
     :param ok_if_exists: Do not raise an error if the project already exists
     :param cmd_args: An optional list of additional arguments to pass on the command line
+    :param description: The project's description name
+    :param display_name: The project's display name
     :param adm: If true, 'oc adm new-project' will be used. This avoid project templates and can
     create privileged namespaces (e.g. openshift-*).
     :return: A context manager that can be used with 'with' statement.
@@ -157,11 +159,18 @@ def new_project(name, ok_if_exists=False, cmd_args=None, adm=False):
         if selector('project/{}'.format(name)).count_existing() > 0:
             return project(name)
 
+    other_args = []
+    if description:
+        other_args.extend(['--description', description])
+
+    if display_name:
+        other_args.extend(['--display-name', display_name])
+
     r = Result("new-project")
     if adm:
-        r.add_action(oc_action(cur_context(), 'adm', cmd_args=['new-project', name, cmd_args]))
+        r.add_action(oc_action(cur_context(), 'adm', cmd_args=['new-project', name, cmd_args, other_args]))
     else:
-        r.add_action(oc_action(cur_context(), "new-project", cmd_args=[name, cmd_args]))
+        r.add_action(oc_action(cur_context(), "new-project", cmd_args=[name, cmd_args, other_args, '--skip-config-write']))
 
     r.fail_if("Unable to create new project: {}".format(name))
     return project(name)
