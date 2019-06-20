@@ -512,12 +512,17 @@ def apply(str_dict_model_apiobject_or_list_thereof, overwrite=False, cmd_args=No
         'items': items
     }
 
-    if fetch_resource_versions:
+    if items and fetch_resource_versions:
+
+        item_names = []
+        for item in items:
+            apiobj = APIObject(dict_to_model=item)
+            item_names.append(apiobj.qname())
+
         # If we are supposed to update resource versions before performing the apply,
         # get a current copy of the incoming resources, ignoring those which don't exist.
         action = oc_action(cur_context(), 'get',
-                           cmd_args=['-f', '-', '--ignore-not-found', '-o=json'],
-                           stdin_obj=m,
+                           cmd_args=[item_names, '--ignore-not-found', '-o=json'],
                            no_namespace=namespace_detected)
 
         r = Result('fetching_resourceVersion')
