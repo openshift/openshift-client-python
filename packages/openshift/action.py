@@ -343,7 +343,8 @@ def oc_action(context, verb, cmd_args=None, all_namespaces=False, no_namespace=F
                         # When only python3 is supported, change to using standard timeout
                         env = os.environ.copy()
                         env['LC_ALL'] = 'en_US.UTF-8'
-                        process = subprocess.Popen(cmds, stdin=stdin_file.file, stdout=out.file, stderr=err.file)
+                        process = subprocess.Popen(cmds, stdin=stdin_file.file,
+                                                   stdout=out.file, stderr=err.file, env=env)
 
                         while process.poll() is None:
                             expired, timeout_context = context.get_out_of_time()
@@ -357,7 +358,7 @@ def oc_action(context, verb, cmd_args=None, all_namespaces=False, no_namespace=F
                             time.sleep(period)
                             period = min(1, period + period)  # Poll fast at first, but slow down to 1/sec over time
 
-                        # See not in paramiko flow on decoding
+                        # See note in paramiko flow on decoding
                         stdout = out.read().decode('utf-8', errors='ignore')
                         stderr = err.read().decode('utf-8', errors='ignore')
 

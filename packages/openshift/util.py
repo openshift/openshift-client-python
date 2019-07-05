@@ -36,11 +36,10 @@ class TempFile(object):
     def __init__(self, content=None, suffix=".tmp"):
         self.suffix = suffix
         self.file = None
-        self.path = None
         self.content = content
 
     def __enter__(self):
-        self.file, self.path = tempfile.mkstemp(self.suffix, "openshift-client-python")
+        self.file = tempfile.TemporaryFile(suffix=self.suffix, prefix="openshift-client-python")
 
         if self.content:
             try:
@@ -56,12 +55,10 @@ class TempFile(object):
     def flush(self):
         os.fsync(self.file)
 
-    def read(self, max_size=-1, encoding="utf-8"):
+    def read(self):
         self.flush()
-        # Ignore errors - with things like collected journals during dumpinfo, we can encounter binary
-        # data that we can't read with utf-8. Just ignore it.
-        with codecs.open(self.path, mode="rb", encoding=encoding, errors='ignore', buffering=1024) as cf:
-            return cf.read(size=max_size)
+        self.file.seek(0)
+        return self.file.read()
 
     def destroy(self):
         if self.file is not None:
@@ -69,13 +66,7 @@ class TempFile(object):
                 os.close(self.file)
             except StandardError:
                 pass
-        if self.path is not None:
-            try:
-                os.unlink(self.path)
-            except:
-                pass
         self.file = None
-        self.path = None
 
     def __exit__(self, type, value, traceback):
         self.destroy()
