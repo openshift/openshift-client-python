@@ -176,12 +176,30 @@ def new_project(name, ok_if_exists=False, cmd_args=None, description=None, displ
     return project(name)
 
 
-def delete_project(name, ignore_not_found=False, cmd_args=None):
+def delete_project(name, ignore_not_found=False, grace_period=None, force=False, cmd_args=None):
+    """
+    Deletes the identified project.
+    :param name: The name of the project to delete (e.g. 'project/x', 'namespace/x', or 'x')
+    :param ignore_not_found: Pass --ignore-not-found to oc delete
+    :param grace_period: If specified, sets the --grace-period arguments.
+    :param force: If True, pass --force to delete
+    :param cmd_args: An optional list of additional arguments to pass on the command line
+    :return: n/a
+    """
+
     r = Result("delete-project")
     _, _, name = naming.split_fqn(name)  # Allow project/x, namespace/x, etc. Just out actual name.
     base_args = list()
+
     if ignore_not_found:
         base_args.append("--ignore-not-found")
+
+    if grace_period is not None:
+        base_args.append("--grace-period={}".format(grace_period))
+
+    if force:
+        base_args.append("--force")
+
     r.add_action(oc_action(cur_context(), "delete", cmd_args=["project", name, base_args, cmd_args]))
     r.fail_if("Unable to create delete project: {}".format(name))
 
@@ -305,11 +323,14 @@ def create(str_dict_model_apiobject_or_list_thereof, cmd_args=None):
                                          no_namespace=namespace_detected)
 
 
-def delete(str_dict_model_apiobject_or_list_thereof, ignore_not_found=False, cmd_args=None):
+def delete(str_dict_model_apiobject_or_list_thereof, ignore_not_found=False,
+           grace_period=None, force=False, cmd_args=None):
     """
     Deletes one or more objects
     :param str_dict_model_apiobject_or_list_thereof:
     :param ignore_not_found: Pass --ignore-not-found to oc delete
+    :param grace_period: If specified, sets the --grace-period arguments.
+    :param force: Pass --force to oc delete
     :param cmd_args: An optional list of additional arguments to pass on the command line
     :return: If successful, returns a list of qualified names to the caller (can be empty)
     """
@@ -331,6 +352,12 @@ def delete(str_dict_model_apiobject_or_list_thereof, ignore_not_found=False, cmd
 
     if ignore_not_found:
         base_args.append('--ignore-not-found')
+
+    if grace_period is not None:
+        base_args.append('--grace-period={}'.format(grace_period))
+
+    if force:
+        base_args.append('--force')
 
     r = Result('delete')
     r.add_action(oc_action(cur_context(), "delete",
@@ -512,37 +539,22 @@ def apply(str_dict_model_apiobject_or_list_thereof, overwrite=False, cmd_args=No
         'items': items
     }
 
+    # If we are supposed to update resource versions before performing the apply,
+    # get a current copy of the incoming resources and update the incoming
+    # objects with the server's resourceVersions, ignoring those which don't exist.
     if items and fetch_resource_versions:
 
-        item_names = []
+        # I wish this could be implemented efficiently (single oc invocation which returns
+        # content from across multiple namespaces), but https://bugzilla.redhat.com/show_bug.cgi?id=1727917
+        # prevents it.
         for item in items:
             apiobj = APIObject(dict_to_model=item)
-            item_names.append(apiobj.qname())
-
-        # If we are supposed to update resource versions before performing the apply,
-        # get a current copy of the incoming resources, ignoring those which don't exist.
-        action = oc_action(cur_context(), 'get',
-                           cmd_args=[item_names, '--ignore-not-found', '-o=json'],
-                           no_namespace=namespace_detected)
-
-        r = Result('fetching_resourceVersion')
-        r.add_action(action)
-        r.fail_if('Unable to fetch existing resource versions')
-
-        if action.out.strip():
-            # Parse the output to get an up-to-date copy of the objects from the server. Put each
-            # fully qualified name in a dict.
-            existing_resource_versions = {}
-            for obj in APIObject(string_to_model=action.out).elements():
-                existing_resource_versions[obj.fqname()] = obj.resource_version()
-
-            # Update the incoming items with resourceVersion found on the server.
-            for item in items:
-                item_obj = APIObject(dict_to_model=item)
-                if item_obj.fqname() in existing_resource_versions:
-                    new_metadata = item.get('metadata', {})
-                    new_metadata['resourceVersion'] = existing_resource_versions[item_obj.fqname()]
-                    item['metadata'] = new_metadata
+            server_apiobj = apiobj.current(ignore_not_found=True)
+            # Does the object exist on the server?
+            if server_apiobj:
+                new_metadata = item.get('metadata', {})
+                new_metadata['resourceVersion'] = server_apiobj.resource_version()
+                item['metadata'] = new_metadata
 
     return __new_objects_action_selector("apply",
                                          cmd_args=["-f", "-", base_args, cmd_args],

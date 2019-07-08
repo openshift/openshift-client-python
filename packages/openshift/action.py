@@ -76,6 +76,7 @@ class Action(object):
         d = {
             'timestamp': self.exec_time,
             'elapsed_time': self.elapsed_time,
+            'success': (self.status == 0),  # allows an easy grep in tracking output
             'status': self.status,
             'verb': self.verb,
             'cmd': self.cmd,

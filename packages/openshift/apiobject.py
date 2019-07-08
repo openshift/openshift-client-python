@@ -116,7 +116,7 @@ class APIObject:
 
     def kind(self, lowercase=True, if_missing=_DEFAULT):
         """
-        Return the API object's kind if it possesses one.
+        Return the API object's kind if it possesses one (if you want group information included, use qkind).
         If it does not, returns if_missing. When if_missing not specified, throws a ModelError.
         :param if_missing: Value to return if kind is not present in Model.
         :param lowercase: Whether kind should be returned in lowercase.
@@ -124,6 +124,17 @@ class APIObject:
         """
         return _access_field(self.model.kind,
                              "Object model does not contain .kind", if_missing=if_missing, lowercase=lowercase)
+
+    def qkind(self, lowercase=True, if_missing=_DEFAULT):
+        """
+        Return the API object's qualified kind (e.g. kind[.group]). If kind is not defined, returns if_missing.
+        When if_missing not specified, throws a ModelError.
+        :param if_missing: Value to return if kind is not present in Model.
+        :param lowercase: Whether kind should be returned in lowercase.
+        :return: The kind or if_missing.
+        """
+        return '{kind}{group}'.format(kind=self.kind(if_missing=if_missing, lowercase=lowercase),
+                                      group=self.group(prefix_dot=True, if_missing='', lowercase=lowercase))
 
     def apiVersion(self, lowercase=True, if_missing=_DEFAULT):
         """
@@ -165,29 +176,34 @@ class APIObject:
         return group
 
     def is_kind(self, test_kind_or_kind_list):
+        """
+        apiobj.is_kind('pod')  or  apiobj.is_kind(['pod', 'ds'])
+        :param test_kind_or_kind_list: A str or list of strings to match
+        :return: Returns whether this apiobj represents the specified kind or list of kings.
+        """
         return kind_matches(self.kind(), test_kind_or_kind_list)
 
     def uid(self, if_missing=_DEFAULT):
         """
-        Return the API object's uid if it possesses one.
+        Return the API object's .metadata.uid if it possesses one.
         If it does not, returns if_missing. When if_missing not specified, throws a ModelError.
         :param if_missing: Value to return if uid is not present in Model.
         :return: The name or if_missing.
         """
         return _access_field(self.model.metadata.uid,
                              "Object model does not contain .metadata.uid", if_missing=if_missing,
-                             lowercase=True)
+                             lowercase=False)
 
     def resource_version(self, if_missing=_DEFAULT):
         """
-        Return the API object's resourceVersion if it possesses one.
+        Return the API object's .metadata.resourceVersion if it possesses one.
         If it does not, returns if_missing. When if_missing not specified, throws a ModelError.
         :param if_missing: Value to return if resourceVersion is not present in Model.
         :return: The name or if_missing.
         """
         return _access_field(self.model.metadata.resourceVersion,
                              "Object model does not contain .metadata.resourceVersion", if_missing=if_missing,
-                             lowercase=True)
+                             lowercase=False)
 
     def api_version(self, if_missing=_DEFAULT):
         """
@@ -198,11 +214,11 @@ class APIObject:
         """
         return _access_field(self.model.apiVersion,
                              "Object model does not contain apiVersion", if_missing=if_missing,
-                             lowercase=True)
+                             lowercase=False)
 
     def name(self, if_missing=_DEFAULT):
         """
-        Return the API object's name if it possesses one.
+        Return the API object's .metadata.name if it possesses one.
         If it does not, returns if_missing. When if_missing not specified, throws a ModelError.
         :param if_missing: Value to return if name is not present in Model.
         :return: The name or if_missing.
@@ -236,9 +252,9 @@ class APIObject:
 
     def qname(self):
         """
-        :return: Returns the qualified name of the object (kind/name).
+        :return: Returns the qualified name of the object (kind[.group]/name).
         """
-        return self.kind() + '/' + self.name()
+        return self.qkind() + '/' + self.name()
 
     def _object_def_action(self, verb, auto_raise=True, cmd_args=None):
         """
@@ -254,7 +270,8 @@ class APIObject:
         base_args = list()
         base_args.extend(["-o=name", "-f", "-"])
         result = Result(verb)
-        result.add_action(oc_action(self.context, verb, cmd_args=[base_args, cmd_args], stdin_obj=content))
+        result.add_action(oc_action(self.context, verb, cmd_args=[base_args, cmd_args],
+                                    stdin_obj=content, namespace=self.namespace(if_missing=None)))
 
         if auto_raise:
             result.fail_if("Error during object {}".format(verb))
@@ -265,7 +282,7 @@ class APIObject:
         """
         :return: Returns a selector that selects this exact receiver
         """
-        return selector('{}/{}'.format(self.kind(), self.name()), static_context=self.context)
+        return selector(self.qname(), static_context=self.context)
 
     def exists(self, on_exists_func=_DEFAULT, on_absent_func=_DEFAULT):
         """
@@ -323,7 +340,8 @@ class APIObject:
         :return: Returns a string with the oc describe output of an object.
         """
         r = Result('describe')
-        r.add_action(oc_action(self.context, "describe", cmd_args=[self.qname()]))
+        r.add_action(oc_action(self.context, "describe", cmd_args=[self.qname()],
+                               namespace=self.namespace(if_missing=None)))
 
         if auto_raise:
             r.fail_if('Error describing object')
@@ -403,7 +421,8 @@ class APIObject:
             pod_list.extend(self.get_owned('pod'))
 
         elif kind_matches(self.kind(), ['bc', 'build']):
-            action = oc_action(self.context, "logs", cmd_args=[base_args, cmd_args, self.qname()])
+            action = oc_action(self.context, "logs", cmd_args=[base_args, cmd_args, self.qname()],
+                               namespace=self.namespace(if_missing=None))
             add_entry(log_aggregation, self.fqname(), action)
 
         else:
@@ -412,7 +431,8 @@ class APIObject:
                 pod_list.extend(self.get_owned('pod'))
                 if not pod_list:
                     # Just try to collect logs and see what happens
-                    action = oc_action(self.context, "logs", cmd_args=[base_args, cmd_args, self.qname()])
+                    action = oc_action(self.context, "logs", cmd_args=[base_args, cmd_args, self.qname()],
+                                       namespace=self.namespace(if_missing=None))
                     add_entry(log_aggregation, self.fqname(), action)
                 else:
                     # We don't recognize kind and we aren't taking longshots.
@@ -470,7 +490,8 @@ class APIObject:
             if do_apply is False:
                 break
 
-            apply_action = oc_action(self.context, "apply", cmd_args=["-f", "-", cmd_args], stdin_obj=self.as_dict(),
+            apply_action = oc_action(self.context, "apply", cmd_args=["-f", "-", cmd_args],
+                                     namespace=self.namespace(if_missing=None), stdin_obj=self.as_dict(),
                                      last_attempt=(attempt == 0))
 
             r.add_action(apply_action)
@@ -511,7 +532,8 @@ class APIObject:
             base_args.append("--ignore-not-found")
 
         r.add_action(oc_action(self.context, "delete",
-                               cmd_args=[self.kind(), self.name(), base_args, cmd_args]))
+                               cmd_args=[self.qname(), base_args, cmd_args],
+                               namespace=self.namespace(if_missing=None)))
         r.fail_if("Error deleting object")
         return r
 
@@ -525,7 +547,8 @@ class APIObject:
 
         for attempt in reversed(range(9)):
             r_action = oc_action(self.context, "get",
-                                 cmd_args=[self.kind(), self.name(), base_args],
+                                 cmd_args=[self.qname(), base_args],
+                                 namespace=self.namespace(if_missing=None),
                                  last_attempt=(attempt == 0))
 
             r.add_action(r_action)
@@ -537,6 +560,36 @@ class APIObject:
 
         r.fail_if("Error refreshing object content")
         return self
+
+    def current(self, ignore_not_found=False):
+        """
+        Uses the receiver's fully qualified name to query the server for an up-to-date copy of the object.
+        :return: A new copy of APIObject with up-to-date content. If not found, ignore_not_found will
+        cause None to be returned; otherwise, an exception will be thrown.
+        """
+        r = Result("current")
+        base_args = ["-o=json", "--ignore-not-found"]
+
+        for attempt in reversed(range(9)):
+            r_action = oc_action(self.context, "get",
+                                 cmd_args=[self.qname(), base_args],
+                                 namespace=self.namespace(if_missing=None),
+                                 last_attempt=(attempt == 0))
+
+            r.add_action(r_action)
+            if r_action.status == 0:
+                new_apiobj = APIObject(string_to_model=r_action.out)
+                if new_apiobj.is_kind('list') and not new_apiobj.elements():
+                    # Nothing to return
+                    if ignore_not_found:
+                        return None
+                    raise OpenShiftPythonException('Unable to retrieve current copy of {}; resource missing'.format(self.fqname()), r)
+
+                return new_apiobj
+            time.sleep(1)
+
+        raise OpenShiftPythonException('Unable to retrieve current copy of {}; api errors'.format(self.fqname()),
+                                       r)
 
     def get_label(self, name, if_missing=None):
         """
@@ -599,11 +652,12 @@ class APIObject:
         base_args = list()
         base_args.append("--type=" + strategy)
 
-        base_args.append('{}/{}'.format(self.kind(), self.name()))
+        base_args.append(self.qname())
         patch_def = json.dumps(patch_dict, indent=None)
 
         base_args.append("--patch=" + patch_def)
-        r.add_action(oc_action(self.context, "patch", cmd_args=[base_args, cmd_args]))
+        r.add_action(oc_action(self.context, "patch", cmd_args=[base_args, cmd_args],
+                               namespace=self.namespace(if_missing=None)))
 
         r.fail_if("Error running patch on objects")
         return r
@@ -808,7 +862,8 @@ class APIObject:
 
         r = Result("exec")
         r.add_action(
-            oc_action(self.context, "exec", cmd_args=[oc_args, self.name(), "--", cmd_to_exec], stdin_str=stdin))
+            oc_action(self.context, "exec", cmd_args=[oc_args, self.name(), "--", cmd_to_exec],
+                      stdin_str=stdin, namespace=self.namespace(if_missing=None)))
         if auto_raise:
             r.fail_if(
                 "Error running {} exec on {} [rc={}]: {}".format(self.qname(), cmd_to_exec[0], r.status(), r.err()))

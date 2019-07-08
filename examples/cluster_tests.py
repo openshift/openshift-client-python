@@ -29,14 +29,14 @@ def temp_project(name, adm=False, cleanup=True):
     are trying to leave behind some sort of debug breadcrumb.
     :return:
     """
-    oc.delete_project(name, ignore_not_found=True)
+    oc.delete_project(name, ignore_not_found=True, grace_period=1)
     try:
         with oc.new_project(name, adm=adm):
             yield
     finally:
         if cleanup:
             report_progress('Cleaning up test project: {}'.format(name))
-            oc.delete_project(name, ignore_not_found=True)
+            oc.delete_project(name, ignore_not_found=True, grace_period=1)
 
 
 def simple_http_server_resources(name, port=8080, create_service=False, create_route=False):
@@ -164,7 +164,7 @@ def check_online_network_multitenant():
         project_name = 'imperative-verify-test-project-network-{}'.format(suffix)
 
         # Delete any existing resources
-        oc.delete_project(project_name, ignore_not_found=True)
+        oc.delete_project(project_name, ignore_not_found=True, grace_period=1)
 
         server_name = 'server-{}'.format(suffix)
         client_name = 'client-{}'.format(suffix)
@@ -241,10 +241,10 @@ def check_online_network_multitenant():
     client_pod_b.execute(cmd_to_exec=['curl', 'http://{}'.format(route_a.model.spec.host)])
 
     report_progress("Deleting project: " + proj_a_name)
-    oc.delete_project(proj_a_name)
+    oc.delete_project(proj_a_name, grace_period=1)
 
     report_progress("Deleting project: " + proj_b_name)
-    oc.delete_project(proj_b_name)
+    oc.delete_project(proj_b_name, grace_period=1)
 
     report_verified("Network policy for multitenant seems solid!")
 

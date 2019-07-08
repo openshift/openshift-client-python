@@ -43,27 +43,27 @@ class TempFile(object):
 
         if self.content:
             try:
-                os.write(self.file, self.content)
+                self.file.write(self.content)
                 self.flush()
-                os.lseek(self.file, 0, os.SEEK_SET)  # seek to the beginning of the file
-            except Exception as e:
+                self.file.seek(0, os.SEEK_SET)  # seek to the beginning of the file
+            except Exception:
                 self.destroy()
-                raise e
+                raise
 
         return self
 
     def flush(self):
-        os.fsync(self.file)
+        self.file.flush()
 
     def read(self):
         self.flush()
-        self.file.seek(0)
+        self.file.seek(0, os.SEEK_SET)
         return self.file.read()
 
     def destroy(self):
         if self.file is not None:
             try:
-                os.close(self.file)
+                self.file.close()
             except StandardError:
                 pass
         self.file = None
