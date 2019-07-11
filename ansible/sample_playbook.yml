@@ -36,6 +36,8 @@
         # An alternate way of reporting a change occurred to the module.
         oc.ansible.changed = True
 
+        oc.selector('route/prometheus-k8s').until_all(1, oc.status.is_route_admitted)
+
     register: result
 
   - name: Show tracking result (all oc interactions)
