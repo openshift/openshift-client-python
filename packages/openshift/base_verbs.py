@@ -86,12 +86,26 @@ def whoami(cmd_args=None):
 def get_auth_token(cmd_args=None):
     """
     :param cmd_args: An optional list of additional arguments to pass on the command line
-    :return: The current user
+    :return: The current user's token
     """
 
     r = Result("whoami")
     r.add_action(oc_action(cur_context(), "whoami", cmd_args=['-t', cmd_args]))
     r.fail_if("Unable to determine current token")
+    return r.out().strip()
+
+
+def get_serviceaccount_auth_token(sa_name, cmd_args=None):
+    """
+    Uses `oc serviceaccounts get-token  <sa_name>`
+    :param sa_name: The name of the service account from which to extract the token
+    :param cmd_args: An optional list of additional arguments to pass on the command line
+    :return: The specified service accounts' token
+    """
+
+    r = Result("sa_token")
+    r.add_action(oc_action(cur_context(), "serviceaccounts", cmd_args=['get-token', sa_name, cmd_args]))
+    r.fail_if("Unable to determine serviceaccount token")
     return r.out().strip()
 
 

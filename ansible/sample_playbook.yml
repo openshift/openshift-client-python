@@ -3,7 +3,7 @@
   gather_facts: False
 
   roles:
-  - openshift_python
+  - openshift_client_python
 
   tasks:
 
@@ -11,9 +11,12 @@
     set_fact:
       op_types: "pods"
 
-  - name: Run sample
-    openshift_python:
-      project: 'default'
+  - name: Await ingress
+    openshift_client_python:
+      # Default project scope unless overridden with oc.project
+      project: 'openshift-monitoring'
+      # Timeout applies to overall script / all oc interactions must complete
+      timeout: 15
 
       vars:
         some_var_name: 'abc'
@@ -25,12 +28,23 @@
         # This example shows use of ansible facts
         new_facts.pods = oc.selector("{{op_types}}").qnames()
 
+        oc.selector('route/prometheus-k8s').until_all(1, oc.status.is_route_admitted)
+
     register: result
 
-  - name: Show result
+  - name: Show tracking result (all oc interactions)
     debug:
       msg: "{{result}}"
 
-  - name: Show new_facts
-    debug:
-      msg: "{{pods}}"
+  - name: Use those facts
+    openshift_client_python:
+      timeout: 60
+      script: |
+        with oc.project('openshift-monitoring'):
+
+          def print_phase(pod_apiobj):
+            print('Phase for {} = {}'.format(pod_apiobj.qname(), pod_apiobj.model.status.phase))
+
+          oc.selector({{pods}}).for_each(print_phase)
+
+
