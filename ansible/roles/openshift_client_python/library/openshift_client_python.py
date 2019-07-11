@@ -15,6 +15,8 @@ import ansible.module_utils.openshift.naming as ___naming
 import ansible.module_utils.openshift.result as ___result
 import ansible.module_utils.openshift.selector as ___selector
 import ansible.module_utils.openshift.util as ___util
+import ansible.module_utils.openshift.config as ___config
+import ansible.module_utils.openshift.status as ___status
 
 # Now actually import the package we need
 import ansible.module_utils.openshift as oc
@@ -31,7 +33,7 @@ def main():
             script=dict(required=True),
             vars=dict(required=False, default={}, type='dict'),
             project=dict(required=False, default=None),
-            timeout=dict(required=False, default=None),
+            timeout=dict(required=False, default=None, type='int'),
             changes=dict(required=False, default=True, type='bool')
         )
     )
@@ -54,26 +56,27 @@ def main():
                 with oc.util.OutputCapture() as capture:
                     exec script
 
-                module.debug("openshift module invocation result:\n" + str(ct.get_result()))
+                module.debug("openshift_client_python module invocation result:\n" + str(ct.get_result()))
                 module.exit_json(rc=ct.get_result().status(),
                                  changed=module.params['changes'],
-                                 ansible_facts=new_facts,
+                                 ansible_facts=new_facts._primitive(),
                                  stdout=capture.out.getvalue().decode('UTF-8'),
                                  stderr=capture.err.getvalue().decode('UTF-8'),
                                  result=ct.get_result().as_dict()
                                  )
             except oc.OpenShiftPythonException as ose:
-                module.debug("openshift module invocation exception: " + str(ose))
-                module.debug("openshift module invocation result:\n" + str(ct.get_result()))
+                module.debug("openshift_client_python module invocation exception: " + str(ose))
+                module.debug("openshift_client_python module invocation result:\n" + str(ct.get_result()))
                 module.fail_json(msg=ose.msg,
                                  rc=ose.result.status(),
                                  exception_attributes=ose.attributes(),
                                  changed=module.params['changes'],
-                                 ansible_facts=new_facts,
+                                 ansible_facts=new_facts._primitive(),
                                  stdout=capture.out.getvalue().decode('UTF-8'),
                                  stderr=capture.err.getvalue().decode('UTF-8'),
                                  result=ct.get_result().as_dict()
                                  )
+
 
 if __name__ == '__main__':
     main()
