@@ -8,6 +8,7 @@ from .apiobject import *
 import naming
 import status
 import config
+from ansible import ansible
 null = None  # Allow scripts to specify null in object definitions
 
 
