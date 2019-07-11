@@ -17,20 +17,24 @@
       project: 'openshift-monitoring'
       # Timeout applies to overall script / all oc interactions must complete
       timeout: 15
-      # The module registers change by default, so you must explicitly set it if you care
-      changes: false
+      # If you know the script will make changes, you can indicate it as a parameter
+      changes: true
 
       vars:
         some_var_name: 'abc'
         another: 5
 
       script: |
-        print('You can use an arg: {} and {}'.format(vars['some_var_name'], vars['another']))
+        print('You can use an arg: {} and {}'.format(oc.ansible.vars['some_var_name'], oc.ansible.vars['another']))
 
-        # This example shows use of ansible facts
-        new_facts.pods = oc.selector("{{op_types}}").qnames()
+        # "oc.ansible.new_facts" is a dict into which you can store new facts.
+        # These facts will be set by ansible when the script exits.
+        oc.ansible.new_facts['pods'] = oc.selector("{{op_types}}").qnames()
 
         oc.selector('route/prometheus-k8s').until_all(1, oc.status.is_route_admitted)
+
+        # An alternate way of reporting a change occurred to the module.
+        oc.ansible.changed = True
 
     register: result
 
