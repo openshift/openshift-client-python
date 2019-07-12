@@ -249,7 +249,10 @@ class Selector(Result):
         else:
             raise ValueError("Don't know how to narrow with type: " + type(kind_or_func))
 
-        s = Selector("narrow", object_list=ns, static_context=self.context)
+        s = Selector("narrow",
+                     object_list=ns,
+                     static_context=self.context,
+                     all_namespaces=self.all_namespaces)
         return s
 
     def freeze(self):
@@ -265,7 +268,10 @@ class Selector(Result):
         if self.all_namespaces:
             raise ValueError('You cannot freeze all_namespaces selectors.')
 
-        return Selector("freeze", object_list=self.qnames())
+        return Selector("freeze",
+                        object_list=self.qnames(),
+                        static_context=self.context,
+                        all_namespaces=self.all_namespaces)
 
     def union(self, *args):
         """
@@ -283,7 +289,10 @@ class Selector(Result):
                 if not qname_matches(qname, new_set):
                     new_set.append(qname)
 
-        return Selector("union", object_list=new_set)
+        return Selector("union",
+                        object_list=new_set,
+                        static_context=self.context,
+                        all_namespaces=self.all_namespaces)
 
     def intersect(self, *args):
         """
@@ -299,7 +308,10 @@ class Selector(Result):
                 if qname_matches(qname, to_intersect):
                     new_set.append(qname)
 
-        return Selector("intersect", object_list=new_set)
+        return Selector("intersect",
+                        object_list=new_set,
+                        static_context=self.context,
+                        all_namespaces=self.all_namespaces)
 
     def subtract(self, with_selector):
         """
@@ -312,7 +324,20 @@ class Selector(Result):
             if not qname_matches(qname, to_subtract):
                 new_set.append(qname)
 
-        return Selector("subtract", object_list=new_set)
+        return Selector("subtract",
+                        object_list=new_set,
+                        static_context=self.context,
+                        all_namespaces=self.all_namespaces)
+
+    def subset(self, start=None, end=None):
+        """
+        :return: Returns a static selector which selects a subset of the receivers selection. Shorthand for
+        oc.selector(receiver.qnames[start:end]).
+        """
+        return Selector('subset',
+                        object_list=self.qnames()[start:end],
+                        static_context=self.context,
+                        all_namespaces=self.all_namespaces)
 
     def count_existing(self):
         """
@@ -540,7 +565,7 @@ class Selector(Result):
             base_args.append("--overwrite")
 
         for l, v in labels.iteritems():
-            if not v:
+            if v is None:
                 if not l.endswith("-"):
                     l += "-"  # Indicate removal on command line if caller has not applied "-" suffix
                 base_args.append(l)
@@ -606,7 +631,10 @@ class Selector(Result):
         r.fail_if("Error running scale")
         return self
 
-    def until_any(self, min_to_satisfy=1, success_func=None, tolerate_failures=0, failure_func=None, *args, **kwargs):
+    def until_any(self, min_to_satisfy=1,
+                  success_func=None, tolerate_failures=0, failure_func=None,
+                  auto_raise=False,
+                  *args, **kwargs):
         """
         Polls the server until at least min_to_satisfy resources satisfies a user specified
         success condition or until more than tolerate_failures are detected.
@@ -635,6 +663,7 @@ class Selector(Result):
         :param failure_func: If this function returns True on any obj, iteration will stop
             and until_any will return (False, objs, obj) where objs is all selected
             objects and obj failed the test.
+        :param auto_raise: If True, an exception will be thrown for failures instead of returning False.
         :return:  (True, satisfying_apiobjs, all_apiobjs) or (False, failing_apiobjs, all_apiobjs)
         """
         poll_period = 1
@@ -647,6 +676,9 @@ class Selector(Result):
                     failed_by.append(obj)
 
                 if len(failed_by) > tolerate_failures:
+                    if auto_raise:
+                        raise OpenShiftPythonException('Failure(s) during until_any')
+
                     return False, failed_by, objs
 
                 if success_func is None or success_func(obj, *args, **kwargs):
@@ -658,7 +690,7 @@ class Selector(Result):
             time.sleep(poll_period)
             poll_period = min(poll_period + 1, 15)
 
-    def until_all(self, min_exist=1, success_func=None, tolerate_failures=0, failure_func=None, *args, **kwargs):
+    def until_all(self, min_exist=1, success_func=None, tolerate_failures=0, failure_func=None, auto_raise=False, *args, **kwargs):
         """
         Waits until the API returns at least min_exist resources and then
         polls the server until ALL selected resources satisfy a user specified
@@ -686,6 +718,7 @@ class Selector(Result):
             polling will stop and until_all will return (False, failed_objs, all_objs) where failed_objs is a
             list containing the objects which failed and all_objs the full listing of server objects
             selected.
+        :param auto_raise: If True, an exception will be thrown for failures instead of returning False.
         :return: (bool, objs, bad) where bool is True if the success condition was satisfied
             and False if the failure condition triggered. objs is the list of selected objects
             which were checked, and bad will be an non-None APIObject if an object failed
@@ -713,6 +746,8 @@ class Selector(Result):
                             break
 
                 if len(failed_by) > tolerate_failures:
+                    if auto_raise:
+                        raise OpenShiftPythonException('Failure(s) during until_all')
                     return False, failed_by, objs
 
                 if len(satisfied_by) == len(objs):

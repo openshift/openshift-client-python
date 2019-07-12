@@ -808,11 +808,13 @@ class APIObject:
         """
         Returns a dynamic selector which all of a the specified kind of object which is related to this
         object.
-        For example, if this object is a template and find_kind=='buildconfig', it will select buildconfigs created by
+        For example:
+        - if this object is a node, and find_kind=='pod', it will find all pods associated with the node.
+        - if this object is a template and find_kind=='buildconfig', it will select buildconfigs created by
         this template.
-        If this object is a buildconfig and find_kind='builds', builds created by this buildconfig will be selected.
+        - if this object is a buildconfig and find_kind='builds', builds created by this buildconfig will be selected.
 
-        :return: A dynamic selector which selects objects of kind find_kind which are related to this object.
+        :return: A selector which selects objects of kind find_kind which are related to this object.
         """
         labels = {}
 
@@ -820,6 +822,11 @@ class APIObject:
         name = self.name()
 
         # TODO: add rc, rs, ds, project, ... ?
+
+        if kind_matches(this_kind, 'node') and kind_matches(find_kind, 'pod'):
+            return selector('pod',
+                            all_namespaces=True,
+                            field_selectors={'spec.nodeName': self.name()})
 
         if this_kind.startswith("template"):
             labels["template"] = name
