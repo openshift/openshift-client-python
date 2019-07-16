@@ -1,8 +1,9 @@
+from __future__ import absolute_import
 from .result import Result
 from .naming import normalize_kinds, normalize_kind, qname_matches
 from .model import *
 from .util import split_names, is_collection_type
-import util
+from . import util
 import json
 import time
 import sys

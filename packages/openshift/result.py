@@ -1,5 +1,6 @@
+from __future__ import absolute_import
 import json
-from model import OpenShiftPythonException
+from .model import OpenShiftPythonException
 
 
 class Result(object):
