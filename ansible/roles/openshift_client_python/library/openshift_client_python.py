@@ -54,7 +54,7 @@ def main():
         with oc.tracking() as ct:
             try:
                 with oc.util.OutputCapture() as capture:
-                    exec script
+                    exec(script)
 
                 module.debug("openshift_client_python module invocation result:\n" + str(ct.get_result()))
                 module.exit_json(rc=ct.get_result().status(),

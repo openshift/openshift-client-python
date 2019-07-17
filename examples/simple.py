@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
 import openshift as oc
 
 if __name__ == '__main__':
@@ -11,4 +12,4 @@ if __name__ == '__main__':
             print('Error acquire details about project/user')
 
         # Print out details about the invocations made within this context.
-        print tracker.get_result()
+        print(tracker.get_result())

@@ -1,6 +1,6 @@
 
 
-class OpenShiftPythonException(StandardError):
+class OpenShiftPythonException(Exception):
 
     def __init__(self, msg, result=None, **kwargs):
         super(self.__class__, self).__init__(msg)
@@ -31,7 +31,7 @@ class OpenShiftPythonException(StandardError):
         return "[" + self.msg + "]\n" + repr(self.result)
 
 
-class ModelError(StandardError):
+class ModelError(Exception):
 
     def __init__(self, msg, **kwargs):
         super(self.__class__, self).__init__(msg)

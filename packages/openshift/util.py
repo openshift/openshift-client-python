@@ -64,7 +64,7 @@ class TempFile(object):
         if self.file is not None:
             try:
                 self.file.close()
-            except StandardError:
+            except Exception:
                 pass
         self.file = None
 

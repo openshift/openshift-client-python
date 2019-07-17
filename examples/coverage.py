@@ -1,13 +1,14 @@
 #!/usr/bin/python
 
+from __future__ import print_function
 from openshift import *
 
 try:
 
-    print "Projects created by users:", \
+    print("Projects created by users:", \
         oc.selector("projects").narrow(
             lambda project: project.metadata.annotations["openshift.io/requester"] is not Missing
-        ).qnames()
+        ).qnames())
 
     oc.selector("projects").narrow(
         # Eliminate any projects created by the system
@@ -27,13 +28,13 @@ try:
     with timeout(5):
         success, obj = oc.selector("pods").until_any(lambda pod: pod.status.phase == "Succeeded")
         if success:
-            print "Found one pod was successful: " + str(obj)
+            print("Found one pod was successful: " + str(obj))
 
     with timeout(5):
         success, obj = oc.selector("pods").narrow("pod").until_any(
             lambda pod: pod.status.conditions.can_match({"type": "Ready", "status": False, "reason": "PodCompleted"}))
         if success:
-            print "Found one pod was successful: " + str(obj)
+            print("Found one pod was successful: " + str(obj))
 
 
 
@@ -71,26 +72,26 @@ try:
 
 
         pods = oc.selector("pod")
-        print "Pods: " + str(pods.qnames())
+        print("Pods: " + str(pods.qnames()))
 
         users = oc.selector("user/john", "user/jane")
 
-        print "Describing users:\n"
+        print("Describing users:\n")
         users.describe()
 
         for user in users:
-            print str(user)
+            print(str(user))
 
         john = oc.selector("user/john")
         john.label({"mylabel": None})  # remove a label
 
         label_selector = oc.selector("users", labels={"mylabel": "myvalue"})
 
-        print "users with label step 1: " + str(label_selector.qnames())
+        print("users with label step 1: " + str(label_selector.qnames()))
 
         john.label({"mylabel": "myvalue"})  # add the label back
 
-        print "users with label step 2: " + str(label_selector.qnames())
+        print("users with label step 2: " + str(label_selector.qnames()))
 
         assert(label_selector.qnames()[0] == u'users/john')
 
@@ -107,13 +108,13 @@ try:
         # Unmarshal json into py objects
         user_objs = users.objects()
 
-        print "Unmarshalled %d objects" % len(user_objs)
+        print("Unmarshalled %d objects" % len(user_objs))
 
         for user in user_objs:
             if user.metadata.labels.another_label is not Missing:
-                print "Value of label: " + user.metadata.labels.another_label
+                print("Value of label: " + user.metadata.labels.another_label)
             if user.notthere.dontcare.wontbreak is not Missing:
-                print "Should see this, but also shouldn't see exception"
+                print("Should see this, but also shouldn't see exception")
 
         oc.delete_if_present("user/bark", "user/bite")
 
@@ -145,17 +146,17 @@ try:
 
         bark_bite_sel = oc.create([bark_obj, bite_obj])
 
-        print "How were they created?\n" + str(bark_bite_sel)
+        print("How were they created?\n" + str(bark_bite_sel))
 
         try:
             oc.create(bark_obj)  # Should create an error
             assert False
         except OpenShiftPythonException as create_err:
-            print "What went wrong?: " + str(create_err)
+            print("What went wrong?: " + str(create_err))
 
         bark_bite_sel.until_any(lambda obj: obj.metadata.qname == "bite")
 
 
 
 except OpenShiftPythonException as e:
-    print "An exception occurred: " + str(e)
+    print("An exception occurred: " + str(e))
