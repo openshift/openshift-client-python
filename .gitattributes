@@ -1,0 +1,2 @@
+# Tell github that this file is generated and can be collapsed by default
+ansible/roles/openshift_client_python/library/openshift_client_python.py linguist-generated
