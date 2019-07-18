@@ -2,7 +2,6 @@ from __future__ import absolute_import
 from .context import *
 from .base_verbs import *
 from .model import OpenShiftPythonException
-from .model import Missing
 from .model import Model, Missing
 from .selector import *
 from .apiobject import *

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-
+# Directory in which this script resides
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 TEMPLATE_FILE="$DIR/roles/openshift_client_python/library/openshift_client_python.template.py"
@@ -17,8 +17,9 @@ if [[ ! -d "$PACKAGES_DIR" ]]; then
     exit 1
 fi
 
-# https://stackoverflow.com/a/54908072
 pushd "$PACKAGES_DIR"
+# Update module digest so that pr.groovy can ensure it is run after each module change
+cat $(find openshift/ -name '*.py' | sort) | md5sum > $DIR/rebuild_module.digest
 ENCODED_TGZ=$(tar c --owner=0 --numeric-owner --group=0 --mtime='UTC 2019-01-01' $(find openshift/ -name '*.py' | sort) | gzip -c -n | base64 --wrap=0)
 popd
 

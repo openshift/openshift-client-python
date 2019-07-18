@@ -17,8 +17,7 @@ node('bastion2') {
         dir("${ocp_dir}/ansible") {
             sh "./rebuild_module.sh"
             echo "Verifying that you submitted your PR after running ./rebuild_module.sh"
-            // TODO: re-enable if we can achieve idempotence
-            //sh "git diff --exit-code ."
+            sh "git diff --exit-code rebuild_module.digest || (echo 'You need to run ansible/rebuild_module.sh and include changes in this PR' && exit 1)"
         }
     }
 
