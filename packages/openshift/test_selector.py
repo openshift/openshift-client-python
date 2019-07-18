@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 from .selector import selector
 from .naming import qname_matches
 import unittest

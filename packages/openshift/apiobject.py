@@ -1,4 +1,7 @@
 from __future__ import absolute_import
+from __future__ import unicode_literals
+from builtins import range
+from builtins import object
 from .action import *
 from .model import *
 from .result import *
@@ -70,7 +73,7 @@ def _access_field(val, err_msg, if_missing=_DEFAULT, lowercase=False):
     return val
 
 
-class APIObject:
+class APIObject(object):
 
     def __init__(self, dict_to_model=None, string_to_model=None, context=None):
 
@@ -483,7 +486,7 @@ class APIObject:
         r = Result("apply")
 
         applied_change = False;
-        for attempt in reversed(range(retries + 1)):
+        for attempt in reversed(list(range(retries + 1))):
 
             do_apply = modifier_func(self)
 
@@ -546,7 +549,7 @@ class APIObject:
         r = Result("refresh")
         base_args = ["-o=json"]
 
-        for attempt in reversed(range(9)):
+        for attempt in reversed(list(range(9))):
             r_action = oc_action(self.context, "get",
                                  cmd_args=[self.qname(), base_args],
                                  namespace=self.namespace(if_missing=None),
@@ -571,7 +574,7 @@ class APIObject:
         r = Result("current")
         base_args = ["-o=json", "--ignore-not-found"]
 
-        for attempt in reversed(range(9)):
+        for attempt in reversed(list(range(9))):
             r_action = oc_action(self.context, "get",
                                  cmd_args=[self.qname(), base_args],
                                  namespace=self.namespace(if_missing=None),
@@ -705,7 +708,7 @@ class APIObject:
         base_args = list()
         base_args.append("-o=json")
 
-        for k, v in parameters.items():
+        for k, v in list(parameters.items()):
             base_args.append("-p")
             base_args.append(k + "=" + v)
 

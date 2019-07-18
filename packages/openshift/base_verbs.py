@@ -1,6 +1,11 @@
 from __future__ import print_function
 from __future__ import absolute_import
+from __future__ import unicode_literals
 
+from builtins import next
+from builtins import str
+from past.builtins import basestring
+from builtins import object
 import os
 from .selector import Selector, selector
 from .action import oc_action
@@ -686,7 +691,7 @@ def build_secret_dict(secret_name, dir_path_or_paths=None, dir_ext_include=None,
     dm = dict()
 
     # base64 encode the incoming data_map values
-    for k, v in data_map.iteritems():
+    for k, v in list(data_map.items()):
         dm[k] = base64.b64encode(v)
 
     if dir_path_or_paths:
@@ -1190,7 +1195,7 @@ def dumpinfo_project(dir,
         with project(project_name):
 
             with io.open(os.path.join(dir, 'status.txt'), mode='w', encoding="utf-8") as f:
-                f.write(unicode(invoke('status').out()))
+                f.write(str(invoke('status').out()))
 
             for obj in selector(kinds).objects(ignore_not_found=True):
                 obj_dir = os.path.join(dir, obj.kind())

@@ -1,3 +1,7 @@
+from __future__ import unicode_literals
+from builtins import str
+from past.builtins import basestring
+from builtins import object
 import subprocess
 import time
 import socket
@@ -107,7 +111,7 @@ class Action(object):
 
         if redact_references:
             refs = {}
-            for (key, value) in self.references.iteritems():
+            for (key, value) in list(self.references.items()):
 
                 # pass through references starting with . since those are internal and designed not to
                 # contain private values.
@@ -251,7 +255,7 @@ def oc_action(context, verb, cmd_args=None, all_namespaces=False, no_namespace=F
     elif context.get_project() is not None and not no_namespace:
         cmds.append("--namespace=%s" % context.get_project())
 
-    for k, v in context.get_options().iteritems():
+    for k, v in list(context.get_options().items()):
         # If a value was set to None, it should not impact the command line
         if not v:
             continue

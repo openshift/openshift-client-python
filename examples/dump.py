@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from __future__ import unicode_literals
 import openshift as oc
 
 if __name__ == '__main__':
