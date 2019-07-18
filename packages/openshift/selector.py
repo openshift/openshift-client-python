@@ -1,4 +1,7 @@
 from __future__ import absolute_import
+from __future__ import unicode_literals
+from builtins import str
+from past.builtins import basestring
 from .result import Result
 from .naming import normalize_kinds, normalize_kind, qname_matches
 from .model import *
@@ -114,7 +117,7 @@ class Selector(Result):
         if self.field_selectors:
             sel = '--field-selector='
             pairs = []
-            for k, v in self.field_selectors.iteritems():
+            for k, v in list(self.field_selectors.items()):
                 negate = False
                 if k.startswith('!'):
                     # Strip the '!'
@@ -133,7 +136,7 @@ class Selector(Result):
         if self.labels is not None:
             sel = '--selector='
             pairs = []
-            for k, v in self.labels.iteritems():
+            for k, v in list(self.labels.items()):
 
                 negate = False
                 if k.startswith('!'):
@@ -565,7 +568,7 @@ class Selector(Result):
         if overwrite:
             base_args.append("--overwrite")
 
-        for l, v in labels.iteritems():
+        for l, v in list(labels.items()):
             if v is None:
                 if not l.endswith("-"):
                     l += "-"  # Indicate removal on command line if caller has not applied "-" suffix
@@ -594,7 +597,7 @@ class Selector(Result):
         if overwrite:
             base_args.append("--overwrite")
 
-        for l, v in annotations.iteritems():
+        for l, v in list(annotations.items()):
             if not v:
                 if not l.endswith("-"):
                     l += "-"  # Indicate removal on command line if caller has not applied "-" suffix

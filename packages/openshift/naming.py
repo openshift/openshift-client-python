@@ -1,15 +1,19 @@
+from __future__ import unicode_literals
 
 # A dict of name -> APIResource.
 # keys include shortnames, full names, uppercamel Kind, and lowercase kind
 # this map is managed by register_api_resource
 # todo: make thread & context safe?
+from builtins import next
+from past.builtins import basestring
+from builtins import object
 _api_resource_lookup = {}
 
 # A list of APIResources which have been register; todo: make thread & context safe?
 _api_resources = list()
 
 
-class APIResource:
+class APIResource(object):
 
     def __init__(self, name, group, kind, namespaced, shortnames=None):
         self.name = name
