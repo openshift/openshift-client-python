@@ -1,5 +1,7 @@
 ---
-- hosts: localhost
+# If you want to run 'oc' locally, just use "hosts: localhost" here. Just make sure you can
+# run 'oc' with a valid/local kubeconfig.
+- hosts: all
   gather_facts: False
 
   roles:
@@ -54,5 +56,4 @@
             print('Phase for {} = {}'.format(pod_apiobj.qname(), pod_apiobj.model.status.phase))
 
           oc.selector({{pods}}).for_each(print_phase)
-
 

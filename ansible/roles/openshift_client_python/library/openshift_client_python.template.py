@@ -4,6 +4,7 @@ from __future__ import print_function
 
 from ansible.module_utils.basic import AnsibleModule
 
+import os
 import StringIO
 import tempfile
 import shutil
@@ -21,17 +22,6 @@ def error(msg, **kwargs):
 
 def main():
     import openshift as oc
-
-    module = AnsibleModule(
-        argument_spec=dict(
-            script=dict(required=True),
-            vars=dict(required=False, default={}, type='dict'),
-            project=dict(required=False, default=None),
-            timeout=dict(required=False, default=None, type='int'),
-            changes=dict(required=False, default=False, type='bool')
-        )
-    )
-
     script = module.params["script"]
     time = module.params["timeout"]
     oc.ansible.reset()
@@ -82,13 +72,30 @@ if __name__ == '__main__':
     REPLACED_BY_REBUILD_MODULE = '{}'
     OPENSHIFT_CLIENT_PYTHON_TGZ = StringIO.StringIO(base64.b64decode(REPLACED_BY_REBUILD_MODULE))
 
+    module = AnsibleModule(
+        argument_spec=dict(
+            script=dict(required=True),
+            vars=dict(required=False, default={}, type='dict'),
+            project=dict(required=False, default=None),
+            timeout=dict(required=False, default=None, type='int'),
+            changes=dict(required=False, default=False, type='bool')
+        )
+    )
+
     client_python_extract_dir = tempfile.mkdtemp()
+    module.debug('Extracting openshift-client-python module to: {}'.format(client_python_extract_dir))
+
     try:
         tf = tarfile.open(fileobj=OPENSHIFT_CLIENT_PYTHON_TGZ, mode='r:gz')
         tf.extractall(client_python_extract_dir)
         # Add the newly extacted directory to the python path to resolve the openshift package
         sys.path.append(client_python_extract_dir)
+        # Import openshift as oc so that we can delete the extract directory. module.exit_ type methods
+        # call sys.exit, so this is our only chance to leave no trace.
+        import openshift as oc
+        shutil.rmtree(client_python_extract_dir)
         main()
     finally:
-        shutil.rmtree(client_python_extract_dir)
+        if os.path.exists(client_python_extract_dir):
+            shutil.rmtree(client_python_extract_dir)
 
