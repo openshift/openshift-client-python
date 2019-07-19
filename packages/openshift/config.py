@@ -1,7 +1,5 @@
 #!/usr/bin/python
 
-from __future__ import unicode_literals
-from builtins import str
 import openshift as oc
 import base64
 import json

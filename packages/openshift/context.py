@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-from builtins import object
 from datetime import datetime
 from datetime import timedelta
 from threading import local

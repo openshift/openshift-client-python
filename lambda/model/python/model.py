@@ -1,9 +1,5 @@
-from __future__ import unicode_literals
 
 
-from builtins import str
-from builtins import range
-from past.builtins import basestring
 class OpenShiftPythonException(Exception):
 
     def __init__(self, msg, result=None, **kwargs):
@@ -120,16 +116,16 @@ def _element_can_match( master, test, case_insensitive=False):
         return master is test
 
     if isinstance(master, str):
-        master = str(master)  # Turn str into unicode
+        master = unicode(master)  # Turn str into unicode
         if case_insensitive:
             master = master.lower()
 
     if isinstance(test, str):
-        test = str(test)  # Turn str into unicode
+        test = unicode(test)  # Turn str into unicode
         if case_insensitive:
             test = test.lower()
 
-    for prim in [bool, int, str, float]:
+    for prim in [bool, int, unicode, float]:
         if isinstance(master, prim):
             return master == test or str(master) == str(test)
 
@@ -163,7 +159,7 @@ def _list_is_subset(master, test, case_insensitive=False):
 
 
 def _dict_is_subset(master, subset, case_insensitive=False):
-    for k, v in list(subset.items()):
+    for k, v in subset.items():
         if case_insensitive:
             k = k.lower()
         m = master.get(k, Missing)
@@ -237,7 +233,7 @@ class Model(dict):
         self.__case_insensitive = case_insensitive
 
         if dict_to_model is not None:
-            for k, v in list(dict_to_model.items()):
+            for k, v in dict_to_model.items():
                 if self.__case_insensitive:
                     k = k.lower()
                 self[k] = to_model_or_val(v, case_insensitive=case_insensitive)
@@ -287,7 +283,7 @@ class Model(dict):
         :rtype: dict
         """
         d = {}
-        for k, v in list(self.items()):
+        for k, v in self.iteritems():
             if isinstance(v, Model) or isinstance(v, ListModel):
                 v = v._primitive()
             d[k] = v
