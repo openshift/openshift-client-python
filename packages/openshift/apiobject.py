@@ -8,6 +8,7 @@ import yaml
 import json
 import sys
 import copy
+from six.moves import range
 
 _DEFAULT = object()
 
@@ -483,7 +484,7 @@ class APIObject:
         r = Result("apply")
 
         applied_change = False;
-        for attempt in reversed(range(retries + 1)):
+        for attempt in reversed(list(range(retries + 1))):
 
             do_apply = modifier_func(self)
 
@@ -546,7 +547,7 @@ class APIObject:
         r = Result("refresh")
         base_args = ["-o=json"]
 
-        for attempt in reversed(range(9)):
+        for attempt in reversed(list(range(9))):
             r_action = oc_action(self.context, "get",
                                  cmd_args=[self.qname(), base_args],
                                  namespace=self.namespace(if_missing=None),
@@ -571,7 +572,7 @@ class APIObject:
         r = Result("current")
         base_args = ["-o=json", "--ignore-not-found"]
 
-        for attempt in reversed(range(9)):
+        for attempt in reversed(list(range(9))):
             r_action = oc_action(self.context, "get",
                                  cmd_args=[self.qname(), base_args],
                                  namespace=self.namespace(if_missing=None),

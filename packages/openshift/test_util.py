@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from .util import extract_numerical_value
 from .model import Missing
 import unittest

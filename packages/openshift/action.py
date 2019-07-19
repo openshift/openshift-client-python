@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import subprocess
 import time
 import socket
@@ -8,6 +9,7 @@ import datetime
 import traceback
 
 from .util import TempFile, is_collection_type
+import six
 
 # Three base64 encoded components, '.' delimited is a token. First, find any such match.
 # You can find examples of these tokens with `oc sa get-token <serviceaccount name>`
@@ -107,7 +109,7 @@ class Action(object):
 
         if redact_references:
             refs = {}
-            for (key, value) in self.references.iteritems():
+            for (key, value) in six.iteritems(self.references):
 
                 # pass through references starting with . since those are internal and designed not to
                 # contain private values.
@@ -116,7 +118,7 @@ class Action(object):
                     continue
 
                 # References van be string or complex structures.
-                if isinstance(value, basestring):
+                if isinstance(value, six.string_types):
                     value_str = value
                 else:
                     # If a structure of some type, serialize into a string to
@@ -251,7 +253,7 @@ def oc_action(context, verb, cmd_args=None, all_namespaces=False, no_namespace=F
     elif context.get_project() is not None and not no_namespace:
         cmds.append("--namespace=%s" % context.get_project())
 
-    for k, v in context.get_options().iteritems():
+    for k, v in six.iteritems(context.get_options()):
         # If a value was set to None, it should not impact the command line
         if not v:
             continue
