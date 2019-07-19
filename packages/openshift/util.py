@@ -1,6 +1,3 @@
-from __future__ import unicode_literals
-from past.builtins import basestring
-from builtins import object
 import tempfile
 import sys
 import io
@@ -98,7 +95,7 @@ def indent_lines(text, padding='  '):
 def print_logs(stream, logs_dict, initial_indent_count=0, encoding='utf-8'):
     indent = ' ' * initial_indent_count
     next_indent = ' ' * (initial_indent_count + 2)
-    for container_fqn, log in list(logs_dict.items()):
+    for container_fqn, log in logs_dict.iteritems():
         stream.write(u'{}[logs:begin]{}========\n'.format(indent, container_fqn))
         value_string = log.strip().replace('\r\n', '\n')
         stream.write(u'{}\n'.format(indent_lines(value_string, next_indent)))
@@ -108,7 +105,7 @@ def print_logs(stream, logs_dict, initial_indent_count=0, encoding='utf-8'):
 def print_report_entry(stream, d, initial_indent_count=0, encoding='utf-8'):
     indent = ' ' * initial_indent_count
     next_indent = ' ' * (initial_indent_count + 2)
-    for entry, value in list(d.items()):
+    for entry, value in d.iteritems():
         stream.write(u'{}*{}:\n'.format(indent, entry))
 
         if entry is 'logs':
@@ -126,7 +123,7 @@ def print_report_entry(stream, d, initial_indent_count=0, encoding='utf-8'):
 
 def print_report(stream, report_dict, initial_indent_count=0, encoding='utf-8'):
     indent = ' ' * initial_indent_count
-    for fqn, details in list(report_dict.items()):
+    for fqn, details in report_dict.iteritems():
         stream.write(u'\n{}[report:begin]{}========\n'.format(indent, fqn))
         print_report_entry(stream, details, initial_indent_count + 2, encoding=encoding)
         stream.write(u'\n{}[report:end]{}========\n'.format(indent, fqn))
