@@ -7,6 +7,7 @@ from . import util
 import json
 import time
 import sys
+import six
 
 
 def _normalize_object_list(ol):
@@ -114,7 +115,7 @@ class Selector(Result):
         if self.field_selectors:
             sel = '--field-selector='
             pairs = []
-            for k, v in self.field_selectors.iteritems():
+            for k, v in six.iteritems(self.field_selectors):
                 negate = False
                 if k.startswith('!'):
                     # Strip the '!'
@@ -133,7 +134,7 @@ class Selector(Result):
         if self.labels is not None:
             sel = '--selector='
             pairs = []
-            for k, v in self.labels.iteritems():
+            for k, v in six.iteritems(self.labels):
 
                 negate = False
                 if k.startswith('!'):
@@ -244,7 +245,7 @@ class Selector(Result):
             for obj in self.objects():
                 if kind_or_func(obj):
                     ns.append(obj.qname())
-        elif isinstance(kind_or_func, basestring):
+        elif isinstance(kind_or_func, six.string_types):
             kind = normalize_kind(kind_or_func)
             ns = [n for n in self.qnames() if (n.startswith(kind + "/") or n.startswith(kind + "."))]
         else:
@@ -565,7 +566,7 @@ class Selector(Result):
         if overwrite:
             base_args.append("--overwrite")
 
-        for l, v in labels.iteritems():
+        for l, v in six.iteritems(labels):
             if v is None:
                 if not l.endswith("-"):
                     l += "-"  # Indicate removal on command line if caller has not applied "-" suffix
@@ -594,7 +595,7 @@ class Selector(Result):
         if overwrite:
             base_args.append("--overwrite")
 
-        for l, v in annotations.iteritems():
+        for l, v in six.iteritems(annotations):
             if not v:
                 if not l.endswith("-"):
                     l += "-"  # Indicate removal on command line if caller has not applied "-" suffix

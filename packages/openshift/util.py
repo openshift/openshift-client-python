@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import tempfile
 import sys
 import io
@@ -5,6 +6,7 @@ import os
 import codecs
 import errno
 import json
+import six
 
 
 # Context manager that will swap stdout/stderr with buffers.
@@ -95,7 +97,7 @@ def indent_lines(text, padding='  '):
 def print_logs(stream, logs_dict, initial_indent_count=0, encoding='utf-8'):
     indent = ' ' * initial_indent_count
     next_indent = ' ' * (initial_indent_count + 2)
-    for container_fqn, log in logs_dict.iteritems():
+    for container_fqn, log in six.iteritems(logs_dict):
         stream.write(u'{}[logs:begin]{}========\n'.format(indent, container_fqn))
         value_string = log.strip().replace('\r\n', '\n')
         stream.write(u'{}\n'.format(indent_lines(value_string, next_indent)))
@@ -105,7 +107,7 @@ def print_logs(stream, logs_dict, initial_indent_count=0, encoding='utf-8'):
 def print_report_entry(stream, d, initial_indent_count=0, encoding='utf-8'):
     indent = ' ' * initial_indent_count
     next_indent = ' ' * (initial_indent_count + 2)
-    for entry, value in d.iteritems():
+    for entry, value in six.iteritems(d):
         stream.write(u'{}*{}:\n'.format(indent, entry))
 
         if entry is 'logs':
@@ -113,7 +115,7 @@ def print_report_entry(stream, d, initial_indent_count=0, encoding='utf-8'):
         else:
             if isinstance(value, dict):  # for 'object'
                 value_string = json.dumps(value, indent=2)
-            elif isinstance(value, basestring):  # for 'describe'
+            elif isinstance(value, six.string_types):  # for 'describe'
                 value_string = value.strip().replace('\r\n', '\n')
             else:
                 value_string = u'{}'.format(value)
@@ -123,7 +125,7 @@ def print_report_entry(stream, d, initial_indent_count=0, encoding='utf-8'):
 
 def print_report(stream, report_dict, initial_indent_count=0, encoding='utf-8'):
     indent = ' ' * initial_indent_count
-    for fqn, details in report_dict.iteritems():
+    for fqn, details in six.iteritems(report_dict):
         stream.write(u'\n{}[report:begin]{}========\n'.format(indent, fqn))
         print_report_entry(stream, details, initial_indent_count + 2, encoding=encoding)
         stream.write(u'\n{}[report:end]{}========\n'.format(indent, fqn))

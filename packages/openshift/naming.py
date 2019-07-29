@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+import six
 
 # A dict of name -> APIResource.
 # keys include shortnames, full names, uppercamel Kind, and lowercase kind
@@ -93,7 +95,7 @@ def normalize_kinds(kinds):
     :return: Returns a list of normalized kind strings.
     """
     # if we receive a simple string, massage into a list before processing
-    if isinstance(kinds, basestring):
+    if isinstance(kinds, six.string_types):
         kinds = [kinds]
 
     normalized = []
@@ -107,7 +109,7 @@ def kind_matches(k1, k2_or_list):
     k1 = normalize_kind(k1)
 
     # If a single string is provided, turn it into a list
-    if isinstance(k2_or_list, basestring):
+    if isinstance(k2_or_list, six.string_types):
         k2_or_list = [k2_or_list]
 
     for k2e in k2_or_list:
@@ -122,7 +124,7 @@ def qname_matches(qn1, qn2_or_list):
     qn1 = normalize_kind(qn1)
 
     # If a single string is provided, turn it into a list
-    if isinstance(qn2_or_list, basestring):
+    if isinstance(qn2_or_list, six.string_types):
         qn2_or_list = [qn2_or_list]
 
     _, kind1, name1 = split_fqn(qn1)

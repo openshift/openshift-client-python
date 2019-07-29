@@ -17,6 +17,7 @@ import traceback
 import time
 import json
 import yaml
+import six
 
 
 def eprint(*args, **kwargs):
@@ -246,7 +247,7 @@ def _to_dict_list(str_dict_model_apiobject_or_list_thereof):
         if isinstance(i, APIObject):
             i = i.model
 
-        if isinstance(i, basestring):
+        if isinstance(i, six.string_types):
             if i.strip().startswith('{'):
                 i = json.loads(i)
             else:
@@ -630,7 +631,7 @@ def build_configmap_dict(configmap_name, dir_path_or_paths=None, dir_ext_include
     if dir_path_or_paths:
 
         # If we received a string, turn it into a list
-        if isinstance(dir_path_or_paths, basestring):
+        if isinstance(dir_path_or_paths, six.string_types):
             dir_path_or_paths = [dir_path_or_paths]
 
         for dir_path in dir_path_or_paths:
@@ -686,13 +687,13 @@ def build_secret_dict(secret_name, dir_path_or_paths=None, dir_ext_include=None,
     dm = dict()
 
     # base64 encode the incoming data_map values
-    for k, v in data_map.iteritems():
+    for k, v in six.iteritems(data_map):
         dm[k] = base64.b64encode(v)
 
     if dir_path_or_paths:
 
         # If we received a string, turn it into a list
-        if isinstance(dir_path_or_paths, basestring):
+        if isinstance(dir_path_or_paths, six.string_types):
             dir_path_or_paths = [dir_path_or_paths]
 
         for dir_path in dir_path_or_paths:
@@ -1190,7 +1191,7 @@ def dumpinfo_project(dir,
         with project(project_name):
 
             with io.open(os.path.join(dir, 'status.txt'), mode='w', encoding="utf-8") as f:
-                f.write(unicode(invoke('status').out()))
+                f.write(six.text_type(invoke('status').out()))
 
             for obj in selector(kinds).objects(ignore_not_found=True):
                 obj_dir = os.path.join(dir, obj.kind())

@@ -1,3 +1,6 @@
+from __future__ import absolute_import
+import six
+from six.moves import range
 
 
 class OpenShiftPythonException(Exception):
@@ -116,16 +119,16 @@ def _element_can_match( master, test, case_insensitive=False):
         return master is test
 
     if isinstance(master, str):
-        master = unicode(master)  # Turn str into unicode
+        master = six.text_type(master)  # Turn str into unicode
         if case_insensitive:
             master = master.lower()
 
     if isinstance(test, str):
-        test = unicode(test)  # Turn str into unicode
+        test = six.text_type(test)  # Turn str into unicode
         if case_insensitive:
             test = test.lower()
 
-    for prim in [bool, int, unicode, float]:
+    for prim in [bool, int, six.text_type, float]:
         if isinstance(master, prim):
             return master == test or str(master) == str(test)
 
@@ -240,7 +243,7 @@ class Model(dict):
 
     def __getattr__(self, attr):
 
-        if isinstance(attr, basestring):
+        if isinstance(attr, six.string_types):
             if attr.startswith('_Model__'):  # e.g. _Model__case_insensitive
                 raise AttributeError
 
@@ -283,7 +286,7 @@ class Model(dict):
         :rtype: dict
         """
         d = {}
-        for k, v in self.iteritems():
+        for k, v in six.iteritems(self):
             if isinstance(v, Model) or isinstance(v, ListModel):
                 v = v._primitive()
             d[k] = v

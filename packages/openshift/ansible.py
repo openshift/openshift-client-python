@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+from __future__ import absolute_import
 from threading import local
 
 # Used by openshift-client-python module to store new facts, variables, etc
