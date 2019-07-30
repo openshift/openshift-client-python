@@ -1,3 +1,4 @@
+six
 pyyaml
 
 # paramiko is only required if ssh connections are required (e.g. use of client_host context)
