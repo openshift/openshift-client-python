@@ -6,7 +6,7 @@ from __future__ import absolute_import
 from ansible.module_utils.basic import AnsibleModule
 
 import os
-import StringIO
+import six
 import tempfile
 import shutil
 import tarfile
@@ -71,7 +71,7 @@ if __name__ == '__main__':
     # and replace the following variable with a b64 encoded tarball of the openshift-client-library
     # package. The client_python_extract_dir path will contain the 'openshift' package directory.
     REPLACED_BY_REBUILD_MODULE = '{}'
-    OPENSHIFT_CLIENT_PYTHON_TGZ = StringIO.StringIO(base64.b64decode(REPLACED_BY_REBUILD_MODULE))
+    OPENSHIFT_CLIENT_PYTHON_TGZ = six.BytesIO(base64.b64decode(REPLACED_BY_REBUILD_MODULE))
 
     module = AnsibleModule(
         argument_spec=dict(
