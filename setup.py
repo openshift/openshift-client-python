@@ -1,11 +1,8 @@
-#!/usr/bin/python
-
 from setuptools import setup, find_packages
 
 
 def get_requirements(filename="requirements.txt"):
     """Extract requirements from a pip formatted requirements file."""
-
     with open(filename, "r") as requirements_file:
         return requirements_file.read().splitlines()
 
@@ -35,16 +32,16 @@ setup(
     long_description=get_long_description(),
     long_description_content_type="text/markdown",
     classifiers=[
-        "Development Status :: 4 - Beta",
+        "Development Status :: 1 - Beta",
         "Topic :: Utilities",
         "Intended Audience :: Developers",
         "Intended Audience :: Information Technology",
-        "License :: OSI Approved :: Apache Software License",
+        "License :: OSI Approved :: Apache Software License 2.0",
         "Operating System :: OS Independent",
         "Programming Language :: Python",
         "Programming Language :: Python :: 2",
         "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.7",
     ],
 )

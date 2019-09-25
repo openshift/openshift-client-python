@@ -38,7 +38,7 @@ class TempFile(object):
     def __init__(self, content=None, suffix=".tmp"):
         self.suffix = suffix
         self.file = None
-        self.content = content
+        self.content = six.ensure_binary(content) if content else None
 
     def __enter__(self):
         self.file = tempfile.TemporaryFile(suffix=self.suffix, prefix="openshift-client-python")
