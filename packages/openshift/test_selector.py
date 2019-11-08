@@ -25,12 +25,12 @@ class TestSelector(unittest.TestCase):
     def test_set_operations(self):
         s1 = selector([])
         s2 = selector(['pod/abc', 'pod/xyz'])
-        self.assertEquals(s1.subtract(s2).qnames(), [])
-        self.assertEquals(s1.union(s2).qnames(), ['pod/abc', 'pod/xyz'])
+        self.assertEqual(s1.subtract(s2).qnames(), [])
+        self.assertEqual(s1.union(s2).qnames(), ['pod/abc', 'pod/xyz'])
 
         s3 = selector(['pod/abc2', 'pod/xyz'])
-        self.assertEquals(s2.subtract(s3).qnames(), ['pod/abc'])
-        self.assertEquals(s2.intersect(s3).qnames(), ['pod/xyz'])
+        self.assertEqual(s2.subtract(s3).qnames(), ['pod/abc'])
+        self.assertEqual(s2.intersect(s3).qnames(), ['pod/xyz'])
 
         # See whether fuzzy matching of kinds is working
 
