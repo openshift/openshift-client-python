@@ -744,7 +744,7 @@ def build_secret_dockerconfigjson(secret_name, image_registry_auth_infos, obj_la
     the yaml to the server with create()). This method does not use/require oc to be resident
     on the python host.
     :param secret_name: The metadata.name to include
-    :paran image_registry_auth_infos: An iterable collection of ImageRegistryAuthInfo
+    :param image_registry_auth_infos: An iterable collection of ImageRegistryAuthInfo
     :param obj_labels: Additional labels to include in the resulting secret metadata.
     :return: A python dict of a secret resource.
     """
@@ -755,7 +755,7 @@ def build_secret_dockerconfigjson(secret_name, image_registry_auth_infos, obj_la
     auths = {}  # A map of registry urls to a map with a single element called 'auth'
 
     for ira in image_registry_auth_infos:
-        b64_username_password = base64.b64encode('{}:{}'.format(ira.username, ira.password))
+        b64_username_password = base64.b64encode('{}:{}'.format(ira.username, ira.password).encode()).decode()
         auths[ira.registry_url] = {
             'auth': b64_username_password
         }
@@ -769,7 +769,7 @@ def build_secret_dockerconfigjson(secret_name, image_registry_auth_infos, obj_la
     import json
 
     # Next, base64 encode the entire file.
-    b64_dockerconfigjson = base64.b64encode(json.dumps(dockerconfig, indent=4))
+    b64_dockerconfigjson = base64.b64encode(json.dumps(dockerconfig, indent=4).encode()).decode()
 
     # And stick it into the secret's data
     data = {
