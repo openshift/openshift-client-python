@@ -508,6 +508,10 @@ def get_server_version():
     for line in reversed(r.out().splitlines()):
         if line.startswith('openshift v'):
             return line.split()[1].strip().lstrip('v')
+        elif line.startswith('Server Version: '):
+            version_string = line.split()[2].strip().lstrip()
+            if not version_string.startswith('version.Info{'):
+                return version_string
 
     # If not found, this is a 4.0 cluster where this output line was removed. The best
     # alternative is the version returned by the API.
