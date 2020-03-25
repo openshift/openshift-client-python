@@ -280,7 +280,7 @@ if __name__ == '__main__':
             try:
                 check_online_network_multitenant()
                 check_prevents_cron_jobs()
-                check_online_project_constraints
+                check_online_project_constraints()
             except:
                 logging.fatal('Error occurred during tests')
                 traceback.print_exc()

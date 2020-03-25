@@ -45,7 +45,7 @@ class TempFile(object):
 
         if self.content:
             try:
-                self.file.write(self.content)
+                self.file.write(self.content.encode('utf-8'))
                 self.flush()
                 self.file.seek(0, os.SEEK_SET)  # seek to the beginning of the file
             except Exception:
