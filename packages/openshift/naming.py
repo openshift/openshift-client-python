@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+
 import six
 
 # A dict of name -> APIResource.
@@ -230,6 +231,7 @@ def process_api_resources_output(output):
             register_api_resource(res)
         except StopIteration:
             break
+
 
 # just paste the output of `oc api-resources --verbs=get` in this variable (including header!).
 # It will be processed on startup. this could eventually be replaced with

@@ -1,5 +1,7 @@
 from __future__ import absolute_import
+
 import six
+
 from six.moves import range
 
 
@@ -111,7 +113,7 @@ def to_model_or_val(v, case_insensitive=False):
         return v
 
 
-def _element_can_match( master, test, case_insensitive=False):
+def _element_can_match(master, test, case_insensitive=False):
     if master is Missing:
         return False
 

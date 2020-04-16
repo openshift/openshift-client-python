@@ -2,14 +2,6 @@ from __future__ import print_function
 from __future__ import absolute_import
 
 import os
-from .selector import Selector, selector
-from .action import oc_action
-from .context import cur_context, project, no_tracking
-from .result import Result
-from .apiobject import APIObject
-from .model import Model, Missing, OpenShiftPythonException
-from . import util
-from . import naming
 import base64
 import io
 import sys
@@ -18,6 +10,15 @@ import time
 import json
 import yaml
 import six
+
+from .selector import Selector, selector
+from .action import oc_action
+from .context import cur_context, project, no_tracking
+from .result import Result
+from .apiobject import APIObject
+from .model import Model, Missing, OpenShiftPythonException
+from . import util
+from . import naming
 
 
 def eprint(*args, **kwargs):

@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+
 import subprocess
 import time
 import socket
@@ -7,9 +8,10 @@ import os
 import re
 import datetime
 import traceback
+import six
 
 from .util import TempFile, is_collection_type
-import six
+
 
 # Three base64 encoded components, '.' delimited is a token. First, find any such match.
 # You can find examples of these tokens with `oc sa get-token <serviceaccount name>`
