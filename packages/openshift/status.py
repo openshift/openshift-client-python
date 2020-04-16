@@ -1,7 +1,6 @@
-#!/usr/bin/python
-
 from __future__ import absolute_import
-from openshift import Missing
+
+from .model import Missing
 
 
 def is_route_admitted(apiobj):

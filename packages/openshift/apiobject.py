@@ -1,14 +1,16 @@
 from __future__ import absolute_import
+
+import yaml
+import sys
+import copy
+
 from .action import *
 from .model import *
 from .result import *
 from .naming import kind_matches
+from .context import cur_context
+from .selector import selector
 from . import util
-import yaml
-import json
-import sys
-import copy
-from six.moves import range
 
 _DEFAULT = object()
 
@@ -483,7 +485,7 @@ class APIObject:
         """
         r = Result("apply")
 
-        applied_change = False;
+        applied_change = False
         for attempt in reversed(list(range(retries + 1))):
 
             do_apply = modifier_func(self)
@@ -877,7 +879,3 @@ class APIObject:
             r.fail_if(
                 "Error running {} exec on {} [rc={}]: {}".format(self.qname(), cmd_to_exec[0], r.status(), r.err()))
         return r
-
-
-from .context import cur_context
-from .selector import selector

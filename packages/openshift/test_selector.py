@@ -1,7 +1,9 @@
 from __future__ import absolute_import
+
+import unittest
+
 from .selector import selector
 from .naming import qname_matches
-import unittest
 
 
 class TestSelector(unittest.TestCase):
@@ -49,6 +51,3 @@ class TestSelector(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
-
-

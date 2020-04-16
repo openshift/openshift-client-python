@@ -1,6 +1,8 @@
 from __future__ import absolute_import
-from .model import *
+
 import unittest
+
+from .model import *
 
 
 class TestModel(unittest.TestCase):
@@ -209,8 +211,6 @@ class TestModel(unittest.TestCase):
         self.assertEqual(m.d, False)
         self.assertEqual(m.e, None)
 
-
-
     def test_dict_match(self):
 
         d = Model({
@@ -350,7 +350,6 @@ class TestModel(unittest.TestCase):
             }
         ))
 
-
         l4 = ListModel([
             {
                 "a": 1,
@@ -409,6 +408,3 @@ class TestModel(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
-
-

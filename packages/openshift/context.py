@@ -1,10 +1,11 @@
 from __future__ import absolute_import
+
+import inspect
+import os
+
 from datetime import datetime
 from datetime import timedelta
 from threading import local
-import inspect
-
-import os
 
 from .result import Result
 

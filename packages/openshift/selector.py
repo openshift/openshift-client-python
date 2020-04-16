@@ -1,13 +1,16 @@
 from __future__ import absolute_import
+
+import json
+import time
+import sys
+
 from .result import Result
 from .naming import normalize_kinds, normalize_kind, qname_matches
 from .model import *
 from .util import split_names, is_collection_type
+from .action import oc_action
+from .context import cur_context
 from . import util
-import json
-import time
-import sys
-import six
 
 
 def _normalize_object_list(ol):
@@ -417,6 +420,7 @@ class Selector(Result):
         :param ignore_not_found: If true, missing named resources will not raise an exception.
         :return: A list of Model objects representing the receiver's selected resources.
         """
+        from .apiobject import APIObject
 
         obj = json.loads(self.object_json(exportable, ignore_not_found=ignore_not_found))
         return APIObject(obj).elements()
@@ -786,8 +790,3 @@ def selector(kind_or_kinds_or_qname_or_qnames=None, labels=None,
     return Selector("selector", kind_or_kinds_or_qname_or_qnames, labels=labels,
                     field_selectors=field_selectors,
                     all_namespaces=all_namespaces, static_context=static_context)
-
-
-from .action import oc_action
-from .apiobject import APIObject
-from .context import cur_context

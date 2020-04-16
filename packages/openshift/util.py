@@ -1,9 +1,9 @@
 from __future__ import absolute_import
+
 import tempfile
 import sys
 import io
 import os
-import codecs
 import errno
 import json
 import six
@@ -141,8 +141,11 @@ def mkdir_p(path):
             raise
     return path
 
+
 # unit scale used by kubernetes
-_unit_scales = {'n':-3, 'u':-2, 'm':-1, 'k':1, 'K':1, 'M':2, 'G':3, 'T':4, 'P':5, 'E':6}
+_unit_scales = {'n': -3, 'u': -2, 'm': -1, 'k': 1, 'K': 1, 'M': 2, 'G': 3, 'T': 4, 'P': 5, 'E': 6}
+
+
 def extract_numerical_value(val):
     """Extract numerical values from string, removing any units present
        e.g, 10K => 10000; 10Ki => 10240 """
@@ -171,5 +174,3 @@ def extract_numerical_value(val):
     else:
         value = float(val)
     return value * pow(base, power*power_scale)
-
-
