@@ -62,7 +62,7 @@ the CLI documentation to find the pass-through arguments a given interaction req
 Setup-Prerequisites
 1. You will require certain pip packages, use the following command to install them when at the root folder of the repository.
 
-    ```editorconfig
+    ```bash
     sudo pip install -r requirements.txt
     ```
 2. Download and install the OpenShift [command-line Tools](https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/) needed to access your OpenShift cluster.
@@ -111,7 +111,7 @@ with oc.project('openshift-infra'), oc.timeout(10*60):
         for owner in pod_model.metadata.ownerReferences:  # ownerReferences == oc.Missing if not present in resource
             # elements of a Model are also instances of Model or ListModel
             if owner.kind is not oc.Missing:  # Compare as singleton
-                print '  pod owned by a {}'.format(owner.kind)  # e.g. pod was created by a StatefulSet
+                print('  pod owned by a {}'.format(owner.kind))  # e.g. pod was created by a StatefulSet
 
 ```
 
@@ -127,10 +127,10 @@ used again and again to select rows from a database.
 project_selector = oc.selector("projects")
 
 # Print the qualified name (i.e. "kind/name") of each resource selected.
-print "Project names: " + str(project_selector.qnames())
+print("Project names: " + project_selector.qnames())
 
 # Count the number of projects on the server.
-print "Number of projects: " + str(project_selector.count_existing())
+print("Number of projects: " + project_selector.count_existing())
 
 # Selectors can also be created with a list of names.
 sa_selector = oc.selector(["serviceaccount/deployer", "serviceaccount/builder"])
@@ -143,7 +143,7 @@ sa_selector.label({"mylabel" : "myvalue"})
 sa_label_selector = oc.selector("sa", labels={"mylabel":"myvalue"})
 
 # We should find the service accounts we just labeled.
-print("Found labeled serviceaccounts: " + str(sa_label_selector.names()))
+print("Found labeled serviceaccounts: " + sa_label_selector.names())
 
 # Create a selector for a set of kinds.
 print(oc.selector(['dc', 'daemonset']).describe())
@@ -169,7 +169,7 @@ projects_sel = oc.selector("projects")
 # which model the selected resources.
 projects = projects_sel.objects()
 
-print("Selected " + str(len(projects)) + " projects")
+print("Selected " + len(projects) + " projects")
 
 # Let's store one of the project APIObjects for easy access.
 project = projects[0]
@@ -306,7 +306,7 @@ with oc.tracking() as tracker:
         print('Error acquiring current username')
     
     # Print out details about the invocations made within this context.
-    print tracker.get_result()
+    print(tracker.get_result())
 ```
 
 In this case, the tracking output would look something like:
@@ -385,10 +385,10 @@ def node_is_ready(node):
     return ready
 
 
-print "Waiting for up to 15 minutes for at least 6 nodes to be ready..."
+print("Waiting for up to 15 minutes for at least 6 nodes to be ready...")
 with oc.timeout(15 * 60):
     oc.selector('nodes').until_all(6, success_func=node_is_ready)
-    print "All detected nodes are reporting ready"
+    print("All detected nodes are reporting ready")
 ```        
 
 You will be able to see in `tracking` context results that a timeout occurred for an affected
@@ -404,10 +404,10 @@ context information.
 with oc.api_server('https:///....'):  # use the specified api server for nested oc invocations.
     
     with oc.token('abc..'):  # --server=... --token=abc... will be included in inner oc invocations.
-        print "Current project: " + oc.get_project_name()
+        print("Current project: " + oc.get_project_name())
     
     with oc.token('def..'):  # --server=... --token=def... will be included in inner oc invocations.
-        print "Current project: " + oc.get_project_name()
+        print("Current project: " + oc.get_project_name())
 ```
 
 You can control the loglevel specified  for `oc` invocations.
@@ -443,7 +443,7 @@ appropriate to the target client host.
 ```python
 with openshift.client_host(hostname="my.cluster.com", username="root", auto_add_host=True):
     # oc invocations will take place on my.cluster.com host as the root user.
-    print "Current project: " + oc.get_project_name()
+    print("Current project: " + oc.get_project_name())
 ```
 
 Using this model, your Python script will run exactly where you launch it, but all oc invocations will
