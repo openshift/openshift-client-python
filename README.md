@@ -8,6 +8,10 @@
 - [Overview](#overview)
 - [Reader Prerequisites](#reader-prerequisites)
 - [Setup](#setup)
+  - [Prerequisites](#prerequisites)
+  - [Installation Instructions](#installation-instructions)
+    - [Using PIP](#using-pip)
+    - [For development](#for-development)
 - [Usage](#usage)
   - [Quickstart](#quickstart)
   - [Selectors](#selectors)
@@ -59,15 +63,18 @@ the CLI documentation to find the pass-through arguments a given interaction req
 * A familiarity with Python is assumed.
 
 ## Setup
-Setup-Prerequisites
-1. You will require certain pip packages, use the following command to install them when at the root folder of the repository.
+### Prerequisites
+1. Download and install the OpenShift [command-line Tools](https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/) needed to access your OpenShift cluster.
 
+### Installation Instructions
+
+#### Using PIP
+1. Install the `openshift-client` module from PyPI.
     ```bash
-    sudo pip install -r requirements.txt
+    sudo pip install openshift-client
     ```
-2. Download and install the OpenShift [command-line Tools](https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/) needed to access your OpenShift cluster.
 
-Setup steps
+#### For development
 1. Git clone https://github.com/openshift/openshift-client-python.git (or your fork).
 2. Append ./packages to your PYTHONPATH environment variable (e.g. export PYTHONPATH=$(pwd)/packages:$PYTHONPATH).
 3. Write and run your python script!

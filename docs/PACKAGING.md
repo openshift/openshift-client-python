@@ -1,3 +1,27 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Openshift Python Client Packaging](#openshift-python-client-packaging)
+  - [Introduction](#introduction)
+  - [Recommended Setup](#recommended-setup)
+    - [Create User Accounts](#create-user-accounts)
+      - [PyPI - The Python Package Index](#pypi---the-python-package-index)
+      - [TestPyPI - The Test Python Package Index](#testpypi---the-test-python-package-index)
+    - [Generate API Tokens](#generate-api-tokens)
+    - [setup.cfg](#setupcfg)
+  - [Building](#building)
+  - [Publishing](#publishing)
+    - [TestPyPI](#testpypi)
+    - [PyPI](#pypi)
+  - [Installation](#installation)
+    - [TestPyPI](#testpypi-1)
+    - [PyPI](#pypi-1)
+  - [Cleanup](#cleanup)
+  - [Helpful Links](#helpful-links)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Openshift Python Client Packaging
 
 ## Introduction
