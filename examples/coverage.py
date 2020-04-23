@@ -2,46 +2,45 @@
 
 from __future__ import print_function
 from __future__ import absolute_import
-from openshift import *
+
+import openshift as oc
+from openshift import null, Missing, OpenShiftPythonException
 
 try:
 
-    print("Projects created by users:", \
-        oc.selector("projects").narrow(
-            lambda project: project.metadata.annotations["openshift.io/requester"] is not Missing
+    print("Projects created by users:", oc.selector("projects").narrow(
+            lambda prj: prj.metadata.annotations["openshift.io/requester"] is not Missing
         ).qnames())
 
     oc.selector("projects").narrow(
         # Eliminate any projects created by the system
-        lambda project: project.metadata.annotations["openshift.io/requester"] is not Missing
+        lambda prj: prj.metadata.annotations["openshift.io/requester"] is not Missing
     ).narrow(
         # Select from user projects any which violate privileged naming convention
-        lambda project:
-        project.metadata.qname == "openshift" or
-        project.metadata.qname.startswith("openshift-") or
-        project.metadata.qname == "kubernetes" or
-        project.metadata.qname.startswith("kube-") or
-        project.metadata.qname.startswith("kubernetes-")
+        lambda prj:
+        prj.metadata.qname == "openshift" or
+        prj.metadata.qname.startswith("openshift-") or
+        prj.metadata.qname == "kubernetes" or
+        prj.metadata.qname.startswith("kube-") or
+        prj.metadata.qname.startswith("kubernetes-")
     ).for_each(
-        lambda project: error("Invalid project: %s" % project.metadata.qname)
+        lambda prj: oc.error("Invalid project: %s" % prj.metadata.qname)
     )
 
-    with timeout(5):
+    with oc.timeout(5):
         success, obj = oc.selector("pods").until_any(lambda pod: pod.status.phase == "Succeeded")
         if success:
             print("Found one pod was successful: " + str(obj))
 
-    with timeout(5):
+    with oc.timeout(5):
         success, obj = oc.selector("pods").narrow("pod").until_any(
             lambda pod: pod.status.conditions.can_match({"type": "Ready", "status": False, "reason": "PodCompleted"}))
         if success:
             print("Found one pod was successful: " + str(obj))
 
+    with oc.project("myproject") as project:
 
-
-    with project("myproject"):
-
-        oc.create_if_absent(
+        project.create_if_absent(
             {
                 "apiVersion": "v1",
                 "kind": "User",
@@ -56,7 +55,7 @@ try:
             }
         )
 
-        oc.create_if_absent(
+        project.create_if_absent(
             {
                 "apiVersion": "v1",
                 "kind": "User",
@@ -71,7 +70,6 @@ try:
             }
         )
 
-
         pods = oc.selector("pod")
         print("Pods: " + str(pods.qnames()))
 
@@ -84,7 +82,7 @@ try:
             print(str(user))
 
         john = oc.selector("user/john")
-        john.label({"mylabel": None})  # remove a label
+        john.label({"mylabel": null})  # remove a label
 
         label_selector = oc.selector("users", labels={"mylabel": "myvalue"})
 
@@ -98,7 +96,7 @@ try:
 
         users.label({"another_label": "another_value"})
 
-        john.patch({
+        john.object().patch({
                 "groups": null,
                 "identities": [
                     "github: 19783215"
@@ -117,7 +115,7 @@ try:
             if user.notthere.dontcare.wontbreak is not Missing:
                 print("Should see this, but also shouldn't see exception")
 
-        oc.delete_if_present("user/bark", "user/bite")
+        project.delete_if_present("user/bark", "user/bite")
 
         bark_obj = {
             "apiVersion": "v1",
@@ -156,8 +154,6 @@ try:
             print("What went wrong?: " + str(create_err))
 
         bark_bite_sel.until_any(lambda obj: obj.metadata.qname == "bite")
-
-
 
 except OpenShiftPythonException as e:
     print("An exception occurred: " + str(e))

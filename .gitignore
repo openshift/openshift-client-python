@@ -2,3 +2,6 @@
 *.pyc
 *.zip
 examples/dumps
+dist/
+packages/openshift_client.egg-info/
+build/

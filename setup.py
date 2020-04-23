@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import os
 from setuptools import setup, find_packages
 
 
@@ -15,16 +16,33 @@ def get_long_description():
     return open("README.md", "r").read()
 
 
+def read(rel_path):
+    """Returns the contents of the file at the specified relative path."""
+    here = os.path.abspath(os.path.dirname(__file__))
+    with open(os.path.join(here, rel_path), 'r') as fp:
+        return fp.read()
+
+
+def get_version(rel_path):
+    """Returns the semantic version for the openshift-client module."""
+    for line in read(rel_path).splitlines():
+        if line.startswith('__VERSION__'):
+            delim = '"' if '"' in line else "'"
+            return line.split(delim)[1]
+    else:
+        raise RuntimeError("Unable to find version string.")
+
+
 setup(
     name="openshift-client",
-    version="0.1.0",
+    version=get_version('packages/openshift/__init__.py'),
     author="Justin Pierce",
     author_email="jupierce@redhat.com",
     maintainer="Brad Williams",
     maintainer_email="brawilli@redhat.com",
     url="https://github.com/openshift/openshift-client-python",
     description="OpenShift python client",
-    packages=find_packages(include="openshift"),
+    packages=find_packages(where='packages'),
     package_dir={"": "packages"},
     install_requires=get_requirements(),
     keywords=["OpenShift"],
