@@ -110,7 +110,7 @@ def print_report_entry(stream, d, initial_indent_count=0, encoding='utf-8'):
     for entry, value in six.iteritems(d):
         stream.write(u'{}*{}:\n'.format(indent, entry))
 
-        if entry is 'logs':
+        if entry == 'logs':
             print_logs(stream, value, initial_indent_count + 2, encoding=encoding)
         else:
             if isinstance(value, dict):  # for 'object'
