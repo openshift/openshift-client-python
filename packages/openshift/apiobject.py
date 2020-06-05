@@ -116,7 +116,7 @@ class APIObject:
         """
         :return: Returns a JSON presentation of the APIObject.
         """
-        return json.dumps(self.model._primitive(), indent=indent, encoding='utf-8').strip().decode('utf-8')
+        return json.dumps(self.model._primitive(), indent=indent).strip()
 
     def kind(self, lowercase=True, if_missing=_DEFAULT):
         """
