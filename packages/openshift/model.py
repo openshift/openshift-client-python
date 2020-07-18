@@ -211,6 +211,8 @@ class ListModel(list):
         """
         l = []
         for e in self:
+            if isinstance(e, Model) or isinstance(e, ListModel):
+                e = e._primitive()
             l.append(e)
         return l
 

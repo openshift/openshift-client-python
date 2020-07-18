@@ -23,6 +23,40 @@ class TestModel(unittest.TestCase):
         if len(miss) != 0:
             self.fail("Expected zero length")
 
+    def test_primitive(self):
+        d = {
+            "a": 1,
+            "b": 2,
+            "map1": {
+                "c": 3,
+                "d": 4
+            },
+            "list1": [
+                5,
+                6,
+                7,
+            ],
+            "list2": [
+                {
+                    "e": 5,
+                    "f": 6
+                },
+                {
+                    "g": 5,
+                    "h": 6
+                },
+            ],
+        }
+        m = Model(dict_to_model=d)
+        d2 = m._primitive()
+        if d2 != d:
+            self.fail('Primitive did not restore to expected state')
+
+        self.assertTrue(isinstance(m, Model))
+        self.assertFalse(isinstance(d2['map1'], Model))
+        self.assertFalse(isinstance(d2['list2'], ListModel))
+        self.assertFalse(isinstance(d2['list2'][0], Model))
+
     def test_access(self):
         m = Model()
         m.metadata = {
