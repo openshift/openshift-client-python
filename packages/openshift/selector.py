@@ -351,11 +351,10 @@ class Selector(Result):
         """
         return len(self._query_names())
 
-    def object_json(self, exportable=False, ignore_not_found=False):
+    def object_json(self, ignore_not_found=False):
         """
         Returns all objects selected by the receiver as a JSON string. If multiple objects are
         selected, an OpenShift List kind will be returned.
-        :param exportable: Set to True if the export verb should be used.
         :param ignore_not_found: If True, no error will result if receiver tries to select objects which are not present
         :return: Returns all selected objects marshalled as an OpenShift JSON representation.
         """
@@ -369,7 +368,7 @@ class Selector(Result):
                 "items": []
             })
 
-        verb = "export" if exportable else "get"
+        verb = "get"
 
         cmd_args = ["-o=json",
                     self._selection_args()]
@@ -378,8 +377,7 @@ class Selector(Result):
             cmd_args.append("--ignore-not-found")
 
         r = Result(verb)
-        r.add_action(oc_action(self.context, verb, all_namespaces=self.all_namespaces,
-                               cmd_args=cmd_args))
+        r.add_action(oc_action(self.context, verb, all_namespaces=self.all_namespaces, cmd_args=cmd_args))
         r.fail_if("Unable to read object")
 
         # --ignore-not-found returns an empty string instead of an error if nothing is found
@@ -393,16 +391,15 @@ class Selector(Result):
 
         return r.out()
 
-    def object(self, exportable=False, ignore_not_found=False):
+    def object(self, ignore_not_found=False):
         """
         Returns a single APIObject that represents the selected resource. If multiple
         resources are being selected an exception will be thrown (use objects() when
         there is a possibility of selecting multiple objects).
-        :param exportable: Whether export should be used instead of get.
         :param ignore_not_found: If True and no object exists, None will be returned instead of an exception.
         :return: A Model of the selected resource.
         """
-        objs = self.objects(exportable)
+        objs = self.objects()
         if len(objs) == 0:
             if ignore_not_found:
                 return None
@@ -412,17 +409,16 @@ class Selector(Result):
 
         return objs[0]
 
-    def objects(self, exportable=False, ignore_not_found=True):
+    def objects(self, ignore_not_found=True):
         """
         Returns a python list of APIObject objects that represent the selected resources. An
         empty is returned if nothing is selected.
-        :param exportable: Whether export should be used instead of get.
         :param ignore_not_found: If true, missing named resources will not raise an exception.
         :return: A list of Model objects representing the receiver's selected resources.
         """
         from .apiobject import APIObject
 
-        obj = json.loads(self.object_json(exportable, ignore_not_found=ignore_not_found))
+        obj = json.loads(self.object_json(ignore_not_found=ignore_not_found))
         return APIObject(obj).elements()
 
     def start_build(self, cmd_args=None):
