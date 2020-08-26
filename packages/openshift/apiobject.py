@@ -716,7 +716,7 @@ class APIObject:
         r = Result("process")
         r.add_action(oc_action(self.context, "process", cmd_args=["-f", "-", base_args, cmd_args], stdin_obj=template))
         r.fail_if("Error processing template")
-        return APIObject(r.out()).elements()
+        return APIObject(string_to_model=r.out()).elements()
 
     def do_i_own(self, apiobj):
 
