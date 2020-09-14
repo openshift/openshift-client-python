@@ -422,7 +422,7 @@ class Selector(Result):
         return APIObject(obj).elements()
 
     def start_build(self, cmd_args=None):
-        r = Selector()
+        r = Selector('start_build')
 
         # Have start-build output a list of objects it creates
         base_args = list()
