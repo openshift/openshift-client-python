@@ -626,7 +626,7 @@ class Selector(Result):
     def scale(self, replicas, cmd_args=None):
         r = Result("scale")
         base_args = list()
-        base_args.append('--scale={}'.format(replicas))
+        base_args.append('--replicas={}'.format(replicas))
         r.add_action(oc_action(self.context, "scale", all_namespaces=self.all_namespaces,
                                cmd_args=[self._selection_args(needs_all=False), base_args, cmd_args]))
 
