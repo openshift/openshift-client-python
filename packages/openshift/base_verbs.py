@@ -533,7 +533,9 @@ def apply(str_dict_model_apiobject_or_list_thereof, overwrite=False, cmd_args=No
           auto_raise=True):
     """
     Applies the specifies resource(s) on the server.
-    :param str_dict_model_apiobject_or_list_thereof:
+    :param str_dict_model_apiobject_or_list_thereof: The definition of one or more API object.
+        Can be string containing json or yaml, a python dict, an openshift.Model, or an openshift.APIObject.
+        You can also provide a list containing multiple of these elements to update.
     :param overwrite: If --overwrite should be sent to apply.
     :param cmd_args: Additional apply arguments
     :param fetch_resource_versions: If True, before trying to apply the resources, a get operation will be used to
@@ -584,7 +586,16 @@ def apply(str_dict_model_apiobject_or_list_thereof, overwrite=False, cmd_args=No
                                          auto_raise=auto_raise)
 
 
-def replace(str_dict_model_apiobject_or_list_thereof, force=False, cmd_args=None):
+def replace(str_dict_model_apiobject_or_list_thereof, force=False, cmd_args=None, auto_raise=True):
+    """
+    :param str_dict_model_apiobject_or_list_thereof: The definition of one or more API object.
+        Can be string containing json or yaml, a python dict, an openshift.Model, or an openshift.APIObject.
+        You can also provide a list containing multiple of these elements to update.
+    :param force: Whether to send the --force argument to oc replace.
+    :param cmd_args: Additional arguments for the verb.
+    :param auto_raise: If True, errors from oc will raise an exception.
+    :return: A selector for the updated objects and Result.
+    """
     base_args = list()
     if force:
         base_args.append('--force')
@@ -605,7 +616,8 @@ def replace(str_dict_model_apiobject_or_list_thereof, force=False, cmd_args=None
     return __new_objects_action_selector("replace",
                                          cmd_args=["-f", "-", base_args, cmd_args],
                                          stdin_obj=m,
-                                         no_namespace=namespace_detected)
+                                         no_namespace=namespace_detected,
+                                         auto_raise=auto_raise)
 
 
 def build_configmap_dict(configmap_name, dir_path_or_paths=None, dir_ext_include=None, data_map=None, obj_labels=None):
