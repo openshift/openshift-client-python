@@ -666,8 +666,9 @@ class APIObject:
         r.fail_if("Error running patch on objects")
         return r
 
-    def elements(self):
+    def elements(self, cls=None):
         """
+        :param cls A custom subclass of APIObject to return in place of APIObjects
         :return: Returns a python list of APIObjects. If receiver is an OpenShift 'List', each element will be
         added to the returned list. If the receiver is not of kind List, the [self] will be returned.
         """
@@ -688,7 +689,12 @@ class APIObject:
             if item_kind:
                 d['kind'] = item_kind
 
-            l.append(APIObject(d))
+            if cls is not None:
+                obj = cls(d)
+            else:
+                obj = APIObject(d)
+
+            l.append(obj)
 
         return l
 
