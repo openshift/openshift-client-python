@@ -391,15 +391,16 @@ class Selector(Result):
 
         return r.out()
 
-    def object(self, ignore_not_found=False):
+    def object(self, ignore_not_found=False, cls=None):
         """
         Returns a single APIObject that represents the selected resource. If multiple
         resources are being selected an exception will be thrown (use objects() when
         there is a possibility of selecting multiple objects).
         :param ignore_not_found: If True and no object exists, None will be returned instead of an exception.
+        :param cls: Custom APIObject class to return
         :return: A Model of the selected resource.
         """
-        objs = self.objects()
+        objs = self.objects(cls=cls)
         if len(objs) == 0:
             if ignore_not_found:
                 return None
@@ -409,17 +410,24 @@ class Selector(Result):
 
         return objs[0]
 
-    def objects(self, ignore_not_found=True):
+    def objects(self, ignore_not_found=True, cls=None):
         """
         Returns a python list of APIObject objects that represent the selected resources. An
         empty is returned if nothing is selected.
         :param ignore_not_found: If true, missing named resources will not raise an exception.
+        :param cls: Custom APIObject class to return
         :return: A list of Model objects representing the receiver's selected resources.
         """
         from .apiobject import APIObject
 
         obj = json.loads(self.object_json(ignore_not_found=ignore_not_found))
-        return APIObject(obj).elements()
+
+        if cls is not None:
+            api_objects = cls(obj).elements(cls)
+        else:
+            api_objects = APIObject(obj).elements()
+
+        return api_objects
 
     def start_build(self, cmd_args=None):
         r = Selector('start_build')
