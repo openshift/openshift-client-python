@@ -229,7 +229,7 @@ class APIObject:
         """
         return _access_field(self.model.metadata.name,
                              "Object model does not contain .metadata.name", if_missing=if_missing,
-                             lowercase=True)
+                             lowercase=False)
 
     def namespace(self, if_missing=_DEFAULT):
         """
