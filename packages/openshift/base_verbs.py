@@ -1366,6 +1366,7 @@ def node_ssh_client(apiobj_node_name_or_qname=None,
                     username=None,
                     password=None,
                     key_filename=None,
+                    pkey=None,
                     auto_add_host=True,
                     connect_timeout=600,
                     through_client_host=True,
@@ -1380,6 +1381,7 @@ def node_ssh_client(apiobj_node_name_or_qname=None,
     :param username: The username to use
     :param password: The username's password
     :param key_filename: The filename of optional private key and/or cert to try for authentication
+    :param pkey: the place where your ssh key is assign to
     :param auto_add_host: Whether to auto accept host certificates
     :param connect_timeout: Connection timeout
     :param through_client_host: If True, and client_host is being used, ssh will be initiated
@@ -1439,6 +1441,7 @@ def node_ssh_client(apiobj_node_name_or_qname=None,
 
             ssh_client.connect(hostname=address, port=port, username=username,
                                password=password, key_filename=key_filename,
+                               pkey=pkey,
                                timeout=connect_timeout, sock=host_sock)
 
             # Enable agent fowarding
@@ -1455,6 +1458,7 @@ def node_ssh_await(apiobj_node_name_or_qname=None,
                    username=None,
                    password=None,
                    key_filename=None,
+                   pkey=None,
                    auto_add_host=True,
                    through_client_host=True,
                    address_type_pref="ExternalDNS,ExternalIP,Hostname"):
@@ -1466,6 +1470,7 @@ def node_ssh_await(apiobj_node_name_or_qname=None,
     :param username:
     :param password:
     :param key_filename:
+    :param pkey:
     :param auto_add_host:
     :param through_client_host:
     :param address_type_pref:
@@ -1482,6 +1487,7 @@ def node_ssh_await(apiobj_node_name_or_qname=None,
                                  username=username,
                                  password=password,
                                  key_filename=key_filename,
+                                 pkey=pkey,
                                  auto_add_host=auto_add_host,
                                  connect_timeout=25,
                                  through_client_host=through_client_host,
@@ -1501,6 +1507,7 @@ def node_ssh_client_exec(apiobj_node_name_or_qname=None,
                          username=None,
                          password=None,
                          key_filename=None,
+                         pkey=None,
                          auto_add_host=True,
                          connect_timeout=600,
                          through_client_host=True,
@@ -1517,6 +1524,7 @@ def node_ssh_client_exec(apiobj_node_name_or_qname=None,
     :param username: The username to use
     :param password: The username's password
     :param key_filename: The filename of optional private key and/or cert to try for authentication
+    :param pkey: the place where your ssh key is assign to
     :param auto_add_host: Whether to auto accept host certificates
     :param connect_timeout: Connection timeout
     :param through_client_host: If True, and client_host is being used, ssh will be initiated
@@ -1532,6 +1540,7 @@ def node_ssh_client_exec(apiobj_node_name_or_qname=None,
                          username=username,
                          password=password,
                          key_filename=key_filename,
+                         pkey=pkey,
                          auto_add_host=auto_add_host,
                          connect_timeout=connect_timeout,
                          through_client_host=through_client_host,
