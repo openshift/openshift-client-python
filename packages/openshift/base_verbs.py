@@ -1370,6 +1370,7 @@ def node_ssh_client(apiobj_node_name_or_qname=None,
                     connect_timeout=600,
                     through_client_host=True,
                     address_type_pref="ExternalDNS,ExternalIP,Hostname",
+                    paramiko_connect_extras=None,
                     ):
     """
     Returns a paramiko ssh client connected to the named cluster node. The caller is responsible for closing the
@@ -1387,6 +1388,7 @@ def node_ssh_client(apiobj_node_name_or_qname=None,
     unless overridden.
     :param address_type_pref: Comma delimited list of node address types. Types will be tried in
             the order specified.
+    :param paramiko_connect_extras: An optional dictionary of kwargs to pass to the underlying SSH client connection method.
     :return: ssh_client which can be used as a context manager
     """
 
@@ -1437,9 +1439,11 @@ def node_ssh_client(apiobj_node_name_or_qname=None,
                 if not password:
                     password = cur_context().get_ssh_password()
 
+            paramiko_connect_extras = paramiko_connect_extras or {}
             ssh_client.connect(hostname=address, port=port, username=username,
                                password=password, key_filename=key_filename,
-                               timeout=connect_timeout, sock=host_sock)
+                               timeout=connect_timeout, sock=host_sock,
+                               **paramiko_connect_extras)
 
             # Enable agent fowarding
             paramiko.agent.AgentRequestHandler(ssh_client.get_transport().open_session())
@@ -1457,18 +1461,25 @@ def node_ssh_await(apiobj_node_name_or_qname=None,
                    key_filename=None,
                    auto_add_host=True,
                    through_client_host=True,
-                   address_type_pref="ExternalDNS,ExternalIP,Hostname"):
+                   address_type_pref="ExternalDNS,ExternalIP,Hostname",
+                   paramiko_connect_extras=None
+                   ):
     """
     Periodically attempts to connect to a node's ssh server.
-    :param apiobj_node_name_or_qname:
-    :param timeout_seconds:
-    :param port:
-    :param username:
-    :param password:
-    :param key_filename:
-    :param auto_add_host:
-    :param through_client_host:
-    :param address_type_pref:
+    :param apiobj_node_name_or_qname: The name of the node or the apiobject representing the node to ssh to. If None,
+    tries to return the ssh_client associated with current client_host context, if any.
+    :param port: The ssh port
+    :param username: The username to use
+    :param password: The username's password
+    :param key_filename: The filename of optional private key and/or cert to try for authentication
+    :param auto_add_host: Whether to auto accept host certificates
+    :param connect_timeout: Connection timeout
+    :param through_client_host: If True, and client_host is being used, ssh will be initiated
+    through the client_host ssh connection. Username/password used for client_host will propagate
+    unless overridden.
+    :param address_type_pref: Comma delimited list of node address types. Types will be tried in
+            the order specified.
+    :param paramiko_connect_extras: An optional dictionary of kwargs to pass to the underlying SSH client connection method.
     :return: N/A, but throws the last exception received if timeout occurs.
     """
 
@@ -1485,7 +1496,8 @@ def node_ssh_await(apiobj_node_name_or_qname=None,
                                  auto_add_host=auto_add_host,
                                  connect_timeout=25,
                                  through_client_host=through_client_host,
-                                 address_type_pref=address_type_pref) as ssh_client:
+                                 address_type_pref=address_type_pref,
+                                 paramiko_connect_extras=paramiko_connect_extras) as ssh_client:
                 return
 
         except Exception as e:
@@ -1504,7 +1516,8 @@ def node_ssh_client_exec(apiobj_node_name_or_qname=None,
                          auto_add_host=True,
                          connect_timeout=600,
                          through_client_host=True,
-                         address_type_pref="ExternalDNS,ExternalIP,Hostname"
+                         address_type_pref="ExternalDNS,ExternalIP,Hostname",
+                         paramiko_connect_extras=None,
                          ):
     """
     Executes a single command on the remote host via ssh and returns rc, stdout, stderr. Closes the connection
@@ -1524,6 +1537,7 @@ def node_ssh_client_exec(apiobj_node_name_or_qname=None,
     unless overridden.
     :param address_type_pref: Comma delimited list of node address types. Types will be tried in
             the order specified.
+    :param paramiko_connect_extras: An optional dictionary of kwargs to pass to the underlying SSH client connection method.
     :return: rc, stdout, stderr
     """
 
@@ -1535,7 +1549,8 @@ def node_ssh_client_exec(apiobj_node_name_or_qname=None,
                          auto_add_host=auto_add_host,
                          connect_timeout=connect_timeout,
                          through_client_host=through_client_host,
-                         address_type_pref=address_type_pref) as ssh_client:
+                         address_type_pref=address_type_pref,
+                         paramiko_connect_extras=paramiko_connect_extras) as ssh_client:
         ssh_stdin, ssh_stdout, ssh_stderr = ssh_client.exec_command(cmd_str)
 
         if stdin_str:
