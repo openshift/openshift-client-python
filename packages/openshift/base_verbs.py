@@ -293,7 +293,7 @@ def drain_node(apiobj_node_name_or_qname, ignore_daemonsets=True,
         base_args.append('--ignore-daemonsets')
 
     if delete_local_data:
-        base_args.append('--delete-local-data')
+        base_args.append('--delete-emptydir-data')
 
     if force:
         base_args.append('--force')
