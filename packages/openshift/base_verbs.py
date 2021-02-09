@@ -293,7 +293,22 @@ def drain_node(apiobj_node_name_or_qname, ignore_daemonsets=True,
         base_args.append('--ignore-daemonsets')
 
     if delete_local_data:
-        base_args.append('--delete-local-data')
+        # The '--delete-local-data' flag is being deprecated.
+        # A new flag was introduced in OpenShift 4.7 ('--delete-emptydir-data').
+        # The following logic is to provide backward compatibility for folks that
+        # may not update their 'oc' binaries all that often.
+        version = get_client_version()
+        pieces = version.split('.')
+        major = int(pieces[0])
+        minor = int(pieces[1])
+
+        # Local builds of OC have `alpha` in their version string.  We are going
+        # to assume that anyone building their own version of 'oc' will most
+        # likely have the latest/greatest code that contains the new flag.
+        if 'alpha' in version or major > 4 or (major == 4 and minor >= 7):
+            base_args.append('--delete-emptydir-data')
+        else:
+            base_args.append('--delete-local-data')
 
     if force:
         base_args.append('--force')
