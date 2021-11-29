@@ -519,7 +519,7 @@ class APIObject:
         :return: A Result object
         :rtype: Result
         """
-        r, _ = self.modify_and_apply(lambda: True, retries=0, cmd_args=cmd_args)
+        r, _ = self.modify_and_apply(lambda _: True, retries=0, cmd_args=cmd_args)
         return r
 
     def delete(self, ignore_not_found=False, cmd_args=None):
