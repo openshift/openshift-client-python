@@ -218,7 +218,7 @@ def delete_project(name, ignore_not_found=False, grace_period=None, force=False,
         base_args.append("--force")
 
     r.add_action(oc_action(cur_context(), "delete", cmd_args=["project", name, base_args, cmd_args]))
-    r.fail_if("Unable to create delete project: {}".format(name))
+    r.fail_if("Unable to delete project: {}".format(name))
 
     # Give the controller time to clean up project resources:
     while selector('namespace/{}'.format(name)).count_existing() > 0:
@@ -1039,6 +1039,38 @@ def build_secret_dockerconfig(secret_name, image_registry_auth_infos, obj_labels
     }
 
     return d
+
+
+def build_imagestream_simple(imagestream_name,
+                             namespace=None,
+                             labels=None,
+                             local_lookup_policy=False,
+                             api_version='image.openshift.io/v1'):
+    if not labels:
+        labels = {}
+
+    metadata = {
+        'name': imagestream_name,
+        'labels': labels,
+    }
+
+    if namespace:
+        metadata['namespace'] = namespace
+
+    spec = {
+        'lookupPolicy': {
+                'local': local_lookup_policy
+        }
+    }
+
+    imagestream = {
+        'apiVersion': api_version,
+        'kind': 'ImageStream',
+        'metadata': metadata,
+        'spec': spec,
+    }
+
+    return imagestream
 
 
 def update_api_resources():
