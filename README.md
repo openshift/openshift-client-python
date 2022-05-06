@@ -546,7 +546,7 @@ you can specify many default contexts in the environment.
 ### Defaults when invoking `oc`
 Establishing explicit contexts within an application will override these environment defaults.
 - `OPENSHIFT_CLIENT_PYTHON_DEFAULT_OC_PATH` - default path to use when invoking `oc`
-- `OPENSHIFT_CLIENT_PYTHON_DEFAULT_CONFIG_PATH` - default `--config` argument
+- `OPENSHIFT_CLIENT_PYTHON_DEFAULT_CONFIG_PATH` - default `--kubeconfig` argument
 - `OPENSHIFT_CLIENT_PYTHON_DEFAULT_API_SERVER` - default `--server` argument
 - `OPENSHIFT_CLIENT_PYTHON_DEFAULT_CA_CERT_PATH` - default `--cacert` argument
 - `OPENSHIFT_CLIENT_PYTHON_DEFAULT_PROJECT` - default `--namespace` argument

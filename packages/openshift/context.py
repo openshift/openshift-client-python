@@ -423,7 +423,7 @@ def api_server(api_url=None, ca_cert_path=None, kubeconfig_path=None):
     Contexts can be nested. The most immediate ancestor cluster context
     will define the API server targeted by an action.
     :param api_url: The oc --server argument to use.
-    :param kubeconfig_path: The oc --config argument to use.
+    :param kubeconfig_path: The oc --kubeconfig argument to use.
     :return: The context object. Can be safely ignored.
     """
 

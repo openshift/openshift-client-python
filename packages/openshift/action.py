@@ -230,7 +230,7 @@ def oc_action(context, verb, cmd_args=None, all_namespaces=False, no_namespace=F
         references = {}
 
     if context.get_kubeconfig_path() is not None:
-        cmds.append("--config=%s" % context.get_kubeconfig_path())
+        cmds.append("--kubeconfig=%s" % context.get_kubeconfig_path())
 
     if context.get_api_url() is not None:
         url = context.get_api_url()
