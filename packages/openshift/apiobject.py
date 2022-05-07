@@ -879,7 +879,7 @@ class APIObject:
 
         r = Result("exec")
         r.add_action(
-            oc_action(self.context, "exec", cmd_args=[oc_args, self.name(), "--", cmd_to_exec],
+            oc_action(self.context, "exec", cmd_args=[oc_args, self.qname(), "--", cmd_to_exec],
                       stdin_str=stdin, namespace=self.namespace(if_missing=None)))
         if auto_raise:
             r.fail_if(
