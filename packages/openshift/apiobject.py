@@ -103,7 +103,7 @@ class APIObject:
         # make sure to force a namespace.
 
         self.context = copy.copy(context if context else cur_context())
-        self.context.project_name = self.namespace(None)
+        self.context.project_name = self.namespace(self.context.project_name)
 
     def as_dict(self):
         """
