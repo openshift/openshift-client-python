@@ -37,8 +37,6 @@ class APIResource:
                 if '/' in value:
                     group = value.split('/')[0]
                     return group
-                else:
-                    return None
             return value
         return None
 
@@ -67,7 +65,9 @@ def get_api_resources_kinds():
     ungettable = set()
     ungettable.update("""
 rangeallocations.security.openshift.io
+rangeallocations.security.openshift.io/v1
 useridentitymappings.user.openshift.io
+useridentitymappings.user.openshift.io/v1
 """.strip().split())
 
     return kinds.difference(ungettable)

@@ -1610,3 +1610,37 @@ def node_ssh_client_exec(apiobj_node_name_or_qname=None,
         return_code = ssh_stdout.channel.recv_exit_status()
 
         return return_code, stdout, stderr
+
+
+"""
+There is a small number of APIs that appear in an API Group that is specified as only
+an unclassified version, like "v1".  This is something specific to OpenShift V4, but 
+to be consistent, Im adding logic that handles this across versions.
+"""
+SUPPORTED_SINGULAR_API_GROUP_SUFFIXES = ["v1"]
+
+
+def _is_singular_api_group(group):
+    for suffix in SUPPORTED_SINGULAR_API_GROUP_SUFFIXES:
+        if group.endswith('.{}'.format(suffix)):
+            return True
+    return False
+
+
+def get_gettable_kinds():
+    """
+    Returns a list of the 'gettable' (i.e. oc get <kind> will work) kinds known to openshift-client-python.
+    You can run `oc.update_api_resources` first if this needs to be exact for a cluster.
+    :return: list<string> where each entry is a valid kind
+    """
+    kinds = []
+    for kind in naming.get_api_resources_kinds():
+        if '/' in kind:
+            kinds.append(kind.split('/')[0])
+        else:
+            if _is_singular_api_group(kind):
+                kinds.append(kind.split('.')[0])
+            else:
+                kinds.append(kind)
+
+    return kinds
