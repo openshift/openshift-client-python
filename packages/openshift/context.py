@@ -325,7 +325,7 @@ class Context(object):
 
 def set_default_oc_path(path):
     """
-    Sets the default full patch of the oc binary to execute for this thread.
+    Sets the default full path of the oc binary to execute for this thread.
     If no client_path() context is in use, this path will be used.
     """
     context.default_oc_path = path
