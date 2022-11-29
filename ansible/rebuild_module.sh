@@ -1,26 +1,37 @@
 #!/usr/bin/env bash
 
 # Directory in which this script resides
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+ANSIBLE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-TEMPLATE_FILE="$DIR/roles/openshift_client_python/library/openshift_client_python.template.py"
-OUTPUT_FILE="$DIR/roles/openshift_client_python/library/openshift_client_python.py"
+TEMPLATE_FILE="$ANSIBLE_DIR/roles/openshift_client_python/library/openshift_client_python.template.py"
+
+if [[ -v 1 ]]
+then
+  echo "Running in container mode"
+  TEMP_DIR="$1"
+  OUTPUT_FILE="$TEMP_DIR/openshift_client_python.py"
+  DIGEST_FILE="$TEMP_DIR/rebuild_module.digest"
+else
+  OUTPUT_FILE="$ANSIBLE_DIR/roles/openshift_client_python/library/openshift_client_python.py"
+  DIGEST_FILE="$ANSIBLE_DIR/rebuild_module.digest"
+fi
 
 if [[ ! -f "$TEMPLATE_FILE" ]]; then
     echo "Unable to find template file: $TEMPLATE_FILE"
     exit 1
 fi
 
-PACKAGES_DIR="$DIR/../packages"
+PACKAGES_DIR="$ANSIBLE_DIR/../packages"
 if [[ ! -d "$PACKAGES_DIR" ]]; then
     echo "Unable to find packages directory: $PACKAGES_DIR"
     exit 1
 fi
-
 pushd "$PACKAGES_DIR"
+
 # Update module digest so that pr.groovy can ensure it is run after each module change
-cat $(find openshift/ -name '*.py' | sort) | md5sum > $DIR/rebuild_module.digest
+cat $(find openshift/ -name '*.py' | sort) | md5sum > $DIGEST_FILE
 ENCODED_TGZ=$(tar c --owner=0 --numeric-owner --group=0 --mtime='UTC 2019-01-01' $(find openshift/ -name '*.py' | sort) | gzip -c -n | base64 --wrap=0)
+
 popd
 
 echo "#!/usr/bin/env python" > $OUTPUT_FILE
