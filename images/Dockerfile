@@ -7,7 +7,7 @@ COPY --from=cli /usr/bin/oc /usr/bin/
 
 ADD . /openshift-client-python
 
-RUN yum install -y python2 python3 git && python2 -m pip install --upgrade pip && python2 -m pip install -r /openshift-client-python/requirements.txt && python3 -m pip install --upgrade pip && python3 -m pip install -r /openshift-client-python/requirements.txt
+RUN yum install -y python2 python3 git diffutils && python2 -m pip install --upgrade pip && python2 -m pip install -r /openshift-client-python/requirements.txt && python3 -m pip install --upgrade pip && python3 -m pip install -r /openshift-client-python/requirements.txt
 
 ENV PYTHONPATH=/openshift-client-python/packages:$PYTHONPATH PYTHONUNBUFFERED=1
 
