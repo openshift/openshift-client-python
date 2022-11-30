@@ -30,7 +30,7 @@ pushd "$PACKAGES_DIR"
 
 # Update module digest so that pr.groovy can ensure it is run after each module change
 cat $(find openshift/ -name '*.py' | sort -d) | md5sum > $DIGEST_FILE
-ENCODED_TGZ=$(tar c --owner=0 --numeric-owner --group=0 --mtime='UTC 2019-01-01' $(find openshift/ -name '*.py' | sort) | gzip -c -n | base64 --wrap=0)
+ENCODED_TGZ=$(tar c --owner=0 --numeric-owner --group=0 --mtime='UTC 2019-01-01' $(find openshift/ -name '*.py' | sort -d) | gzip -c -n | base64 --wrap=0)
 
 popd
 
