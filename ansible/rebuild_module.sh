@@ -5,7 +5,7 @@ ANSIBLE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 TEMPLATE_FILE="$ANSIBLE_DIR/roles/openshift_client_python/library/openshift_client_python.template.py"
 
-if [[ -v 1 ]]
+if [ -n "$1" ]
 then
   echo "Running in container mode"
   TEMP_DIR="$1"
