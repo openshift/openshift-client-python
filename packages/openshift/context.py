@@ -336,7 +336,7 @@ def set_default_kubeconfig_path(path):
 
 
 def set_default_api_url(url):
-    context.default_api_url = url
+    context.default_api_server = url
 
 
 def set_default_project(name):
