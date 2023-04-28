@@ -232,8 +232,8 @@ def oc_action(context, verb, cmd_args=None, all_namespaces=False, no_namespace=F
     if context.get_kubeconfig_path() is not None:
         cmds.append("--kubeconfig=%s" % context.get_kubeconfig_path())
 
-    if context.get_api_url() is not None:
-        url = context.get_api_url()
+    if context.get_api_server() is not None:
+        url = context.get_api_server()
 
         # If insecure:// is specified, skip TLS verification
         if url.startswith("insecure://"):
