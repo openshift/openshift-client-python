@@ -885,3 +885,25 @@ class APIObject:
             r.fail_if(
                 "Error running {} exec on {} [rc={}]: {}".format(self.qname(), cmd_to_exec[0], r.status(), r.err()))
         return r
+
+    def __getstate__(self):
+        """
+        Custom serializer for pickle module.
+        The pickle module implements binary protocols for serializing and de-serializing a Python object structure.
+        More info here: https://docs.python.org/3/library/pickle.html#object.__getstate__
+        """
+        return {
+            "name": self.model.metadata.name,
+            "kind": self.model.kind,
+            "context": self.context,
+        }
+
+    def __setstate__(self, state):
+        """
+        Custom de-serializing for pickle module.
+        The pickle module implements binary protocols for serializing and de-serializing a Python object structure.
+        More info here: https://docs.python.org/3/library/pickle.html#object.__setstate__
+        """
+        with state["context"]:
+            result = selector(f"{state['kind']}/{state['name']}").object_json()
+            self.__init__(string_to_model=result)
