@@ -35,7 +35,7 @@ class Context(object):
         self.parent = None
         self.oc_path = None
         self.kubeconfig_path = None
-        self.api_url = None
+        self.api_server = None
         self.token = None
         self.ca_cert_path = None
         self.project_name = None
@@ -121,12 +121,19 @@ class Context(object):
         context.stack.pop()
         self.close_ssh()
 
+    # TODO: deprecate this API (flagged on: 4/28/2023)
     def get_api_url(self):
+        """
+        The API has been flagged for deprecation.  Please use get_api_server instead
+        """
+        return self.get_api_server()
 
-        if self.api_url is not None:
-            return self.api_url
+    def get_api_server(self):
+
+        if self.api_server is not None:
+            return self.api_server
         if self.parent is not None:
-            return self.parent.get_api_url()
+            return self.parent.get_api_server()
         return context.default_api_server
 
     def get_token(self):
@@ -195,7 +202,7 @@ class Context(object):
             return self.project_name
         # if cluster is changing, don't check parent for project
         # with project must always be inside with cluster.
-        if self.api_url is None and self.parent is not None:
+        if self.api_server is None and self.parent is not None:
             return self.parent.get_project()
         return context.default_project
 
@@ -335,8 +342,16 @@ def set_default_kubeconfig_path(path):
     context.default_kubeconfig_path = path
 
 
+# TODO: deprecate this API (flagged on: 4/28/2023)
 def set_default_api_url(url):
-    context.default_api_url = url
+    """
+    The API has been flagged for deprecation.  Please use set_default_api_server instead
+    """
+    set_default_api_server(url)
+
+
+def set_default_api_server(server):
+    context.default_api_server = server
 
 
 def set_default_project(name):
@@ -429,7 +444,7 @@ def api_server(api_url=None, ca_cert_path=None, kubeconfig_path=None):
 
     c = Context()
     c.kubeconfig_path = kubeconfig_path
-    c.api_url = api_url
+    c.api_server = api_url
     c.ca_cert_path = ca_cert_path
     return c
 
