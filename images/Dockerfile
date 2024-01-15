@@ -1,4 +1,4 @@
-FROM registry.ci.openshift.org/origin/4.13:cli as cli
+FROM registry.ci.openshift.org/origin/4.16:cli as cli
 
 FROM registry.ci.openshift.org/origin/centos:stream8
 LABEL maintainer="brawilli@redhat.com"
