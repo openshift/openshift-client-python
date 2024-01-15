@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from __future__ import absolute_import
-import openshift as oc
+import openshift_client as oc
 
 if __name__ == '__main__':
     with oc.client_host():

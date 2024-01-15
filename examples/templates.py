@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import openshift as oc
+import openshift_client as oc
 
 '''
 This example will scan all the templates, on the cluster, and look specifically for the openshift/nginx-example

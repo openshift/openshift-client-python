@@ -5,8 +5,8 @@ from __future__ import print_function
 import argparse
 import logging
 import traceback
-import openshift as oc
-from openshift import OpenShiftPythonException
+import openshift_client as oc
+from openshift_client import OpenShiftPythonException
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('ExceptionTracking')

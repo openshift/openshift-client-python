@@ -89,7 +89,7 @@ Can you run `oc project` successfully from the command line? Then write your app
 
 ```python
 #!/usr/bin/python
-import openshift as oc
+import openshift_client as oc
 
 print('OpenShift client version: {}'.format(oc.get_client_version()))
 print('OpenShift server version: {}'.format(oc.get_server_version()))
@@ -304,7 +304,7 @@ process -- it will consume memory for every oc invocation.*
 
 ```python
 #!/usr/bin/python
-import openshift as oc
+import openshift_client as oc
 
 with oc.tracking() as tracker:
     try:
@@ -382,7 +382,7 @@ the current oc invocation will be killed.
 
 ```python
 #!/usr/bin/python
-import openshift as oc
+import openshift_client as oc
 
 def node_is_ready(node):
     ready = node.model.status.conditions.can_match({
@@ -448,7 +448,7 @@ context. Before running this command, you will need to load your ssh agent up wi
 appropriate to the target client host.
 
 ```python
-with openshift.client_host(hostname="my.cluster.com", username="root", auto_add_host=True):
+with openshift_client.client_host(hostname="my.cluster.com", username="root", auto_add_host=True):
     # oc invocations will take place on my.cluster.com host as the root user.
     print("Current project: " + oc.get_project_name())
 ```

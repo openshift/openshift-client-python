@@ -3,8 +3,8 @@
 from __future__ import print_function
 from __future__ import absolute_import
 
-from openshift import Result
-import openshift as oc
+from openshift_client import Result
+import openshift_client as oc
 
 '''
 This example illustrates how you can utilize the "oc_action" method to perform any "oc" operations that are not

@@ -2,7 +2,7 @@
 
 from __future__ import print_function
 from __future__ import absolute_import
-import openshift as oc
+import openshift_client as oc
 
 if __name__ == '__main__':
     with oc.tracking() as tracker:

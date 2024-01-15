@@ -1,6 +1,6 @@
 import unittest
 
-from openshift import Context
+from openshift_client import Context
 from .apiobject import APIObject
 
 
