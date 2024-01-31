@@ -17,12 +17,12 @@ import pprint
 
 # Allows modules to trigger errors
 def error(msg, **kwargs):
-    import openshift as oc
+    import openshift_client as oc
     raise oc.OpenShiftPythonException(msg, **kwargs)
 
 
 def main():
-    import openshift as oc
+    import openshift_client as oc
     script = module.params["script"]
     time = module.params["timeout"]
     oc.ansible.reset()
@@ -91,9 +91,9 @@ if __name__ == '__main__':
         tf.extractall(client_python_extract_dir)
         # Add the newly extacted directory to the python path to resolve the openshift package
         sys.path.append(client_python_extract_dir)
-        # Import openshift as oc so that we can delete the extract directory. module.exit_ type methods
+        # Import openshift_client as oc so that we can delete the extract directory. module.exit_ type methods
         # call sys.exit, so this is our only chance to leave no trace.
-        import openshift as oc
+        import openshift_client as oc
         shutil.rmtree(client_python_extract_dir)
         main()
     finally:

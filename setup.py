@@ -24,7 +24,7 @@ def read(rel_path):
 
 
 def get_version(rel_path):
-    """Returns the semantic version for the openshift-client module."""
+    """Returns the semantic version for the openshift_client module."""
     for line in read(rel_path).splitlines():
         if line.startswith('__VERSION__'):
             delim = '"' if '"' in line else "'"
@@ -35,7 +35,7 @@ def get_version(rel_path):
 
 setup(
     name="openshift-client",
-    version=get_version('packages/openshift/__init__.py'),
+    version=get_version('packages/openshift_client/__init__.py'),
     author="Justin Pierce",
     author_email="jupierce@redhat.com",
     maintainer="Brad Williams",
@@ -63,6 +63,6 @@ setup(
         "Programming Language :: Python :: 2",
         "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.12",
     ],
 )

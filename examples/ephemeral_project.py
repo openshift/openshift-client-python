@@ -5,9 +5,9 @@ from __future__ import print_function
 import argparse
 import logging
 import traceback
-import openshift as oc
-from openshift import OpenShiftPythonException
-from openshift.decorators import ephemeral_project
+import openshift_client as oc
+from openshift_client import OpenShiftPythonException
+from openshift_client.decorators import ephemeral_project
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('EphemeralProject')

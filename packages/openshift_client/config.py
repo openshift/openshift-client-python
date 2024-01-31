@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 
-import openshift as oc
+import openshift_client as oc
 import base64
 import json
 

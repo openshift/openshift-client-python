@@ -7,7 +7,7 @@ import time
 import logging
 import traceback
 
-import openshift as oc
+import openshift_client as oc
 from contextlib import contextmanager
 
 

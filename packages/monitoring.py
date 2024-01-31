@@ -2,8 +2,8 @@
 
 from __future__ import print_function
 from __future__ import absolute_import
-import openshift as oc
-from openshift import Missing
+import openshift_client as oc
+from openshift_client import Missing
 import traceback
 
 with oc.tracking() as t:
