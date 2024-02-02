@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["packages"]
+
+[tool.setuptools.dynamic]
+version = {attr = "openshift_client.__VERSION__"}
+
+[project]
+name = "openshift-client"
+description = "OpenShift python client"
+keywords = ["OpenShift"]
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Justin Pierce", email = "jupierce@redhat.com"},
+]
+maintainers = [
+    {name = "Brad Williams", email = "brawilli@redhat.com"},
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 2",
+    "Programming Language :: Python :: 2.7",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Utilities",
+]
+requires-python = ">= 2.7"
+dependencies = [
+    "pyyaml",
+    "six",
+]
+dynamic = [
+    "version",
+]
+
+[project.optional-dependencies]
+ssh = ["paramiko"]
+
+[project.urls]
+Homepage = "https://github.com/openshift/openshift-client-python"
+Issues = "https://github.com/openshift/openshift-client-python/issues"

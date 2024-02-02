@@ -53,26 +53,14 @@ username = __token__
 password = pypi-<API TOKEN>
 ```
 
-### setup.cfg
-The openshift-client module has been tested to support both python2 and python3.  Therefore, elect to build a `univeral` wheel instead of platform specific wheels.  To do so, we have added the necessary flags to our `setup.cfg` file:
-```text
-[bdist_wheel]
-universal = 1 
-
-[metadata]
-license_file = LICENSE
-```
-
-The alternative is to add the necessary flag to the commandline when building your packages:
-
-```bash
-    python setup.py build bdist_wheel --universal
-```
-
 ## Building
 For openshift-client, build both a source distribution and a universal wheel: 
 ```bash
-    python setup.py build sdist bdist_wheel
+    python -m build
+```
+or:
+```bash
+    make release
 ```
 
 ## Publishing
@@ -82,10 +70,18 @@ Publishing to either package index is accomplished by using [Twine](https://pypi
 ```bash
     twine upload --repository testpypi dist/*
 ```
+or
+```bash
+    make publish-testpypi
+```
 
 ### PyPI
 ```bash
     twine upload --repository pypi dist/*
+```
+or
+```bash
+    make publish-pypi:
 ```
 
 ## Installation
