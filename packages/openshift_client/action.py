@@ -291,7 +291,7 @@ def oc_action(context, verb, cmd_args=None, all_namespaces=False, no_namespace=F
     return_code = -1
 
     start_time = time.time()
-    exec_time = int((datetime.datetime.utcnow() - datetime.datetime(1970, 1, 1)).total_seconds() * 1000)
+    exec_time = int((datetime.datetime.now(datetime.timezone.utc) - datetime.datetime(1970, 1, 1)).total_seconds() * 1000)
 
     if context.get_ssh_client() is not None:
         references['.client_host'] = '{}@{}'.format(context.get_ssh_username() or '', context.get_ssh_hostname())
