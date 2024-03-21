@@ -3,7 +3,7 @@ from __future__ import absolute_import
 import inspect
 import os
 
-from datetime import datetime
+from datetime import datetime, timezone
 from datetime import timedelta
 from threading import local
 
@@ -248,7 +248,7 @@ class Context(object):
         # Unlike most context methods, timeout methods use cur_context instead of self.
         # This allows selectors/apiobjects captured in one timeout block to be used in another.
         c = cur_context()
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         while c is not None:
             if c.timeout_datetime is not None and now > c.timeout_datetime:
                 return True, c
@@ -267,7 +267,7 @@ class Context(object):
         # This allows selectors/apiobjects captured in one timeout block to be used in another.
         c = cur_context()
         min_secs = None
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         limiting_context = None
         while c is not None:
             if c.timeout_datetime is not None:
@@ -325,7 +325,7 @@ class Context(object):
         :return: N/A
         """
         if seconds and seconds > 0:
-            self.timeout_datetime = datetime.utcnow() + timedelta(seconds=seconds)
+            self.timeout_datetime = datetime.now(timezone.utc) + timedelta(seconds=seconds)
         else:
             self.timeout_datetime = None
 
