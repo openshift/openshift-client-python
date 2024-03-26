@@ -61,7 +61,7 @@ class Context(object):
         self.frame_info = None
         for frame in inspect.stack():
             module = inspect.getmodule(frame[0])
-            if module and (module.__name__ == 'openshift' or module.__name__.startswith('openshift.')):
+            if module and (module.__name__ == 'openshift_client' or module.__name__.startswith('openshift_client.')):
                 # The source appears to be within this module; skip this frame
                 continue
 
