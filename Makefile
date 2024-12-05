@@ -3,7 +3,8 @@ test:
 .PHONY: test
 
 clean:
-	rm -rf dist packages/openshift_client.egg-info packages/openshift_client/__pycache__ build
+	find . -type f -name '*.py[co]' -delete -o -type d -name __pycache__ -delete
+	rm -rf dist packages/openshift_client.egg-info build
 .PHONY: clean
 
 release: clean

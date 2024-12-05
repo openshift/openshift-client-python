@@ -12,7 +12,7 @@ from . import config
 from .ansible import ansible
 
 # Single source for module version
-__VERSION__ = '2.0.4'
+__VERSION__ = '2.0.5'
 
 null = None  # Allow scripts to specify null in object definitions
 
