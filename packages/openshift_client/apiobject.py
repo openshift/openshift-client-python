@@ -1,16 +1,17 @@
 from __future__ import absolute_import
 
-import yaml
-import sys
 import copy
+import sys
 
-from .action import *
-from .model import *
-from .result import *
-from .naming import kind_matches
-from .context import cur_context
-from .selector import selector
+import yaml
+
 from . import util
+from .action import *
+from .context import cur_context
+from .model import *
+from .naming import kind_matches
+from .result import *
+from .selector import selector
 
 _DEFAULT = object()
 
@@ -467,17 +468,18 @@ class APIObject:
                         self.logs(timestamps=timestamps, previous=previous, since=since, limit_bytes=limit_bytes,
                                   tail=tail, try_longshots=try_longshots, cmd_args=cmd_args))
 
-    def modify_and_apply(self, modifier_func, retries=2, cmd_args=None):
+    def modify_and_apply(self, modifier_func, retries=2, cmd_args=None, **kwargs):
         """
         Calls the modifier_func with self. The function should modify the model of the apiobj argument
         and return True if it wants this method to try to apply the change via the API. For robust
         implementations, a non-zero number of retries is recommended.
 
-        :param modifier_func: Called before each attempt with an self. The associated model will be refreshed before
+        :param modifier_func: Called before each attempt with a self. The associated model will be refreshed before
             each call if necessary. If the function finds changes it wants to make to the model, it should
             make them directly and return True. If it does not want to make changes, it should return False.
         :param cmd_args: An optional list of additional arguments to pass on the command line
         :param retries: The number of times to retry. A value of 0 means only one attempt will be made.
+        :param kwargs: keyword arguments passed directly into modifier_func
         :return: A Result object containing a record of all attempts AND a boolean. The boolean indicates
         True if a change was applied to a resource (i.e. it will be False if modifier_func suggested no
         change was necessary by returning False).
@@ -488,7 +490,7 @@ class APIObject:
         applied_change = False
         for attempt in reversed(list(range(retries + 1))):
 
-            do_apply = modifier_func(self)
+            do_apply = modifier_func(self, **kwargs)
 
             # Modifier does not want to modify this object -- stop retrying. Retuning None should continue attempts.
             if do_apply is False:
