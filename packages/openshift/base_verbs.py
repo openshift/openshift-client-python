@@ -1,24 +1,25 @@
-from __future__ import print_function
 from __future__ import absolute_import
+from __future__ import print_function
 
-import os
 import base64
 import io
-import sys
-import traceback
-import time
 import json
-import yaml
-import six
+import os
+import sys
+import time
+import traceback
 
-from .selector import Selector, selector
-from .action import oc_action
-from .context import cur_context, project, no_tracking
-from .result import Result
-from .apiobject import APIObject
-from .model import Model, Missing, OpenShiftPythonException
-from . import util
+import six
+import yaml
+
 from . import naming
+from . import util
+from .action import oc_action
+from .apiobject import APIObject
+from .context import cur_context, project, no_tracking
+from .model import Model, Missing, OpenShiftPythonException
+from .result import Result
+from .selector import Selector, selector
 
 
 def eprint(*args, **kwargs):
@@ -83,6 +84,18 @@ def whoami(cmd_args=None):
     r = Result("whoami")
     r.add_action(oc_action(cur_context(), "whoami", cmd_args=cmd_args))
     r.fail_if("Unable to determine current user")
+    return r.out().strip()
+
+
+def api_url(cmd_args=None):
+    """
+    :param cmd_args: An optional list of additional arguments to pass on the command line
+    :return: The current server's REST API url
+    """
+
+    r = Result("whoami")
+    r.add_action(oc_action(cur_context(), "whoami", cmd_args=['--show-server', cmd_args]))
+    r.fail_if("Unable to determine current server's REST API url")
     return r.out().strip()
 
 
@@ -1059,7 +1072,7 @@ def build_imagestream_simple(imagestream_name,
 
     spec = {
         'lookupPolicy': {
-                'local': local_lookup_policy
+            'local': local_lookup_policy
         }
     }
 
