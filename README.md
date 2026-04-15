@@ -587,7 +587,7 @@ Establishing explicit contexts within an application will override these environ
 - `OPENSHIFT_CLIENT_PYTHON_DEFAULT_OC_PATH` - default path to use when invoking `oc`
 - `OPENSHIFT_CLIENT_PYTHON_DEFAULT_CONFIG_PATH` - default `--kubeconfig` argument
 - `OPENSHIFT_CLIENT_PYTHON_DEFAULT_API_SERVER` - default `--server` argument
-- `OPENSHIFT_CLIENT_PYTHON_DEFAULT_CA_CERT_PATH` - default `--cacert` argument
+- `OPENSHIFT_CLIENT_PYTHON_DEFAULT_CA_CERT_PATH` - default `--certificate-authority` argument
 - `OPENSHIFT_CLIENT_PYTHON_DEFAULT_PROJECT` - default `--namespace` argument
 - `OPENSHIFT_CLIENT_PYTHON_DEFAULT_OC_LOGLEVEL` - default `--loglevel` argument
 - `OPENSHIFT_CLIENT_PYTHON_DEFAULT_SKIP_TLS_VERIFY` - default `--insecure-skip-tls-verify`
