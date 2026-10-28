@@ -246,7 +246,7 @@ def oc_action(context, verb, cmd_args=None, all_namespaces=False, no_namespace=F
         cmds.append('--token={}'.format(context.get_token()))
 
     if context.get_ca_cert_path() is not None:
-        cmds.append('--cacert={}'.format(context.get_ca_cert_path()))
+        cmds.append('--certificate-authority={}'.format(context.get_ca_cert_path()))
 
     if all_namespaces:
         cmds.append("--all-namespaces")
